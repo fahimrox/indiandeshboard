@@ -19,7 +19,7 @@ export type Quote = {
   exchange: string;
 };
 
-async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
+async function fetchYahooChunk(symbols: string[]): Promise<Quote[]> {
   const url = `https://query2.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
     symbols.join(","),
   )}&range=1d&interval=5m`;
@@ -52,13 +52,24 @@ async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
       changePct: prev ? ((price - prev) / prev) * 100 : 0,
       dayHigh: meta.regularMarketDayHigh ?? price,
       dayLow: meta.regularMarketDayLow ?? price,
-      open: meta.regularMarketDayHigh && meta.regularMarketDayLow ? (meta.regularMarketDayHigh + meta.regularMarketDayLow) / 2 : price,
+      open:
+        meta.regularMarketDayHigh && meta.regularMarketDayLow
+          ? (meta.regularMarketDayHigh + meta.regularMarketDayLow) / 2
+          : price,
       marketState: meta.marketState ?? "UNKNOWN",
       currency: meta.currency ?? "INR",
       exchange: meta.fullExchangeName ?? meta.exchangeName ?? "",
     });
   }
   return out;
+}
+
+async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
+  const CHUNK = 10;
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += CHUNK) chunks.push(symbols.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map((c) => fetchYahooChunk(c)));
+  return results.flat();
 }
 
 const INDICES = ["^NSEI", "^BSESN", "^NSEBANK"];
