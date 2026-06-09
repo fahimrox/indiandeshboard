@@ -1,0 +1,318 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+// NSE scraper. NSE requires a cookie session — we hit the homepage first,
+// reuse cookies for the JSON API, and cache responses to dodge rate limits.
+// If the upstream blocks the server's IP (common on cloud edge), we fall back
+// to a synthesized response so the UI keeps working.
+
+let cookieStore: { value: string; at: number } | null = null;
+const COOKIE_TTL = 5 * 60_000;
+
+const HEADERS_BASE: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://www.nseindia.com/",
+};
+
+async function getCookies(): Promise<string> {
+  if (cookieStore && Date.now() - cookieStore.at < COOKIE_TTL) return cookieStore.value;
+  const res = await fetch("https://www.nseindia.com/option-chain", {
+    headers: HEADERS_BASE,
+  });
+  const raw = res.headers.get("set-cookie") ?? "";
+  const cookie = raw
+    .split(/,(?=[^ ])/)
+    .map((c) => c.split(";")[0].trim())
+    .filter(Boolean)
+    .join("; ");
+  cookieStore = { value: cookie, at: Date.now() };
+  return cookie;
+}
+
+async function nseGet<T>(path: string): Promise<T> {
+  const cookie = await getCookies();
+  const res = await fetch(`https://www.nseindia.com${path}`, {
+    headers: { ...HEADERS_BASE, Cookie: cookie },
+  });
+  if (!res.ok) throw new Error(`NSE ${path} -> ${res.status}`);
+  return (await res.json()) as T;
+}
+
+const cache = new Map<string, { at: number; data: unknown }>();
+const TTL = 30_000;
+
+async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL) return hit.data as T;
+  try {
+    const data = await fn();
+    cache.set(key, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    if (hit) return hit.data as T;
+    throw err;
+  }
+}
+
+// ============ OPTION CHAIN ============
+
+export type OcRow = {
+  strike: number;
+  ce: { oi: number; oiChg: number; volume: number; ltp: number } | null;
+  pe: { oi: number; oiChg: number; volume: number; ltp: number } | null;
+};
+
+export type OptionChain = {
+  symbol: string;
+  spot: number;
+  expiry: string;
+  rows: OcRow[];
+  maxCeOiStrike: number;
+  maxPeOiStrike: number;
+  maxCeVolStrike: number;
+  maxPeVolStrike: number;
+  second: {
+    ceOi: number;
+    peOi: number;
+    ceVol: number;
+    peVol: number;
+  };
+  totals: {
+    ceOi: number;
+    peOi: number;
+    ceOiChg: number;
+    peOiChg: number;
+    ceVol: number;
+    peVol: number;
+  };
+  source: "nse" | "fallback";
+  updatedAt: number;
+};
+
+function synthOptionChain(symbol: string, spot: number): OptionChain {
+  const step = symbol === "BANKNIFTY" ? 100 : 50;
+  const center = Math.round(spot / step) * step;
+  const rows: OcRow[] = [];
+  for (let i = -7; i <= 7; i++) {
+    const strike = center + i * step;
+    const dist = Math.abs(strike - spot) / spot;
+    const base = Math.round(50_000 * Math.exp(-dist * 18));
+    const noise = () => 0.5 + Math.random();
+    const ceOi = Math.round(base * noise() * (i < 0 ? 0.6 : 1.2));
+    const peOi = Math.round(base * noise() * (i > 0 ? 0.6 : 1.2));
+    rows.push({
+      strike,
+      ce: {
+        oi: ceOi,
+        oiChg: Math.round(ceOi * (Math.random() - 0.4) * 0.5),
+        volume: Math.round(ceOi * (1 + Math.random() * 4)),
+        ltp: Math.max(0.5, spot - strike + Math.random() * 80),
+      },
+      pe: {
+        oi: peOi,
+        oiChg: Math.round(peOi * (Math.random() - 0.4) * 0.5),
+        volume: Math.round(peOi * (1 + Math.random() * 4)),
+        ltp: Math.max(0.5, strike - spot + Math.random() * 80),
+      },
+    });
+  }
+  return computeOcAggregates({
+    symbol,
+    spot,
+    expiry: "WEEKLY",
+    rows,
+    source: "fallback",
+    updatedAt: Date.now(),
+  } as OptionChain);
+}
+
+function computeOcAggregates(oc: OptionChain): OptionChain {
+  const ceOis = oc.rows
+    .map((r) => ({ s: r.strike, v: r.ce?.oi ?? 0 }))
+    .sort((a, b) => b.v - a.v);
+  const peOis = oc.rows
+    .map((r) => ({ s: r.strike, v: r.pe?.oi ?? 0 }))
+    .sort((a, b) => b.v - a.v);
+  const ceVols = oc.rows
+    .map((r) => ({ s: r.strike, v: r.ce?.volume ?? 0 }))
+    .sort((a, b) => b.v - a.v);
+  const peVols = oc.rows
+    .map((r) => ({ s: r.strike, v: r.pe?.volume ?? 0 }))
+    .sort((a, b) => b.v - a.v);
+  oc.maxCeOiStrike = ceOis[0]?.s ?? 0;
+  oc.maxPeOiStrike = peOis[0]?.s ?? 0;
+  oc.maxCeVolStrike = ceVols[0]?.s ?? 0;
+  oc.maxPeVolStrike = peVols[0]?.s ?? 0;
+  oc.second = {
+    ceOi: ceOis[1]?.s ?? 0,
+    peOi: peOis[1]?.s ?? 0,
+    ceVol: ceVols[1]?.s ?? 0,
+    peVol: peVols[1]?.s ?? 0,
+  };
+  oc.totals = {
+    ceOi: oc.rows.reduce((a, r) => a + (r.ce?.oi ?? 0), 0),
+    peOi: oc.rows.reduce((a, r) => a + (r.pe?.oi ?? 0), 0),
+    ceOiChg: oc.rows.reduce((a, r) => a + (r.ce?.oiChg ?? 0), 0),
+    peOiChg: oc.rows.reduce((a, r) => a + (r.pe?.oiChg ?? 0), 0),
+    ceVol: oc.rows.reduce((a, r) => a + (r.ce?.volume ?? 0), 0),
+    peVol: oc.rows.reduce((a, r) => a + (r.pe?.volume ?? 0), 0),
+  };
+  return oc;
+}
+
+async function fetchOptionChain(symbol: string): Promise<OptionChain> {
+  const indexSyms = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"];
+  const path = indexSyms.includes(symbol)
+    ? `/api/option-chain-indices?symbol=${symbol}`
+    : `/api/option-chain-equities?symbol=${symbol}`;
+  try {
+    type Resp = {
+      records: {
+        expiryDates: string[];
+        underlyingValue: number;
+        data: Array<{
+          strikePrice: number;
+          expiryDate: string;
+          CE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number };
+          PE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number };
+        }>;
+      };
+    };
+    const json = await nseGet<Resp>(path);
+    const spot = json.records.underlyingValue;
+    const expiry = json.records.expiryDates[0];
+    const rowMap = new Map<number, OcRow>();
+    for (const d of json.records.data) {
+      if (d.expiryDate !== expiry) continue;
+      rowMap.set(d.strikePrice, {
+        strike: d.strikePrice,
+        ce: d.CE
+          ? {
+              oi: d.CE.openInterest,
+              oiChg: d.CE.changeinOpenInterest,
+              volume: d.CE.totalTradedVolume,
+              ltp: d.CE.lastPrice,
+            }
+          : null,
+        pe: d.PE
+          ? {
+              oi: d.PE.openInterest,
+              oiChg: d.PE.changeinOpenInterest,
+              volume: d.PE.totalTradedVolume,
+              ltp: d.PE.lastPrice,
+            }
+          : null,
+      });
+    }
+    const sorted = [...rowMap.values()].sort((a, b) => a.strike - b.strike);
+    // keep 15 strikes around spot
+    const idx = sorted.findIndex((r) => r.strike >= spot);
+    const start = Math.max(0, idx - 7);
+    const slice = sorted.slice(start, start + 15);
+    return computeOcAggregates({
+      symbol,
+      spot,
+      expiry,
+      rows: slice,
+      source: "nse",
+      updatedAt: Date.now(),
+    } as OptionChain);
+  } catch (err) {
+    console.warn(`NSE option chain fallback for ${symbol}:`, err);
+    // best-effort fallback near approximate spot
+    const fallbackSpots: Record<string, number> = {
+      NIFTY: 24500,
+      BANKNIFTY: 52000,
+      FINNIFTY: 23500,
+    };
+    return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000);
+  }
+}
+
+export const getOptionChain = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional() }))
+  .handler(async ({ data }) => {
+    return cached(`oc:${data.symbol}`, async () => {
+      const oc = await fetchOptionChain(data.symbol);
+      if (data.spot && oc.source === "fallback") {
+        return synthOptionChain(data.symbol, data.spot);
+      }
+      return oc;
+    });
+  });
+
+// ============ F&O STOCKS w/ BUILDUP ============
+
+export type FnoStock = {
+  symbol: string;
+  ltp: number;
+  changePct: number;
+  volume: number;
+  oi: number;
+  oiChgPct: number;
+  buildup: "Long Buildup" | "Short Buildup" | "Short Covering" | "Long Unwinding" | "Neutral";
+  volumeShocker: boolean;
+  aiSentiment: number; // -100..100
+};
+
+function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
+  if (Math.abs(priceChg) < 0.1 && Math.abs(oiChg) < 0.5) return "Neutral";
+  if (priceChg > 0 && oiChg > 0) return "Long Buildup";
+  if (priceChg < 0 && oiChg > 0) return "Short Buildup";
+  if (priceChg > 0 && oiChg < 0) return "Short Covering";
+  if (priceChg < 0 && oiChg < 0) return "Long Unwinding";
+  return "Neutral";
+}
+
+async function fetchFnoStocks(): Promise<{ data: FnoStock[]; source: "nse" | "fallback" }> {
+  try {
+    type Resp = {
+      data: Array<{
+        symbol: string;
+        lastPrice: number;
+        pChange: number;
+        totalTradedVolume: number;
+        openInterest?: number;
+        changeInOI?: number;
+        pchangeinOpenInterest?: number;
+      }>;
+    };
+    const json = await nseGet<Resp>("/api/live-analysis-oi-spurts-underlyings");
+    const stocks = json.data
+      .map((d) => {
+        const oiChg = d.pchangeinOpenInterest ?? 0;
+        const buildup = classifyBuildup(d.pChange, oiChg);
+        const aiSentiment = Math.max(
+          -100,
+          Math.min(100, Math.round(d.pChange * 8 + (oiChg * (buildup === "Long Buildup" ? 1 : -1)) * 0.5)),
+        );
+        return {
+          symbol: d.symbol,
+          ltp: d.lastPrice,
+          changePct: d.pChange,
+          volume: d.totalTradedVolume,
+          oi: d.openInterest ?? 0,
+          oiChgPct: oiChg,
+          buildup,
+          volumeShocker: false,
+          aiSentiment,
+        };
+      })
+      .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+    // mark volume shockers (top 10% by volume)
+    const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
+    const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
+    for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
+    return { data: stocks, source: "nse" };
+  } catch (err) {
+    console.warn("NSE F&O fallback:", err);
+    return { data: [], source: "fallback" };
+  }
+}
+
+export const getFnoStocks = createServerFn({ method: "GET" }).handler(async () =>
+  cached("fno-stocks", fetchFnoStocks),
+);
