@@ -78,15 +78,33 @@ const NIFTY_STOCKS = [
   "NTPC.NS","POWERGRID.NS","WIPRO.NS","NESTLEIND.NS","TATAMOTORS.NS",
 ];
 
+// Simple in-memory cache (per server instance) to dodge upstream rate limits.
+const cache = new Map<string, { at: number; data: Quote[] }>();
+const TTL_MS = 25_000;
+
+async function cachedYahoo(symbols: string[]): Promise<Quote[]> {
+  const key = [...symbols].sort().join(",");
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
+  try {
+    const data = await fetchYahoo(symbols);
+    cache.set(key, { at: Date.now(), data });
+    return data;
+  } catch (err) {
+    if (hit) return hit.data; // serve stale on upstream error
+    throw err;
+  }
+}
+
 export const getQuotes = createServerFn({ method: "GET" })
   .inputValidator(z.object({ symbols: z.array(z.string()).min(1).max(60) }))
-  .handler(async ({ data }) => fetchYahoo(data.symbols));
+  .handler(async ({ data }) => cachedYahoo(data.symbols));
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
   const [indices, sectors, stocks] = await Promise.all([
-    fetchYahoo(INDICES),
-    fetchYahoo(SECTORS.map((s) => s.symbol)),
-    fetchYahoo(NIFTY_STOCKS),
+    cachedYahoo(INDICES),
+    cachedYahoo(SECTORS.map((s) => s.symbol)),
+    cachedYahoo(NIFTY_STOCKS),
   ]);
   const indexMap = Object.fromEntries(indices.map((q) => [q.symbol, q]));
   const sectorList = sectors.map((q) => ({
