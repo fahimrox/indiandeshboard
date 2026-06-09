@@ -1,24 +1,162 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
-import { Activity } from "lucide-react";
+import { ChangePill, fmt } from "@/components/MarketBits";
+import { fnoStocksQuery } from "@/lib/dashboard-query";
+import { Flame, TrendingDown, TrendingUp, Activity } from "lucide-react";
+import { useState } from "react";
+import type { FnoStock } from "@/lib/nse.functions";
 
 export const Route = createFileRoute("/fno")({
-  head: () => ({ meta: [{ title: "F&O Trade Flow | IndexMover" }] }),
+  head: () => ({ meta: [{ title: "F&O Stocks — Live NSE | IndexMover" }] }),
+  loader: ({ context }) => context.queryClient.ensureQueryData(fnoStocksQuery),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
   notFoundComponent: () => <div className="p-8">Not found</div>,
 });
 
+const BUILDUP_STYLES: Record<FnoStock["buildup"], string> = {
+  "Long Buildup": "bg-[var(--bull)]/15 text-[var(--bull)]",
+  "Short Covering": "bg-emerald-500/15 text-emerald-300",
+  "Short Buildup": "bg-[var(--bear)]/15 text-[var(--bear)]",
+  "Long Unwinding": "bg-amber-500/15 text-amber-300",
+  Neutral: "bg-muted text-muted-foreground",
+};
+
+function fmtN(n: number) {
+  if (!isFinite(n)) return "—";
+  if (Math.abs(n) >= 1e7) return (n / 1e7).toFixed(2) + " Cr";
+  if (Math.abs(n) >= 1e5) return (n / 1e5).toFixed(2) + " L";
+  if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(2) + "K";
+  return n.toLocaleString("en-IN");
+}
+
 function Page() {
+  const { data } = useSuspenseQuery(fnoStocksQuery);
+  const [filter, setFilter] = useState<FnoStock["buildup"] | "All">("All");
+  const [search, setSearch] = useState("");
+  const rows = data.data
+    .filter((s) => filter === "All" || s.buildup === filter)
+    .filter((s) => s.symbol.toLowerCase().includes(search.toLowerCase()));
+
+  const counts = {
+    "Long Buildup": data.data.filter((s) => s.buildup === "Long Buildup").length,
+    "Short Buildup": data.data.filter((s) => s.buildup === "Short Buildup").length,
+    "Short Covering": data.data.filter((s) => s.buildup === "Short Covering").length,
+    "Long Unwinding": data.data.filter((s) => s.buildup === "Long Unwinding").length,
+  };
+
   return (
-    <DashboardShell title="F&O Trade Flow" subtitle="Futures & options activity">
-      <div className="rounded-2xl border border-border bg-card p-10 text-center">
-        <Activity className="mx-auto h-10 w-10 text-[var(--neon)]" />
-        <div className="mt-4 text-lg font-semibold">F&O data coming soon</div>
-        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Free F&O option chain feeds require an NSE session/cookie. Yeh integrate karne ke liye
-          ek server-side scraper add karna padega — bolo to wo bhi laga deta hoon.
-        </p>
+    <DashboardShell title="F&O Stocks" subtitle="All NSE F&O underlyings — buildup & AI sentiment">
+      {data.source === "fallback" && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          NSE feed blocked from server right now. Try in a few minutes — auto-retry har 45s.
+        </div>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-4">
+        {(Object.keys(counts) as Array<keyof typeof counts>).map((k) => (
+          <button
+            key={k}
+            onClick={() => setFilter(filter === k ? "All" : k)}
+            className={`rounded-xl border p-4 text-left transition ${
+              filter === k ? "border-[var(--neon)] ring-1 ring-[var(--neon)]/50" : "border-border bg-card hover:border-[var(--neon)]/40"
+            }`}
+          >
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">{k}</div>
+            <div className="mt-1 font-mono text-2xl font-bold">{counts[k]}</div>
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search symbol…"
+          className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-[var(--neon)]"
+        />
+        <button
+          onClick={() => { setFilter("All"); setSearch(""); }}
+          className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
+        >
+          Reset
+        </button>
+        <div className="ml-auto text-xs text-muted-foreground">{rows.length} stocks</div>
+      </div>
+
+      <div className="mt-3 overflow-x-auto rounded-2xl border border-border bg-card">
+        <table className="w-full min-w-[900px] text-sm">
+          <thead className="text-xs uppercase tracking-wider text-muted-foreground">
+            <tr className="border-b border-border">
+              <th className="px-3 py-3 text-left">Symbol</th>
+              <th className="px-3 py-3 text-right">LTP</th>
+              <th className="px-3 py-3 text-right">Change %</th>
+              <th className="px-3 py-3 text-right">Volume</th>
+              <th className="px-3 py-3 text-right">OI</th>
+              <th className="px-3 py-3 text-right">OI Chg %</th>
+              <th className="px-3 py-3 text-left">Buildup</th>
+              <th className="px-3 py-3 text-right">AI Sentiment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => {
+              const up = s.changePct >= 0;
+              return (
+                <tr key={s.symbol} className="border-b border-border/40 hover:bg-background/30">
+                  <td className="px-3 py-2 font-semibold">
+                    <div className="flex items-center gap-2">
+                      <span>{s.symbol}</span>
+                      {s.volumeShocker && (
+                        <span className="rounded bg-[var(--neon)]/20 px-1.5 py-0.5 text-[9px] font-bold text-[var(--neon)]">
+                          VOL SHOCK
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">{fmt(s.ltp)}</td>
+                  <td className={`px-3 py-2 text-right font-mono ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+                    {up ? "+" : ""}{fmt(s.changePct)}%
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">{fmtN(s.volume)}</td>
+                  <td className="px-3 py-2 text-right font-mono">{fmtN(s.oi)}</td>
+                  <td className={`px-3 py-2 text-right font-mono ${s.oiChgPct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+                    {s.oiChgPct >= 0 ? "+" : ""}{fmt(s.oiChgPct)}%
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-semibold ${BUILDUP_STYLES[s.buildup]}`}>
+                      {s.buildup === "Long Buildup" && <TrendingUp className="h-3 w-3" />}
+                      {s.buildup === "Short Buildup" && <TrendingDown className="h-3 w-3" />}
+                      {s.buildup === "Short Covering" && <Flame className="h-3 w-3" />}
+                      {s.buildup === "Long Unwinding" && <Activity className="h-3 w-3" />}
+                      {s.buildup}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <div className="inline-flex items-center gap-2">
+                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-background/60">
+                        <div
+                          className={s.aiSentiment >= 0 ? "h-full bg-[var(--bull)]" : "h-full bg-[var(--bear)]"}
+                          style={{ width: `${Math.min(100, Math.abs(s.aiSentiment))}%` }}
+                        />
+                      </div>
+                      <span className={`font-mono text-xs ${s.aiSentiment >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+                        {s.aiSentiment >= 0 ? "+" : ""}{s.aiSentiment}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-3 py-12 text-center text-sm text-muted-foreground">
+                  No F&O stocks loaded yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </DashboardShell>
   );

@@ -10,15 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SensexRouteImport } from './routes/sensex'
+import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
+import { Route as FnoboardRouteImport } from './routes/fnoboard'
 import { Route as FnoRouteImport } from './routes/fno'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SectorKeyRouteImport } from './routes/sector.$key'
 
 const SensexRoute = SensexRouteImport.update({
   id: '/sensex',
   path: '/sensex',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OptionchainRoute = OptionchainRouteImport.update({
+  id: '/optionchain',
+  path: '/optionchain',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Nifty50Route = Nifty50RouteImport.update({
@@ -29,6 +37,11 @@ const Nifty50Route = Nifty50RouteImport.update({
 const HeatmapRoute = HeatmapRouteImport.update({
   id: '/heatmap',
   path: '/heatmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FnoboardRoute = FnoboardRouteImport.update({
+  id: '/fnoboard',
+  path: '/fnoboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FnoRoute = FnoRouteImport.update({
@@ -46,54 +59,92 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SectorKeyRoute = SectorKeyRouteImport.update({
+  id: '/sector/$key',
+  path: '/sector/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
+  '/fnoboard': typeof FnoboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
+  '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
+  '/fnoboard': typeof FnoboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
+  '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
+  '/fnoboard': typeof FnoboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
+  '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/banknifty' | '/fno' | '/heatmap' | '/nifty50' | '/sensex'
+  fullPaths:
+    | '/'
+    | '/banknifty'
+    | '/fno'
+    | '/fnoboard'
+    | '/heatmap'
+    | '/nifty50'
+    | '/optionchain'
+    | '/sensex'
+    | '/sector/$key'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/banknifty' | '/fno' | '/heatmap' | '/nifty50' | '/sensex'
+  to:
+    | '/'
+    | '/banknifty'
+    | '/fno'
+    | '/fnoboard'
+    | '/heatmap'
+    | '/nifty50'
+    | '/optionchain'
+    | '/sensex'
+    | '/sector/$key'
   id:
     | '__root__'
     | '/'
     | '/banknifty'
     | '/fno'
+    | '/fnoboard'
     | '/heatmap'
     | '/nifty50'
+    | '/optionchain'
     | '/sensex'
+    | '/sector/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BankniftyRoute: typeof BankniftyRoute
   FnoRoute: typeof FnoRoute
+  FnoboardRoute: typeof FnoboardRoute
   HeatmapRoute: typeof HeatmapRoute
   Nifty50Route: typeof Nifty50Route
+  OptionchainRoute: typeof OptionchainRoute
   SensexRoute: typeof SensexRoute
+  SectorKeyRoute: typeof SectorKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -103,6 +154,13 @@ declare module '@tanstack/react-router' {
       path: '/sensex'
       fullPath: '/sensex'
       preLoaderRoute: typeof SensexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/optionchain': {
+      id: '/optionchain'
+      path: '/optionchain'
+      fullPath: '/optionchain'
+      preLoaderRoute: typeof OptionchainRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nifty50': {
@@ -117,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/heatmap'
       fullPath: '/heatmap'
       preLoaderRoute: typeof HeatmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fnoboard': {
+      id: '/fnoboard'
+      path: '/fnoboard'
+      fullPath: '/fnoboard'
+      preLoaderRoute: typeof FnoboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fno': {
@@ -140,6 +205,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sector/$key': {
+      id: '/sector/$key'
+      path: '/sector/$key'
+      fullPath: '/sector/$key'
+      preLoaderRoute: typeof SectorKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -147,9 +219,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BankniftyRoute: BankniftyRoute,
   FnoRoute: FnoRoute,
+  FnoboardRoute: FnoboardRoute,
   HeatmapRoute: HeatmapRoute,
   Nifty50Route: Nifty50Route,
+  OptionchainRoute: OptionchainRoute,
   SensexRoute: SensexRoute,
+  SectorKeyRoute: SectorKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
