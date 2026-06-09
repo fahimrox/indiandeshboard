@@ -9,8 +9,38 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SensexRouteImport } from './routes/sensex'
+import { Route as Nifty50RouteImport } from './routes/nifty50'
+import { Route as HeatmapRouteImport } from './routes/heatmap'
+import { Route as FnoRouteImport } from './routes/fno'
+import { Route as BankniftyRouteImport } from './routes/banknifty'
 import { Route as IndexRouteImport } from './routes/index'
 
+const SensexRoute = SensexRouteImport.update({
+  id: '/sensex',
+  path: '/sensex',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Nifty50Route = Nifty50RouteImport.update({
+  id: '/nifty50',
+  path: '/nifty50',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HeatmapRoute = HeatmapRouteImport.update({
+  id: '/heatmap',
+  path: '/heatmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FnoRoute = FnoRouteImport.update({
+  id: '/fno',
+  path: '/fno',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BankniftyRoute = BankniftyRouteImport.update({
+  id: '/banknifty',
+  path: '/banknifty',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +49,90 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/banknifty': typeof BankniftyRoute
+  '/fno': typeof FnoRoute
+  '/heatmap': typeof HeatmapRoute
+  '/nifty50': typeof Nifty50Route
+  '/sensex': typeof SensexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/banknifty': typeof BankniftyRoute
+  '/fno': typeof FnoRoute
+  '/heatmap': typeof HeatmapRoute
+  '/nifty50': typeof Nifty50Route
+  '/sensex': typeof SensexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/banknifty': typeof BankniftyRoute
+  '/fno': typeof FnoRoute
+  '/heatmap': typeof HeatmapRoute
+  '/nifty50': typeof Nifty50Route
+  '/sensex': typeof SensexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/banknifty' | '/fno' | '/heatmap' | '/nifty50' | '/sensex'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/banknifty' | '/fno' | '/heatmap' | '/nifty50' | '/sensex'
+  id:
+    | '__root__'
+    | '/'
+    | '/banknifty'
+    | '/fno'
+    | '/heatmap'
+    | '/nifty50'
+    | '/sensex'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BankniftyRoute: typeof BankniftyRoute
+  FnoRoute: typeof FnoRoute
+  HeatmapRoute: typeof HeatmapRoute
+  Nifty50Route: typeof Nifty50Route
+  SensexRoute: typeof SensexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sensex': {
+      id: '/sensex'
+      path: '/sensex'
+      fullPath: '/sensex'
+      preLoaderRoute: typeof SensexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nifty50': {
+      id: '/nifty50'
+      path: '/nifty50'
+      fullPath: '/nifty50'
+      preLoaderRoute: typeof Nifty50RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/heatmap': {
+      id: '/heatmap'
+      path: '/heatmap'
+      fullPath: '/heatmap'
+      preLoaderRoute: typeof HeatmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fno': {
+      id: '/fno'
+      path: '/fno'
+      fullPath: '/fno'
+      preLoaderRoute: typeof FnoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/banknifty': {
+      id: '/banknifty'
+      path: '/banknifty'
+      fullPath: '/banknifty'
+      preLoaderRoute: typeof BankniftyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,7 +145,22 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BankniftyRoute: BankniftyRoute,
+  FnoRoute: FnoRoute,
+  HeatmapRoute: HeatmapRoute,
+  Nifty50Route: Nifty50Route,
+  SensexRoute: SensexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
