@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 // Yahoo Finance public spark endpoint — no token required.
-// Used as a free, reliable source for NSE/BSE quotes.
 
 export type Quote = {
   symbol: string;
@@ -73,17 +72,37 @@ async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
 }
 
 const INDICES = ["^NSEI", "^BSESN", "^NSEBANK"];
-const SECTORS = [
-  { symbol: "^CNXIT", name: "IT" },
-  { symbol: "^CNXPHARMA", name: "Pharma" },
-  { symbol: "^CNXAUTO", name: "Auto" },
-  { symbol: "^CNXENERGY", name: "Energy" },
-  { symbol: "^CNXFMCG", name: "FMCG" },
-  { symbol: "^CNXMETAL", name: "Metal" },
-  { symbol: "NIFTY_FIN_SERVICE.NS", name: "Finance" },
-  { symbol: "^NSEBANK", name: "Banking" },
+
+export const SECTORS = [
+  { key: "it", symbol: "^CNXIT", name: "IT" },
+  { key: "pharma", symbol: "^CNXPHARMA", name: "Pharma" },
+  { key: "auto", symbol: "^CNXAUTO", name: "Auto" },
+  { key: "energy", symbol: "^CNXENERGY", name: "Energy" },
+  { key: "fmcg", symbol: "^CNXFMCG", name: "FMCG" },
+  { key: "metal", symbol: "^CNXMETAL", name: "Metal" },
+  { key: "realty", symbol: "^CNXREALTY", name: "Realty" },
+  { key: "media", symbol: "^CNXMEDIA", name: "Media" },
+  { key: "psubank", symbol: "^CNXPSUBANK", name: "PSU Bank" },
+  { key: "finance", symbol: "NIFTY_FIN_SERVICE.NS", name: "Finance" },
+  { key: "banking", symbol: "^NSEBANK", name: "Banking" },
+  { key: "infra", symbol: "^CNXINFRA", name: "Infra" },
 ];
-// Top NIFTY 50 constituents by weight (subset for gainers/losers card)
+
+export const SECTOR_STOCKS: Record<string, string[]> = {
+  it: ["TCS.NS","INFY.NS","HCLTECH.NS","WIPRO.NS","TECHM.NS","LTIM.NS","PERSISTENT.NS","COFORGE.NS","MPHASIS.NS","OFSS.NS"],
+  pharma: ["SUNPHARMA.NS","DIVISLAB.NS","CIPLA.NS","DRREDDY.NS","LUPIN.NS","AUROPHARMA.NS","TORNTPHARM.NS","ZYDUSLIFE.NS","BIOCON.NS","ALKEM.NS"],
+  auto: ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS","EICHERMOT.NS","HEROMOTOCO.NS","TVSMOTOR.NS","ASHOKLEY.NS","BOSCHLTD.NS","MRF.NS"],
+  energy: ["RELIANCE.NS","ONGC.NS","NTPC.NS","POWERGRID.NS","COALINDIA.NS","BPCL.NS","IOC.NS","GAIL.NS","ADANIGREEN.NS","TATAPOWER.NS"],
+  fmcg: ["HINDUNILVR.NS","ITC.NS","NESTLEIND.NS","BRITANNIA.NS","TATACONSUM.NS","DABUR.NS","GODREJCP.NS","MARICO.NS","COLPAL.NS","VBL.NS"],
+  metal: ["TATASTEEL.NS","JSWSTEEL.NS","HINDALCO.NS","VEDL.NS","JINDALSTEL.NS","SAIL.NS","NMDC.NS","HINDZINC.NS","NATIONALUM.NS","APLAPOLLO.NS"],
+  realty: ["DLF.NS","GODREJPROP.NS","LODHA.NS","OBEROIRLTY.NS","PRESTIGE.NS","PHOENIXLTD.NS","BRIGADE.NS","SOBHA.NS"],
+  media: ["ZEEL.NS","SUNTV.NS","PVRINOX.NS","NETWORK18.NS","TV18BRDCST.NS","SAREGAMA.NS"],
+  psubank: ["SBIN.NS","BANKBARODA.NS","PNB.NS","CANBK.NS","UNIONBANK.NS","INDIANB.NS","BANKINDIA.NS","CENTRALBK.NS"],
+  finance: ["BAJFINANCE.NS","BAJAJFINSV.NS","HDFCLIFE.NS","SBILIFE.NS","ICICIPRULI.NS","CHOLAFIN.NS","SBICARD.NS","MUTHOOTFIN.NS","RECLTD.NS","PFC.NS"],
+  banking: ["HDFCBANK.NS","ICICIBANK.NS","KOTAKBANK.NS","AXISBANK.NS","SBIN.NS","INDUSINDBK.NS","AUBANK.NS","FEDERALBNK.NS","IDFCFIRSTB.NS","BANDHANBNK.NS"],
+  infra: ["LT.NS","ADANIPORTS.NS","GMRINFRA.NS","IRB.NS","NCC.NS","KEC.NS","HGINFRA.NS","PNCINFRA.NS"],
+};
+
 const NIFTY_STOCKS = [
   "RELIANCE.NS","HDFCBANK.NS","ICICIBANK.NS","INFY.NS","TCS.NS",
   "BHARTIARTL.NS","ITC.NS","LT.NS","KOTAKBANK.NS","AXISBANK.NS",
@@ -92,7 +111,21 @@ const NIFTY_STOCKS = [
   "NTPC.NS","POWERGRID.NS","WIPRO.NS","NESTLEIND.NS","TATAMOTORS.NS",
 ];
 
-// Simple in-memory cache (per server instance) to dodge upstream rate limits.
+const BANKNIFTY_STOCKS = [
+  "HDFCBANK.NS","ICICIBANK.NS","KOTAKBANK.NS","AXISBANK.NS","SBIN.NS",
+  "INDUSINDBK.NS","AUBANK.NS","FEDERALBNK.NS","IDFCFIRSTB.NS","BANDHANBNK.NS",
+  "PNB.NS","BANKBARODA.NS",
+];
+
+const SENSEX_STOCKS = [
+  "RELIANCE.NS","HDFCBANK.NS","ICICIBANK.NS","INFY.NS","TCS.NS",
+  "BHARTIARTL.NS","ITC.NS","LT.NS","KOTAKBANK.NS","AXISBANK.NS",
+  "SBIN.NS","HINDUNILVR.NS","BAJFINANCE.NS","MARUTI.NS","ASIANPAINT.NS",
+  "M&M.NS","SUNPHARMA.NS","HCLTECH.NS","ULTRACEMCO.NS","TITAN.NS",
+  "NTPC.NS","POWERGRID.NS","WIPRO.NS","NESTLEIND.NS","TATAMOTORS.NS",
+  "TECHM.NS","TATASTEEL.NS","JSWSTEEL.NS","ADANIPORTS.NS","INDUSINDBK.NS",
+];
+
 const cache = new Map<string, { at: number; data: Quote[] }>();
 const TTL_MS = 25_000;
 
@@ -105,7 +138,7 @@ async function cachedYahoo(symbols: string[]): Promise<Quote[]> {
     cache.set(key, { at: Date.now(), data });
     return data;
   } catch (err) {
-    if (hit) return hit.data; // serve stale on upstream error
+    if (hit) return hit.data;
     throw err;
   }
 }
@@ -114,6 +147,69 @@ export const getQuotes = createServerFn({ method: "GET" })
   .inputValidator(z.object({ symbols: z.array(z.string()).min(1).max(60) }))
   .handler(async ({ data }) => cachedYahoo(data.symbols));
 
+function statsFor(stocks: Quote[]) {
+  const advance = stocks.filter((s) => s.changePct > 0).length;
+  const decline = stocks.filter((s) => s.changePct < 0).length;
+  const unchanged = stocks.length - advance - decline;
+  const avgChange = stocks.reduce((a, s) => a + s.changePct, 0) / (stocks.length || 1);
+  const sorted = [...stocks].sort((a, b) => b.changePct - a.changePct);
+  return {
+    stocks,
+    advance,
+    decline,
+    unchanged,
+    avgChange,
+    gainers: sorted.filter((s) => s.changePct > 0).slice(0, 5),
+    losers: sorted.filter((s) => s.changePct < 0).slice(-5).reverse(),
+  };
+}
+
+function buildCommentary(opts: {
+  niftyPct: number;
+  bullsPct: number;
+  topSector?: { label: string; changePct: number };
+  bottomSector?: { label: string; changePct: number };
+  topGainer?: Quote;
+  topLoser?: Quote;
+  advance: number;
+  decline: number;
+}): { tone: "Bullish" | "Bearish" | "Neutral"; lines: string[] } {
+  const { niftyPct, bullsPct, topSector, bottomSector, topGainer, topLoser, advance, decline } = opts;
+  const tone: "Bullish" | "Bearish" | "Neutral" =
+    bullsPct >= 55 ? "Bullish" : bullsPct <= 45 ? "Bearish" : "Neutral";
+  const dir = niftyPct >= 0 ? "up" : "down";
+  const lines: string[] = [];
+  lines.push(
+    `Market is showing a ${tone.toLowerCase()} bias — NIFTY is ${dir} ${Math.abs(niftyPct).toFixed(2)}% with ${advance} stocks advancing vs ${decline} declining.`,
+  );
+  if (topSector && bottomSector) {
+    lines.push(
+      `Sector rotation: ${topSector.label} is leading the move (${topSector.changePct >= 0 ? "+" : ""}${topSector.changePct.toFixed(2)}%) while ${bottomSector.label} is the biggest drag (${bottomSector.changePct.toFixed(2)}%).`,
+    );
+  }
+  if (topGainer && topLoser) {
+    const tg = topGainer.symbol.replace(".NS", "").replace(".BO", "");
+    const tl = topLoser.symbol.replace(".NS", "").replace(".BO", "");
+    lines.push(
+      `Heaviest contributors: ${tg} surging ${topGainer.changePct >= 0 ? "+" : ""}${topGainer.changePct.toFixed(2)}% on the upside; ${tl} bleeding ${topLoser.changePct.toFixed(2)}% on the downside.`,
+    );
+  }
+  if (tone === "Bullish") {
+    lines.push(
+      `Breadth confirms strength — buyers are stepping in across sectors, suggesting continuation as long as the index holds above prior pivot.`,
+    );
+  } else if (tone === "Bearish") {
+    lines.push(
+      `Weak breadth signals distribution — selling pressure is broad-based, traders should respect downside until breadth flips back.`,
+    );
+  } else {
+    lines.push(
+      `Mixed breadth — no decisive directional conviction yet, watch the leading sector for a breakout cue.`,
+    );
+  }
+  return { tone, lines };
+}
+
 export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
   const [indices, sectors, stocks] = await Promise.all([
     cachedYahoo(INDICES),
@@ -121,29 +217,54 @@ export const getDashboard = createServerFn({ method: "GET" }).handler(async () =
     cachedYahoo(NIFTY_STOCKS),
   ]);
   const indexMap = Object.fromEntries(indices.map((q) => [q.symbol, q]));
-  const sectorList = sectors.map((q) => ({
-    ...q,
-    label: SECTORS.find((s) => s.symbol === q.symbol)?.name ?? q.name,
-  }));
-  const sorted = [...stocks].sort((a, b) => b.changePct - a.changePct);
-  const gainers = sorted.filter((s) => s.changePct > 0).slice(0, 5);
-  const losers = sorted.filter((s) => s.changePct < 0).slice(-5).reverse();
-  const advance = stocks.filter((s) => s.changePct > 0).length;
-  const decline = stocks.filter((s) => s.changePct < 0).length;
-  const unchanged = stocks.length - advance - decline;
-  const avgChange = stocks.reduce((a, s) => a + s.changePct, 0) / (stocks.length || 1);
+  const sectorList = sectors.map((q) => {
+    const meta = SECTORS.find((s) => s.symbol === q.symbol);
+    return { ...q, key: meta?.key ?? q.symbol, label: meta?.name ?? q.name };
+  });
+  const s = statsFor(stocks);
+  const sortedSectors = [...sectorList].sort((a, b) => b.changePct - a.changePct);
+  const commentary = buildCommentary({
+    niftyPct: indexMap["^NSEI"]?.changePct ?? 0,
+    bullsPct: (s.advance / Math.max(1, s.advance + s.decline)) * 100,
+    topSector: sortedSectors[0],
+    bottomSector: sortedSectors[sortedSectors.length - 1],
+    topGainer: s.gainers[0],
+    topLoser: s.losers[0],
+    advance: s.advance,
+    decline: s.decline,
+  });
   return {
     nifty: indexMap["^NSEI"] ?? null,
     sensex: indexMap["^BSESN"] ?? null,
     bankNifty: indexMap["^NSEBANK"] ?? null,
     sectors: sectorList,
-    stocks,
-    gainers,
-    losers,
-    advance,
-    decline,
-    unchanged,
-    avgChange,
+    ...s,
+    commentary,
     updatedAt: Date.now(),
   };
 });
+
+export const getIndexConstituents = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
+  .handler(async ({ data }) => {
+    const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
+    const stocks = await cachedYahoo(map[data.index]);
+    return { ...statsFor(stocks), updatedAt: Date.now() };
+  });
+
+export const getSectorDetail = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ key: z.string() }))
+  .handler(async ({ data }) => {
+    const sector = SECTORS.find((s) => s.key === data.key);
+    if (!sector) throw new Error("Unknown sector");
+    const list = SECTOR_STOCKS[data.key] ?? [];
+    const [idxArr, stocks] = await Promise.all([
+      cachedYahoo([sector.symbol]),
+      list.length ? cachedYahoo(list) : Promise.resolve([]),
+    ]);
+    return {
+      sector: { ...sector, quote: idxArr[0] ?? null },
+      ...statsFor(stocks),
+      updatedAt: Date.now(),
+    };
+  });
