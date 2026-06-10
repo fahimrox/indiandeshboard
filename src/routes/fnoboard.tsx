@@ -16,7 +16,7 @@ function Page() {
   const { data } = useSuspenseQuery(fnoStocksQuery);
   const sorted = [...data.data].sort((a, b) => b.changePct - a.changePct);
   return (
-    <DashboardShell title="F&O Board" subtitle="All NSE F&O stocks heat-tiled by % change">
+    <DashboardShell title="F&O Board" subtitle="All NSE F&O stocks heat-tiled by % change" updatedAt={data.updatedAt}>
       {data.source === "fallback" && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
           NSE feed blocked from server right now. Retrying every 45s.
