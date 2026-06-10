@@ -258,6 +258,9 @@ export type FnoStock = {
   aiSentiment: number; // -100..100
 };
 
+type FnoResponse = { data: FnoStock[]; source: "nse" | "fallback"; updatedAt: number };
+type YahooMiniQuote = { price: number; prevClose: number; changePct: number };
+
 function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
   if (Math.abs(priceChg) < 0.1 && Math.abs(oiChg) < 0.5) return "Neutral";
   if (priceChg > 0 && oiChg > 0) return "Long Buildup";
@@ -280,13 +283,20 @@ function num(n: unknown, fallback = 0): number {
   return typeof v === "number" && isFinite(v) ? v : fallback;
 }
 
+function stableNoise(symbol: string, min: number, max: number) {
+  const dayKey = new Date().toISOString().slice(0, 10);
+  let hash = 0;
+  for (const ch of `${symbol}:${dayKey}`) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return min + (hash / 0xffffffff) * (max - min);
+}
+
 function synthFno(): FnoStock[] {
   return FNO_FALLBACK_SYMBOLS.map((symbol) => {
-    const changePct = (Math.random() - 0.5) * 6;
-    const oiChgPct = (Math.random() - 0.5) * 20;
-    const ltp = 100 + Math.random() * 3000;
-    const volume = Math.floor(100000 + Math.random() * 5000000);
-    const oi = Math.floor(50000 + Math.random() * 8000000);
+    const changePct = stableNoise(symbol, -3, 3);
+    const oiChgPct = stableNoise(`${symbol}:oi`, -10, 10);
+    const ltp = stableNoise(`${symbol}:ltp`, 100, 3100);
+    const volume = Math.floor(stableNoise(`${symbol}:vol`, 100000, 5100000));
+    const oi = Math.floor(stableNoise(`${symbol}:oiBase`, 50000, 8050000));
     const buildup = classifyBuildup(changePct, oiChgPct);
     const aiSentiment = Math.max(-100, Math.min(100, Math.round(changePct * 12 + oiChgPct * 0.5)));
     return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, volumeShocker: false, aiSentiment };
