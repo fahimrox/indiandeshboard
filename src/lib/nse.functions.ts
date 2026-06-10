@@ -221,7 +221,6 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
       updatedAt: Date.now(),
     } as OptionChain);
   } catch (err) {
-    console.warn(`NSE option chain fallback for ${symbol}:`, err);
     // best-effort fallback near approximate spot
     const fallbackSpots: Record<string, number> = {
       NIFTY: 24500,
@@ -397,7 +396,6 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
     return { data: stocks, source: "nse", updatedAt: Date.now() };
   } catch (err) {
-    console.warn("NSE F&O fallback:", err);
     return { data: synthFno(), source: "fallback", updatedAt: Date.now() };
   }
 }
