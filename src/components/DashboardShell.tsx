@@ -9,7 +9,8 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { isMarketOpenIst } from "@/lib/market-hours";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LineChart },
@@ -34,6 +35,13 @@ export function DashboardShell({
   updatedAt?: number;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [marketOpen, setMarketOpen] = useState(() => isMarketOpenIst());
+
+  useEffect(() => {
+    const id = setInterval(() => setMarketOpen(isMarketOpenIst()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="sticky top-0 z-40 border-b border-border bg-sidebar/95 backdrop-blur">
@@ -73,8 +81,8 @@ export function DashboardShell({
             })}
           </nav>
           <div className="hidden lg:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--neon)]" />
-            <span className="text-muted-foreground">Live</span>
+            <span className={`h-2 w-2 rounded-full ${marketOpen ? "animate-pulse bg-[var(--neon)]" : "bg-muted-foreground"}`} />
+            <span className="text-muted-foreground">{marketOpen ? "Live" : "Market Closed"}</span>
           </div>
         </div>
       </div>
@@ -86,10 +94,10 @@ export function DashboardShell({
         </div>
         {updatedAt && (
           <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--neon)]" />
-            <span className="text-muted-foreground">Updated</span>
+            <span className={`h-2 w-2 rounded-full ${marketOpen ? "animate-pulse bg-[var(--neon)]" : "bg-muted-foreground"}`} />
+            <span className="text-muted-foreground">{marketOpen ? "Updated" : "Last update"}</span>
             <span className="font-mono text-foreground">
-              {new Date(updatedAt).toLocaleTimeString("en-IN")}
+              {new Date(updatedAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })} IST
             </span>
           </div>
         )}

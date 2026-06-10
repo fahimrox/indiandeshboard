@@ -47,7 +47,7 @@ function Page() {
   };
 
   return (
-    <DashboardShell title="F&O Stocks" subtitle="All NSE F&O underlyings — buildup & AI sentiment">
+    <DashboardShell title="F&O Stocks" subtitle="All NSE F&O underlyings — buildup & AI sentiment" updatedAt={data.updatedAt}>
       {data.source === "fallback" && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
           NSE feed blocked from server right now. Try in a few minutes — auto-retry har 45s.

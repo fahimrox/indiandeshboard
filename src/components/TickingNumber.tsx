@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { fmt } from "./MarketBits";
+import { isMarketOpenIst } from "@/lib/market-hours";
+
+function formatNumber(n: number, d = 2) {
+  if (typeof n !== "number" || !isFinite(n)) return "—";
+  return n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
 
 /**
  * Shows a number whose last digits "tick" every ~500ms with a tiny random walk
@@ -20,6 +25,7 @@ export function TickingNumber({
   className?: string;
 }) {
   const [display, setDisplay] = useState(value);
+  const [marketOpen, setMarketOpen] = useState(() => isMarketOpenIst());
   const baseRef = useRef(value);
 
   useEffect(() => {
@@ -28,7 +34,15 @@ export function TickingNumber({
   }, [value]);
 
   useEffect(() => {
-    if (!isFinite(value)) return;
+    const id = setInterval(() => setMarketOpen(isMarketOpenIst()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!marketOpen || !isFinite(value)) {
+      setDisplay(value);
+      return;
+    }
     const j = jitter ?? Math.max(0.05, Math.abs(value) * 0.0001);
     const id = setInterval(() => {
       const delta = (Math.random() - 0.5) * 2 * j;
@@ -37,11 +51,11 @@ export function TickingNumber({
       setDisplay(next);
     }, intervalMs);
     return () => clearInterval(id);
-  }, [value, jitter, intervalMs]);
+  }, [value, jitter, intervalMs, marketOpen]);
 
   return (
     <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>
-      {fmt(display, decimals)}
+      {formatNumber(display, decimals)}
     </span>
   );
 }
