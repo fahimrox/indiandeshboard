@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Quote } from "@/lib/market.functions";
 import { isMarketOpenIst } from "@/lib/market-hours";
@@ -25,9 +26,18 @@ export function ChangePill({ pct, change }: { pct: number; change?: number }) {
   );
 }
 
+function useMarketOpenStatus() {
+  const [open, setOpen] = useState(() => isMarketOpenIst());
+  useEffect(() => {
+    const id = setInterval(() => setOpen(isMarketOpenIst()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+  return open;
+}
+
 export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
   const up = q.changePct >= 0;
-  const marketOpen = isMarketOpenIst();
+  const marketOpen = useMarketOpenStatus();
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
       <div
