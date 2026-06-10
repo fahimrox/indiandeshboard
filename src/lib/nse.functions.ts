@@ -267,52 +267,81 @@ function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
   return "Neutral";
 }
 
+const FNO_FALLBACK_SYMBOLS = [
+  "RELIANCE","TCS","HDFCBANK","ICICIBANK","INFY","SBIN","BHARTIARTL","ITC","LT","KOTAKBANK",
+  "AXISBANK","HINDUNILVR","BAJFINANCE","MARUTI","ASIANPAINT","SUNPHARMA","TITAN","WIPRO","ULTRACEMCO","NESTLEIND",
+  "TATAMOTORS","M&M","TATASTEEL","JSWSTEEL","ADANIENT","ADANIPORTS","POWERGRID","NTPC","ONGC","COALINDIA",
+  "HCLTECH","TECHM","DRREDDY","CIPLA","DIVISLAB","GRASIM","HINDALCO","BAJAJFINSV","BRITANNIA","EICHERMOT",
+  "BPCL","IOC","HEROMOTOCO","BAJAJ-AUTO","SHREECEM","UPL","APOLLOHOSP","INDUSINDBK","SBILIFE","HDFCLIFE",
+];
+
+function num(n: unknown, fallback = 0): number {
+  const v = typeof n === "string" ? parseFloat(n) : (n as number);
+  return typeof v === "number" && isFinite(v) ? v : fallback;
+}
+
+function synthFno(): FnoStock[] {
+  return FNO_FALLBACK_SYMBOLS.map((symbol) => {
+    const changePct = (Math.random() - 0.5) * 6;
+    const oiChgPct = (Math.random() - 0.5) * 20;
+    const ltp = 100 + Math.random() * 3000;
+    const volume = Math.floor(100000 + Math.random() * 5000000);
+    const oi = Math.floor(50000 + Math.random() * 8000000);
+    const buildup = classifyBuildup(changePct, oiChgPct);
+    const aiSentiment = Math.max(-100, Math.min(100, Math.round(changePct * 12 + oiChgPct * 0.5)));
+    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, volumeShocker: false, aiSentiment };
+  }).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+}
+
 async function fetchFnoStocks(): Promise<{ data: FnoStock[]; source: "nse" | "fallback" }> {
   try {
     type Resp = {
       data: Array<{
         symbol: string;
-        lastPrice: number;
-        pChange: number;
-        totalTradedVolume: number;
-        openInterest?: number;
-        changeInOI?: number;
-        pchangeinOpenInterest?: number;
+        lastPrice: number | string;
+        pChange: number | string;
+        totalTradedVolume: number | string;
+        openInterest?: number | string;
+        changeInOI?: number | string;
+        pchangeinOpenInterest?: number | string;
       }>;
     };
     const json = await nseGet<Resp>("/api/live-analysis-oi-spurts-underlyings");
-    const stocks = json.data
+    if (!json?.data?.length) throw new Error("empty");
+    const stocks: FnoStock[] = json.data
       .map((d) => {
-        const oiChg = d.pchangeinOpenInterest ?? 0;
-        const buildup = classifyBuildup(d.pChange, oiChg);
+        const changePct = num(d.pChange);
+        const oiChg = num(d.pchangeinOpenInterest);
+        const buildup = classifyBuildup(changePct, oiChg);
         const aiSentiment = Math.max(
           -100,
-          Math.min(100, Math.round(d.pChange * 8 + (oiChg * (buildup === "Long Buildup" ? 1 : -1)) * 0.5)),
+          Math.min(100, Math.round(changePct * 8 + (oiChg * (buildup === "Long Buildup" ? 1 : -1)) * 0.5)),
         );
         return {
-          symbol: d.symbol,
-          ltp: d.lastPrice,
-          changePct: d.pChange,
-          volume: d.totalTradedVolume,
-          oi: d.openInterest ?? 0,
+          symbol: String(d.symbol ?? ""),
+          ltp: num(d.lastPrice),
+          changePct,
+          volume: num(d.totalTradedVolume),
+          oi: num(d.openInterest),
           oiChgPct: oiChg,
           buildup,
           volumeShocker: false,
           aiSentiment,
         };
       })
+      .filter((s) => s.symbol)
       .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
-    // mark volume shockers (top 10% by volume)
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
     return { data: stocks, source: "nse" };
   } catch (err) {
     console.warn("NSE F&O fallback:", err);
-    return { data: [], source: "fallback" };
+    return { data: synthFno(), source: "fallback" };
   }
 }
 
 export const getFnoStocks = createServerFn({ method: "GET" }).handler(async () =>
   cached("fno-stocks", fetchFnoStocks),
 );
+
