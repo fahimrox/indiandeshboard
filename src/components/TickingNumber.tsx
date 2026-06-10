@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { isMarketOpenIst } from "@/lib/market-hours";
-import { fmt } from "./MarketBits";
+
+function formatNumber(n: number, d = 2) {
+  if (typeof n !== "number" || !isFinite(n)) return "—";
+  return n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+}
 
 /**
  * Shows a number whose last digits "tick" every ~500ms with a tiny random walk
@@ -51,7 +55,7 @@ export function TickingNumber({
 
   return (
     <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>
-      {fmt(display, decimals)}
+      {formatNumber(display, decimals)}
     </span>
   );
 }
