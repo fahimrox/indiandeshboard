@@ -303,51 +303,96 @@ function synthFno(): FnoStock[] {
   }).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
 }
 
-async function fetchFnoStocks(): Promise<{ data: FnoStock[]; source: "nse" | "fallback" }> {
+async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, YahooMiniQuote>> {
+  const out = new Map<string, YahooMiniQuote>();
+  const CHUNK = 10;
+  for (let i = 0; i < symbols.length; i += CHUNK) {
+    const chunk = symbols.slice(i, i + CHUNK);
+    const url = `https://query2.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
+      chunk.map((s) => `${s}.NS`).join(","),
+    )}&range=1d&interval=5m`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": HEADERS_BASE["User-Agent"],
+        Accept: "application/json, text/plain, */*",
+        Referer: "https://finance.yahoo.com/",
+        Origin: "https://finance.yahoo.com",
+      },
+    });
+    if (!res.ok) continue;
+    const json = (await res.json()) as {
+      spark?: { result?: Array<{ symbol: string; response?: Array<{ meta?: Record<string, number | string> }> }> };
+    };
+    for (const r of json.spark?.result ?? []) {
+      const meta = r.response?.[0]?.meta;
+      if (!meta) continue;
+      const symbol = String(meta.symbol ?? r.symbol).replace(".NS", "");
+      const price = num(meta.regularMarketPrice);
+      const prevClose = num(meta.chartPreviousClose ?? meta.previousClose, price);
+      if (price > 0) out.set(symbol, { price, prevClose, changePct: prevClose ? ((price - prevClose) / prevClose) * 100 : 0 });
+    }
+  }
+  return out;
+}
+
+async function fetchFnoStocks(): Promise<FnoResponse> {
   try {
     type Resp = {
       data: Array<{
         symbol: string;
-        lastPrice: number | string;
-        pChange: number | string;
-        totalTradedVolume: number | string;
+        lastPrice?: number | string;
+        underlyingValue?: number | string;
+        pChange?: number | string;
+        totalTradedVolume?: number | string;
+        volume?: number | string;
         openInterest?: number | string;
+        latestOI?: number | string;
+        prevOI?: number | string;
         changeInOI?: number | string;
         pchangeinOpenInterest?: number | string;
+        avgInOI?: number | string;
       }>;
     };
     const json = await nseGet<Resp>("/api/live-analysis-oi-spurts-underlyings");
     if (!json?.data?.length) throw new Error("empty");
+    const quotes = await fetchYahooMiniQuotes(json.data.map((d) => String(d.symbol ?? "")).filter(Boolean));
     const stocks: FnoStock[] = json.data
       .map((d) => {
-        const changePct = num(d.pChange);
-        const oiChg = num(d.pchangeinOpenInterest);
+        const symbol = String(d.symbol ?? "");
+        const quote = quotes.get(symbol);
+        const ltp = quote?.price || num(d.lastPrice ?? d.underlyingValue);
+        const changePct = quote?.changePct ?? num(d.pChange);
+        const oi = num(d.openInterest ?? d.latestOI);
+        const prevOI = num(d.prevOI);
+        const oiChgRaw = num(d.changeInOI);
+        const oiChg = num(d.pchangeinOpenInterest ?? d.avgInOI, prevOI ? (oiChgRaw / prevOI) * 100 : 0);
         const buildup = classifyBuildup(changePct, oiChg);
         const aiSentiment = Math.max(
           -100,
           Math.min(100, Math.round(changePct * 8 + (oiChg * (buildup === "Long Buildup" ? 1 : -1)) * 0.5)),
         );
         return {
-          symbol: String(d.symbol ?? ""),
-          ltp: num(d.lastPrice),
+          symbol,
+          ltp,
           changePct,
-          volume: num(d.totalTradedVolume),
-          oi: num(d.openInterest),
+          volume: num(d.totalTradedVolume ?? d.volume),
+          oi,
           oiChgPct: oiChg,
           buildup,
           volumeShocker: false,
           aiSentiment,
         };
       })
-      .filter((s) => s.symbol)
+      .filter((s) => s.symbol && s.ltp > 0)
       .sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+    if (!stocks.length) throw new Error("no valid rows");
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
-    return { data: stocks, source: "nse" };
+    return { data: stocks, source: "nse", updatedAt: Date.now() };
   } catch (err) {
     console.warn("NSE F&O fallback:", err);
-    return { data: synthFno(), source: "fallback" };
+    return { data: synthFno(), source: "fallback", updatedAt: Date.now() };
   }
 }
 
