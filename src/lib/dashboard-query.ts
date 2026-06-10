@@ -1,9 +1,10 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getDashboard, getQuotes, getIndexConstituents, getSectorDetail } from "./market.functions";
 import { getFnoStocks, getOptionChain } from "./nse.functions";
-import { isMarketOpenIst } from "./market-hours";
+import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
-const liveInterval = (ms: number) => () => (isMarketOpenIst() ? ms : false);
+const liveInterval = (ms: number) => () =>
+  isMarketOpenIst() ? ms : Math.max(60_000, Math.min(msUntilNextMarketOpenIst(), 30 * 60_000));
 
 export const dashboardQuery = queryOptions({
   queryKey: ["dashboard"],
