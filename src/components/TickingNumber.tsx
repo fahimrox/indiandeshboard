@@ -1,0 +1,47 @@
+import { useEffect, useRef, useState } from "react";
+import { fmt } from "./MarketBits";
+
+/**
+ * Shows a number whose last digits "tick" every ~500ms with a tiny random walk
+ * to give a live feel between real data refreshes. When `value` prop changes
+ * (real data update), it snaps to the new value.
+ */
+export function TickingNumber({
+  value,
+  decimals = 2,
+  jitter,
+  intervalMs = 600,
+  className,
+}: {
+  value: number;
+  decimals?: number;
+  jitter?: number; // max +/- random walk per tick (defaults to ~0.01% of value)
+  intervalMs?: number;
+  className?: string;
+}) {
+  const [display, setDisplay] = useState(value);
+  const baseRef = useRef(value);
+
+  useEffect(() => {
+    baseRef.current = value;
+    setDisplay(value);
+  }, [value]);
+
+  useEffect(() => {
+    if (!isFinite(value)) return;
+    const j = jitter ?? Math.max(0.05, Math.abs(value) * 0.0001);
+    const id = setInterval(() => {
+      const delta = (Math.random() - 0.5) * 2 * j;
+      // keep drift bounded so we don't wander too far from real value
+      const next = baseRef.current + delta;
+      setDisplay(next);
+    }, intervalMs);
+    return () => clearInterval(id);
+  }, [value, jitter, intervalMs]);
+
+  return (
+    <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>
+      {fmt(display, decimals)}
+    </span>
+  );
+}

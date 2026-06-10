@@ -1,7 +1,9 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Quote } from "@/lib/market.functions";
+import { TickingNumber } from "./TickingNumber";
 
-export function fmt(n: number, d = 2) {
+export function fmt(n: number | null | undefined, d = 2) {
+  if (n === null || n === undefined || typeof n !== "number" || !isFinite(n)) return "—";
   return n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
@@ -40,7 +42,7 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
               {label} LIVE
             </div>
             <div className="mt-1 font-mono text-4xl font-bold tabular-nums">
-              {fmt(q.price)}
+              <TickingNumber value={q.price} />
             </div>
             <div className="mt-2">
               <ChangePill pct={q.changePct} change={q.change} />
@@ -48,7 +50,7 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
           </div>
           <div className="rounded-md border border-border bg-background/40 px-2 py-1 text-[10px] uppercase tracking-wider">
             {q.marketState === "REGULAR" ? (
-              <span className="text-[var(--bull)]">● Market Open</span>
+              <span className="text-[var(--bull)] animate-pulse">● LIVE</span>
             ) : (
               <span className="text-muted-foreground">● Market Closed</span>
             )}
