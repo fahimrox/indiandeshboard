@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Quote } from "@/lib/market.functions";
+import { isMarketOpenIst } from "@/lib/market-hours";
 import { TickingNumber } from "./TickingNumber";
 
 export function fmt(n: number | null | undefined, d = 2) {
@@ -26,6 +27,7 @@ export function ChangePill({ pct, change }: { pct: number; change?: number }) {
 
 export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
   const up = q.changePct >= 0;
+  const marketOpen = isMarketOpenIst();
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
       <div
@@ -39,7 +41,7 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
         <div className="flex items-start justify-between">
           <div>
             <div className="text-xs uppercase tracking-widest text-muted-foreground">
-              {label} LIVE
+              {label} {marketOpen ? "LIVE" : "LAST PRICE"}
             </div>
             <div className="mt-1 font-mono text-4xl font-bold tabular-nums">
               <TickingNumber value={q.price} />
@@ -49,7 +51,7 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
             </div>
           </div>
           <div className="rounded-md border border-border bg-background/40 px-2 py-1 text-[10px] uppercase tracking-wider">
-            {q.marketState === "REGULAR" ? (
+            {marketOpen ? (
               <span className="text-[var(--bull)] animate-pulse">● LIVE</span>
             ) : (
               <span className="text-muted-foreground">● Market Closed</span>
