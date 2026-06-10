@@ -97,7 +97,7 @@ export function DashboardShell({
             <span className={`h-2 w-2 rounded-full ${marketOpen ? "animate-pulse bg-[var(--neon)]" : "bg-muted-foreground"}`} />
             <span className="text-muted-foreground">{marketOpen ? "Updated" : "Last update"}</span>
             <span className="font-mono text-foreground">
-              {new Date(updatedAt).toLocaleTimeString("en-IN")}
+              {new Date(updatedAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })} IST
             </span>
           </div>
         )}
