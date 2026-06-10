@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Quote } from "@/lib/market.functions";
+import { TickingNumber } from "./TickingNumber";
 
 export function fmt(n: number | null | undefined, d = 2) {
   if (n === null || n === undefined || typeof n !== "number" || !isFinite(n)) return "—";
