@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isMarketOpenIst } from "@/lib/market-hours";
 import { fmt } from "./MarketBits";
 
 /**
@@ -20,6 +21,7 @@ export function TickingNumber({
   className?: string;
 }) {
   const [display, setDisplay] = useState(value);
+  const [marketOpen, setMarketOpen] = useState(() => isMarketOpenIst());
   const baseRef = useRef(value);
 
   useEffect(() => {
@@ -28,7 +30,15 @@ export function TickingNumber({
   }, [value]);
 
   useEffect(() => {
-    if (!isFinite(value)) return;
+    const id = setInterval(() => setMarketOpen(isMarketOpenIst()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!marketOpen || !isFinite(value)) {
+      setDisplay(value);
+      return;
+    }
     const j = jitter ?? Math.max(0.05, Math.abs(value) * 0.0001);
     const id = setInterval(() => {
       const delta = (Math.random() - 0.5) * 2 * j;
@@ -37,7 +47,7 @@ export function TickingNumber({
       setDisplay(next);
     }, intervalMs);
     return () => clearInterval(id);
-  }, [value, jitter, intervalMs]);
+  }, [value, jitter, intervalMs, marketOpen]);
 
   return (
     <span className={className} style={{ fontVariantNumeric: "tabular-nums" }}>
