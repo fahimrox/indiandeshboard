@@ -1,7 +1,8 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { Quote } from "@/lib/market.functions";
 
-export function fmt(n: number, d = 2) {
+export function fmt(n: number | null | undefined, d = 2) {
+  if (n === null || n === undefined || typeof n !== "number" || !isFinite(n)) return "—";
   return n.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
