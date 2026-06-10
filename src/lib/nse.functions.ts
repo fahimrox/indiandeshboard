@@ -305,9 +305,12 @@ function synthFno(): FnoStock[] {
 
 async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, YahooMiniQuote>> {
   const out = new Map<string, YahooMiniQuote>();
-  const CHUNK = 10;
+  const CHUNK = 20;
+  const chunks: string[][] = [];
   for (let i = 0; i < symbols.length; i += CHUNK) {
-    const chunk = symbols.slice(i, i + CHUNK);
+    chunks.push(symbols.slice(i, i + CHUNK));
+  }
+  const results = await Promise.all(chunks.map(async (chunk) => {
     const url = `https://query2.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
       chunk.map((s) => `${s}.NS`).join(","),
     )}&range=1d&interval=5m`;
@@ -319,19 +322,22 @@ async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, Yaho
         Origin: "https://finance.yahoo.com",
       },
     });
-    if (!res.ok) continue;
+    if (!res.ok) return [] as Array<[string, YahooMiniQuote]>;
     const json = (await res.json()) as {
       spark?: { result?: Array<{ symbol: string; response?: Array<{ meta?: Record<string, number | string> }> }> };
     };
+    const rows: Array<[string, YahooMiniQuote]> = [];
     for (const r of json.spark?.result ?? []) {
       const meta = r.response?.[0]?.meta;
       if (!meta) continue;
       const symbol = String(meta.symbol ?? r.symbol).replace(".NS", "");
       const price = num(meta.regularMarketPrice);
       const prevClose = num(meta.chartPreviousClose ?? meta.previousClose, price);
-      if (price > 0) out.set(symbol, { price, prevClose, changePct: prevClose ? ((price - prevClose) / prevClose) * 100 : 0 });
+      if (price > 0) rows.push([symbol, { price, prevClose, changePct: prevClose ? ((price - prevClose) / prevClose) * 100 : 0 }]);
     }
-  }
+    return rows;
+  }));
+  for (const rows of results) for (const [symbol, quote] of rows) out.set(symbol, quote);
   return out;
 }
 
