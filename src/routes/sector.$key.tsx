@@ -6,7 +6,26 @@ import { sectorDetailQuery } from "@/lib/dashboard-query";
 import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/sector/$key")({
-  head: ({ params }) => ({ meta: [{ title: `${params.key.toUpperCase()} Sector — Live | IndexMover` }] }),
+  head: ({ params }) => {
+    const name = params.key.toUpperCase();
+    const url = `https://indiandeshboard.lovable.app/sector/${params.key}`;
+    return {
+      meta: [
+        { title: `${name} Sector — Live NSE Stocks | IndexMover` },
+        {
+          name: "description",
+          content: `Live ${name} sector index with constituent stocks, advance/decline breadth and top gainers/losers from NSE.`,
+        },
+        { property: "og:title", content: `${name} Sector — Live NSE Stocks` },
+        {
+          property: "og:description",
+          content: `Live ${name} sector performance with constituent-level breakdown.`,
+        },
+        { property: "og:url", content: url },
+      ],
+      links: [{ rel: "canonical", href: url }],
+    };
+  },
   loader: ({ context, params }) => context.queryClient.ensureQueryData(sectorDetailQuery(params.key)),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,

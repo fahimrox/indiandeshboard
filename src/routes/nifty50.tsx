@@ -5,7 +5,23 @@ import { ChangePill, IndexHeroCard, StockRow, fmt } from "@/components/MarketBit
 import { dashboardQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/nifty50")({
-  head: () => ({ meta: [{ title: "NIFTY 50 — Live Constituents | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "NIFTY 50 — Live Constituents | IndexMover" },
+      {
+        name: "description",
+        content:
+          "NIFTY 50 live index price with all tracked constituents, advance/decline breadth and per-stock change %.",
+      },
+      { property: "og:title", content: "NIFTY 50 — Live Constituents" },
+      {
+        property: "og:description",
+        content: "Live NIFTY 50 price, breadth and constituent-level performance.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/nifty50" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/nifty50" }],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQuery),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,

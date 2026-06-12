@@ -18,9 +18,17 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Live NIFTY 50, BANK NIFTY and SENSEX dashboard with realtime auto-refresh, sector heatmap, AI sentiment commentary and option chain.",
+          "Live NIFTY 50, BANK NIFTY and SENSEX dashboard with realtime auto-refresh, sector heatmap, AI sentiment and option chain for Indian markets.",
       },
+      { property: "og:title", content: "IndexMover — Live NSE & BSE Market Dashboard" },
+      {
+        property: "og:description",
+        content:
+          "Realtime NIFTY, BANK NIFTY and SENSEX with sector heatmap, F&O buildup and option chain analytics.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/" },
     ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/" }],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQuery),
   component: IndexPage,

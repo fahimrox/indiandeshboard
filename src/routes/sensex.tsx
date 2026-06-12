@@ -5,7 +5,23 @@ import { ChangePill, IndexHeroCard, StockRow } from "@/components/MarketBits";
 import { dashboardQuery, constituentsQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/sensex")({
-  head: () => ({ meta: [{ title: "SENSEX — Live BSE Constituents | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "SENSEX — Live BSE Constituents | IndexMover" },
+      {
+        name: "description",
+        content:
+          "BSE SENSEX live index with all 30 constituents, advance/decline and live change % for every member.",
+      },
+      { property: "og:title", content: "SENSEX — Live BSE Constituents" },
+      {
+        property: "og:description",
+        content: "Live SENSEX price, breadth and constituent-level performance.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/sensex" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/sensex" }],
+  }),
   loader: ({ context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(dashboardQuery),

@@ -8,7 +8,23 @@ import { useState } from "react";
 import type { FnoStock } from "@/lib/nse.functions";
 
 export const Route = createFileRoute("/fno")({
-  head: () => ({ meta: [{ title: "F&O Stocks — Live NSE | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "F&O Stocks — Live NSE Buildup | IndexMover" },
+      {
+        name: "description",
+        content:
+          "All NSE F&O stocks with LTP, change %, volume, OI, OI change %, buildup classification, volume shocker and AI sentiment.",
+      },
+      { property: "og:title", content: "F&O Stocks — Live NSE Buildup" },
+      {
+        property: "og:description",
+        content: "NSE F&O underlyings with live buildup, OI change and AI sentiment.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/fno" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/fno" }],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(fnoStocksQuery),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
@@ -74,6 +90,7 @@ function Page() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search symbol…"
+          aria-label="Search F&O symbol"
           className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-[var(--neon)]"
         />
         <button

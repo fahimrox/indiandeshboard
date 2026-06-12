@@ -5,7 +5,23 @@ import { fnoStocksQuery } from "@/lib/dashboard-query";
 import { fmt } from "@/components/MarketBits";
 
 export const Route = createFileRoute("/fnoboard")({
-  head: () => ({ meta: [{ title: "F&O Board — Heatmap | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "F&O Board — NSE Heatmap | IndexMover" },
+      {
+        name: "description",
+        content:
+          "Heat-tiled view of every NSE F&O stock sorted and coloured by live % change.",
+      },
+      { property: "og:title", content: "F&O Board — NSE Heatmap" },
+      {
+        property: "og:description",
+        content: "Live heatmap of all NSE F&O stocks by % change.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/fnoboard" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/fnoboard" }],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(fnoStocksQuery),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
