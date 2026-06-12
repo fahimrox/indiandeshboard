@@ -5,7 +5,23 @@ import { ChangePill, IndexHeroCard, StockRow } from "@/components/MarketBits";
 import { dashboardQuery, constituentsQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/banknifty")({
-  head: () => ({ meta: [{ title: "BANK NIFTY — Live Constituents | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "BANK NIFTY — Live Constituents | IndexMover" },
+      {
+        name: "description",
+        content:
+          "BANK NIFTY live index with all banking constituents, advance/decline and live change % for every member.",
+      },
+      { property: "og:title", content: "BANK NIFTY — Live Constituents" },
+      {
+        property: "og:description",
+        content: "Live BANK NIFTY price, breadth and constituent-level performance.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/banknifty" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/banknifty" }],
+  }),
   loader: ({ context }) =>
     Promise.all([
       context.queryClient.ensureQueryData(dashboardQuery),

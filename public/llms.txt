@@ -1,0 +1,14 @@
+# IndexMover
+
+> Live Indian stock market dashboard — NIFTY 50, BANK NIFTY, SENSEX, F&O stocks, sector heatmap, option chain and AI market sentiment with realtime auto-refresh during IST market hours (9:15 AM – 3:30 PM).
+
+## Pages
+
+- [Dashboard](/): Live NIFTY, BANK NIFTY and SENSEX hero, breadth, top gainers/losers, sector heatmap and AI sentiment.
+- [NIFTY 50](/nifty50): NIFTY 50 live constituents with advance/decline and per-stock change.
+- [BANK NIFTY](/banknifty): Banking benchmark live constituents and breadth.
+- [SENSEX](/sensex): BSE SENSEX live constituents and breadth.
+- [F&O Stocks](/fno): All NSE F&O underlyings — LTP, change %, volume, OI, OI change %, buildup classification, volume shocker and AI sentiment.
+- [F&O Board](/fnoboard): F&O heatmap tiled by % change.
+- [Option Chain](/optionchain): NIFTY / BANKNIFTY / FINNIFTY / MIDCPNIFTY option chain with max OI / volume highlights and WTB / WTT / STRONG zones.
+- [Sector Heatmap](/heatmap): All NSE sectors with click-through to constituent stocks.

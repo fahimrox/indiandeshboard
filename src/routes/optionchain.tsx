@@ -6,7 +6,23 @@ import { fmt } from "@/components/MarketBits";
 import { optionChainQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/optionchain")({
-  head: () => ({ meta: [{ title: "Option Chain — Live | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "Option Chain — NIFTY, BANKNIFTY Live | IndexMover" },
+      {
+        name: "description",
+        content:
+          "Live option chain for NIFTY, BANKNIFTY, FINNIFTY and MIDCPNIFTY with max OI / volume highlights and WTB, WTT, STRONG support-resistance zones.",
+      },
+      { property: "og:title", content: "Option Chain — NIFTY & BANKNIFTY Live" },
+      {
+        property: "og:description",
+        content: "Live NSE option chain with OI, volume and support/resistance analytics.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/optionchain" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/optionchain" }],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(optionChainQuery("NIFTY")),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,

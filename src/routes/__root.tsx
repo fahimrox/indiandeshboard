@@ -77,23 +77,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "A real-time Indian stock market dashboard for NSE and BSE data." },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "A real-time Indian stock market dashboard for NSE and BSE data." },
+      { name: "author", content: "IndexMover" },
+      { property: "og:site_name", content: "IndexMover" },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "A real-time Indian stock market dashboard for NSE and BSE data." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/suSxuBFvTOfx4XFn4tqAZyztls63/social-images/social-1781103485140-vector-logo-with-candlestick-trading-chart-analyzing-forex_10135-1729.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/suSxuBFvTOfx4XFn4tqAZyztls63/social-images/social-1781103485140-vector-logo-with-candlestick-trading-chart-analyzing-forex_10135-1729.webp" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+    ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "IndexMover",
+          url: "https://indiandeshboard.lovable.app",
+          description:
+            "Live Indian stock market dashboard with NIFTY, BANK NIFTY, SENSEX, F&O, option chain and sector heatmap.",
+        }),
       },
     ],
   }),

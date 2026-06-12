@@ -5,7 +5,23 @@ import { ChangePill, fmt } from "@/components/MarketBits";
 import { dashboardQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/heatmap")({
-  head: () => ({ meta: [{ title: "Sector Heatmap — Live | IndexMover" }] }),
+  head: () => ({
+    meta: [
+      { title: "Sector Heatmap — Live NSE Sectors | IndexMover" },
+      {
+        name: "description",
+        content:
+          "Live NSE sector heatmap — banking, IT, auto, pharma, FMCG and more — with click-through to constituent stocks.",
+      },
+      { property: "og:title", content: "Sector Heatmap — Live NSE Sectors" },
+      {
+        property: "og:description",
+        content: "Live NSE sector performance heatmap with drill-down to stocks.",
+      },
+      { property: "og:url", content: "https://indiandeshboard.lovable.app/heatmap" },
+    ],
+    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/heatmap" }],
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(dashboardQuery),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
