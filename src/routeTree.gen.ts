@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SensexRouteImport } from './routes/sensex'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
@@ -19,6 +20,11 @@ import { Route as BankniftyRouteImport } from './routes/banknifty'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
 
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SensexRoute = SensexRouteImport.update({
   id: '/sensex',
   path: '/sensex',
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/sensex': typeof SensexRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/nifty50'
     | '/optionchain'
     | '/sensex'
+    | '/sitemap.xml'
     | '/sector/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/nifty50'
     | '/optionchain'
     | '/sensex'
+    | '/sitemap.xml'
     | '/sector/$key'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/nifty50'
     | '/optionchain'
     | '/sensex'
+    | '/sitemap.xml'
     | '/sector/$key'
   fileRoutesById: FileRoutesById
 }
@@ -144,11 +156,19 @@ export interface RootRouteChildren {
   Nifty50Route: typeof Nifty50Route
   OptionchainRoute: typeof OptionchainRoute
   SensexRoute: typeof SensexRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SectorKeyRoute: typeof SectorKeyRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sensex': {
       id: '/sensex'
       path: '/sensex'
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   Nifty50Route: Nifty50Route,
   OptionchainRoute: OptionchainRoute,
   SensexRoute: SensexRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   SectorKeyRoute: SectorKeyRoute,
 }
 export const routeTree = rootRouteImport
