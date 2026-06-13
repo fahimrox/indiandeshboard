@@ -4,21 +4,18 @@ import { useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { fmt } from "@/components/MarketBits";
 import { optionChainQuery } from "@/lib/dashboard-query";
+import type { OcSignal } from "@/lib/nse.functions";
 
 export const Route = createFileRoute("/optionchain")({
   head: () => ({
     meta: [
-      { title: "Option Chain — NIFTY, BANKNIFTY Live | IndexMover" },
+      { title: "Option Chain — NIFTY, BANKNIFTY, SENSEX Live | IndexMover" },
       {
         name: "description",
         content:
-          "Live option chain for NIFTY, BANKNIFTY, FINNIFTY and MIDCPNIFTY with max OI / volume highlights and WTB, WTT, STRONG support-resistance zones.",
+          "Live option chain for NIFTY, BANKNIFTY and SENSEX with straddle, IV, OI change, signal and 4-level support/resistance computed from live OI and volume.",
       },
-      { property: "og:title", content: "Option Chain — NIFTY & BANKNIFTY Live" },
-      {
-        property: "og:description",
-        content: "Live NSE option chain with OI, volume and support/resistance analytics.",
-      },
+      { property: "og:title", content: "Option Chain — NIFTY, BANKNIFTY, SENSEX Live" },
       { property: "og:url", content: "https://indiandeshboard.lovable.app/optionchain" },
     ],
     links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/optionchain" }],
@@ -29,7 +26,7 @@ export const Route = createFileRoute("/optionchain")({
   notFoundComponent: () => <div className="p-8">Not found</div>,
 });
 
-const SYMBOLS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"] as const;
+const SYMBOLS = ["NIFTY", "BANKNIFTY", "SENSEX"] as const;
 
 function fmtN(n: number) {
   if (!isFinite(n)) return "—";
@@ -39,15 +36,29 @@ function fmtN(n: number) {
   return n.toLocaleString("en-IN");
 }
 
-function pctOf(v: number, max: number) {
-  return max ? (v / max) * 100 : 0;
+const SIGNAL_STYLES: Record<OcSignal, string> = {
+  "Strong Long Buildup": "bg-emerald-600/30 text-emerald-200 border-emerald-500/50",
+  "Weak Long Buildup": "bg-emerald-600/15 text-emerald-300 border-emerald-500/30",
+  "Strong Short Buildup": "bg-fuchsia-600/30 text-fuchsia-200 border-fuchsia-500/50",
+  "Weak Short Buildup": "bg-fuchsia-600/15 text-fuchsia-300 border-fuchsia-500/30",
+  "Strong Short Cover": "bg-rose-600/30 text-rose-200 border-rose-500/50",
+  "Weak Short Cover": "bg-rose-600/15 text-rose-300 border-rose-500/30",
+  "Strong Long Unwinding": "bg-amber-600/30 text-amber-200 border-amber-500/50",
+  "Weak Long Unwinding": "bg-amber-600/15 text-amber-300 border-amber-500/30",
+  Neutral: "bg-muted text-muted-foreground border-border",
+};
+
+function SignalChip({ s }: { s: OcSignal }) {
+  if (s === "Neutral") return <span className="text-[10px] text-muted-foreground">—</span>;
+  return (
+    <span className={`inline-block whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${SIGNAL_STYLES[s]}`}>
+      {s.replace("Buildup", "B/up").replace("Cover", "Cov").replace("Unwinding", "Unw")}
+    </span>
+  );
 }
 
-function classifyReversal(side: "ce" | "pe", oiChgPct: number, volPct: number) {
-  // Simple proxy: high vol & oi increasing => buildup; high vol & oi decreasing => break
-  if (volPct > 50 && oiChgPct > 0) return side === "ce" ? "Break Out" : "Break Down";
-  if (volPct > 50 && oiChgPct < 0) return side === "ce" ? "Break Down" : "Break Out";
-  return "—";
+function pctOf(v: number, max: number) {
+  return max ? (v / max) * 100 : 0;
 }
 
 function Page() {
@@ -58,38 +69,22 @@ function Page() {
   const maxPeOi = Math.max(...oc.rows.map((r) => r.pe?.oi ?? 0), 1);
   const maxCeVol = Math.max(...oc.rows.map((r) => r.ce?.volume ?? 0), 1);
   const maxPeVol = Math.max(...oc.rows.map((r) => r.pe?.volume ?? 0), 1);
-  const maxCeOiChg = Math.max(...oc.rows.map((r) => Math.abs(r.ce?.oiChg ?? 0)), 1);
-  const maxPeOiChg = Math.max(...oc.rows.map((r) => Math.abs(r.pe?.oiChg ?? 0)), 1);
 
-  // Compute support/resistance bands
-  const peOiSorted = [...oc.rows].sort((a, b) => (b.pe?.oi ?? 0) - (a.pe?.oi ?? 0));
-  const ceOiSorted = [...oc.rows].sort((a, b) => (b.ce?.oi ?? 0) - (a.ce?.oi ?? 0));
-  const supportLow = Math.min(peOiSorted[0]?.strike ?? 0, peOiSorted[1]?.strike ?? 0);
-  const supportHigh = Math.max(peOiSorted[0]?.strike ?? 0, peOiSorted[1]?.strike ?? 0);
-  const resLow = Math.min(ceOiSorted[0]?.strike ?? 0, ceOiSorted[1]?.strike ?? 0);
-  const resHigh = Math.max(ceOiSorted[0]?.strike ?? 0, ceOiSorted[1]?.strike ?? 0);
+  const pcr = oc.totals.ceOi ? oc.totals.peOi / oc.totals.ceOi : 0;
+  const pcrChg = oc.totals.ceOiChg ? oc.totals.peOiChg / oc.totals.ceOiChg : 0;
 
-  // WTB / WTT / STRONG percentages (simple proxies from concentration)
-  const totalCeOi = oc.totals.ceOi || 1;
-  const totalPeOi = oc.totals.peOi || 1;
-  const totalCeVol = oc.totals.ceVol || 1;
-  const totalPeVol = oc.totals.peVol || 1;
-  const ceWtb = ((ceOiSorted[0]?.ce?.oi ?? 0) + (ceOiSorted[1]?.ce?.oi ?? 0)) / totalCeOi * 100;
-  const ceWtt = ([...oc.rows].sort((a, b) => (b.ce?.volume ?? 0) - (a.ce?.volume ?? 0))
-    .slice(0, 2)
-    .reduce((a, r) => a + (r.ce?.volume ?? 0), 0)) / totalCeVol * 100;
-  const peWtb = ((peOiSorted[0]?.pe?.oi ?? 0) + (peOiSorted[1]?.pe?.oi ?? 0)) / totalPeOi * 100;
-  const peStrong = ([...oc.rows].sort((a, b) => (b.pe?.volume ?? 0) - (a.pe?.volume ?? 0))
-    .slice(0, 2)
-    .reduce((a, r) => a + (r.pe?.volume ?? 0), 0)) / totalPeVol * 100;
+  const r1 = oc.levels.find((l) => l.kind === "R1")?.strike ?? 0;
+  const r2 = oc.levels.find((l) => l.kind === "R2")?.strike ?? 0;
+  const s1 = oc.levels.find((l) => l.kind === "S1")?.strike ?? 0;
+  const s2 = oc.levels.find((l) => l.kind === "S2")?.strike ?? 0;
 
   return (
     <DashboardShell
       title="Option Chain"
-      subtitle={`${symbol} • Spot ${fmt(oc.spot)} • Expiry ${oc.expiry}`}
+      subtitle={`${symbol} • Spot ${fmt(oc.spot)} • Expiry ${oc.expiry} • PCR ${pcr.toFixed(2)}`}
       updatedAt={oc.updatedAt}
     >
-      <div className="mb-4 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         {SYMBOLS.map((s) => (
           <button
             key={s}
@@ -103,168 +98,124 @@ function Page() {
             {s}
           </button>
         ))}
-        {oc.source === "fallback" && (
-          <span className="ml-auto rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-200">
-            NSE blocked — showing simulated chain. Live data resumes when NSE responds.
-          </span>
-        )}
+        <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">
+          Live • Auto-refresh 10s during market hours
+        </span>
       </div>
 
-      {/* Resistance / Support banner */}
-      <div className="mb-3 grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-[var(--bull)]/40 bg-[var(--bull)]/10 px-4 py-3 text-sm">
-          <span className="font-bold text-[var(--bull)]">RESISTANCE</span>{" "}
-          <span className="text-foreground/90">VOLUME / OI Zone at {fmt(resLow, 0)} – {fmt(resHigh, 0)}</span>
+      {oc.source === "fallback" && (
+        <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
+          Upstream blocked — showing simulated chain. Live data resumes when feed responds.
         </div>
-        <div className="rounded-xl border border-[var(--bear)]/40 bg-[var(--bear)]/10 px-4 py-3 text-sm">
-          <span className="font-bold text-[var(--bear)]">SUPPORT</span>{" "}
-          <span className="text-foreground/90">OI / VOLUME Zone at {fmt(supportLow, 0)} – {fmt(supportHigh, 0)}</span>
-        </div>
-      </div>
+      )}
 
-      {/* % strength bar */}
-      <div className="mb-3 flex flex-wrap gap-2 text-xs">
-        <Pill label="CE WTB" value={ceWtb} tone="bull" />
-        <Pill label="CE WTT" value={ceWtt} tone="bull" />
-        <Pill label="PE STRONG" value={peStrong} tone="bear" />
-        <Pill label="PE WTB" value={peWtb} tone="bear" />
+      {/* 4 Levels */}
+      <div className="mb-4 grid gap-3 md:grid-cols-4">
+        <LevelCard label="R1 (Resistance)" sub="Max CE OI + Volume Zone" value={r1} tone="bear" />
+        <LevelCard label="R2 (Resistance Shift)" sub="Live OI Shift on CE" value={r2} tone="bear" subtle />
+        <LevelCard label="S1 (Support)" sub="Max PE OI + Volume Zone" value={s1} tone="bull" />
+        <LevelCard label="S2 (Support Shift)" sub="Live OI Shift on PE" value={s2} tone="bull" subtle />
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full min-w-[1100px] text-xs">
-          <thead className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            <tr className="border-b border-border bg-background/40">
-              <th className="px-2 py-2 text-right">CE OI Chg</th>
-              <th className="px-2 py-2 text-right">CE OI</th>
-              <th className="px-2 py-2 text-right">CE Volume</th>
-              <th className="px-2 py-2 text-right">CE LTP</th>
-              <th className="px-2 py-2 text-right">Reversal</th>
-              <th className="px-2 py-2 text-center text-foreground">STRIKE</th>
-              <th className="px-2 py-2 text-left">Reversal</th>
-              <th className="px-2 py-2 text-right">PE LTP</th>
-              <th className="px-2 py-2 text-right">PE Volume</th>
-              <th className="px-2 py-2 text-right">PE OI</th>
-              <th className="px-2 py-2 text-right">PE OI Chg</th>
+        <table className="w-full min-w-[1400px] text-xs">
+          <thead className="bg-background/60 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th colSpan={2} className="border-b border-border px-2 py-2 text-center bg-rose-900/30 text-rose-200">CALL — Interpret</th>
+              <th colSpan={6} className="border-b border-border px-2 py-2 text-center bg-rose-900/20 text-rose-200">CALL OPTIONS</th>
+              <th className="border-b border-border bg-[var(--neon)]/15 px-2 py-2 text-center text-foreground">Strike</th>
+              <th colSpan={6} className="border-b border-border px-2 py-2 text-center bg-emerald-900/20 text-emerald-200">PUT OPTIONS</th>
+              <th colSpan={2} className="border-b border-border px-2 py-2 text-center bg-emerald-900/30 text-emerald-200">PUT — Interpret</th>
+            </tr>
+            <tr className="border-b border-border">
+              <th className="px-2 py-2 text-right">Straddle</th>
+              <th className="px-2 py-2 text-left">Signal</th>
+              <th className="px-2 py-2 text-right">IV</th>
+              <th className="px-2 py-2 text-right">OI Chg</th>
+              <th className="px-2 py-2 text-right">OI</th>
+              <th className="px-2 py-2 text-right">Volume</th>
+              <th className="px-2 py-2 text-right">LTP</th>
+              <th className="px-2 py-2 text-right">R.Lvl</th>
+              <th className="px-2 py-2 text-center text-foreground">PCR OI</th>
+              <th className="px-2 py-2 text-left">S.Lvl</th>
+              <th className="px-2 py-2 text-right">LTP</th>
+              <th className="px-2 py-2 text-right">Volume</th>
+              <th className="px-2 py-2 text-right">OI</th>
+              <th className="px-2 py-2 text-right">OI Chg</th>
+              <th className="px-2 py-2 text-right">IV</th>
+              <th className="px-2 py-2 text-right">Signal</th>
+              <th className="px-2 py-2 text-right">Straddle</th>
             </tr>
           </thead>
           <tbody>
             {oc.rows.map((r) => {
-              const isAtm = Math.abs(r.strike - oc.spot) < (oc.symbol === "BANKNIFTY" ? 100 : 50);
+              const isAtm = Math.abs(r.strike - oc.spot) < (oc.symbol === "BANKNIFTY" || oc.symbol === "SENSEX" ? 100 : 50);
               const itm = r.strike < oc.spot;
               const ceVol = r.ce?.volume ?? 0;
               const peVol = r.pe?.volume ?? 0;
               const ceOi = r.ce?.oi ?? 0;
               const peOi = r.pe?.oi ?? 0;
-
-              const highlightCeOi =
-                r.strike === oc.maxCeOiStrike
-                  ? "bg-[var(--bear)]/30"
-                  : r.strike === oc.second.ceOi
-                    ? "bg-[var(--bear)]/15"
-                    : "";
-              const highlightCeVol =
-                r.strike === oc.maxCeVolStrike
-                  ? "bg-yellow-500/35"
-                  : r.strike === oc.second.ceVol
-                    ? "bg-yellow-500/15"
-                    : "";
-              const highlightPeOi =
-                r.strike === oc.maxPeOiStrike
-                  ? "bg-[var(--bull)]/30"
-                  : r.strike === oc.second.peOi
-                    ? "bg-[var(--bull)]/15"
-                    : "";
-              const highlightPeVol =
-                r.strike === oc.maxPeVolStrike
-                  ? "bg-yellow-500/35"
-                  : r.strike === oc.second.peVol
-                    ? "bg-yellow-500/15"
-                    : "";
-
+              const hlCeOi = r.strike === oc.maxCeOiStrike ? "bg-rose-600/40" : r.strike === oc.second.ceOi ? "bg-rose-600/15" : "";
+              const hlCeVol = r.strike === oc.maxCeVolStrike ? "bg-amber-500/40" : r.strike === oc.second.ceVol ? "bg-amber-500/15" : "";
+              const hlPeOi = r.strike === oc.maxPeOiStrike ? "bg-emerald-600/40" : r.strike === oc.second.peOi ? "bg-emerald-600/15" : "";
+              const hlPeVol = r.strike === oc.maxPeVolStrike ? "bg-amber-500/40" : r.strike === oc.second.peVol ? "bg-amber-500/15" : "";
               return (
-                <tr
-                  key={r.strike}
-                  className={`border-b border-border/40 ${isAtm ? "ring-1 ring-inset ring-[var(--neon)]/60" : ""}`}
-                >
+                <tr key={r.strike} className={`border-b border-border/40 ${isAtm ? "ring-1 ring-inset ring-[var(--neon)]/60" : ""}`}>
+                  <td className="px-2 py-1.5 text-right font-mono text-foreground/90">{fmt(r.straddle)}</td>
+                  <td className="px-2 py-1.5"><SignalChip s={r.ce?.signal ?? "Neutral"} /></td>
+                  <td className="px-2 py-1.5 text-right font-mono">{(r.ce?.iv ?? 0).toFixed(2)}</td>
                   <td className={`px-2 py-1.5 text-right font-mono ${(r.ce?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                    {fmtN(r.ce?.oiChg ?? 0)}
-                    <div className="text-[9px] opacity-70">{pctOf(Math.abs(r.ce?.oiChg ?? 0), maxCeOiChg).toFixed(1)}%</div>
+                    {(r.ce?.oiChgPct ?? 0).toFixed(1)}%
+                    <div className="text-[9px] opacity-70">{fmtN(r.ce?.oiChg ?? 0)}</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${highlightCeOi}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono ${hlCeOi}`}>
                     {fmtN(ceOi)}
-                    <div className="text-[9px] opacity-70">{pctOf(ceOi, maxCeOi).toFixed(1)}%</div>
+                    <div className="text-[9px] opacity-70">{pctOf(ceOi, maxCeOi).toFixed(0)}%</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${highlightCeVol}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono ${hlCeVol}`}>
                     {fmtN(ceVol)}
-                    <div className="text-[9px] opacity-70">{pctOf(ceVol, maxCeVol).toFixed(1)}%</div>
+                    <div className="text-[9px] opacity-70">{pctOf(ceVol, maxCeVol).toFixed(0)}%</div>
                   </td>
                   <td className="px-2 py-1.5 text-right font-mono">{fmt(r.ce?.ltp ?? 0)}</td>
-                  <td className="px-2 py-1.5 text-right text-[10px] text-muted-foreground">
-                    {classifyReversal("ce", pctOf(r.ce?.oiChg ?? 0, maxCeOiChg), pctOf(ceVol, maxCeVol))}
+                  <td className="px-2 py-1.5 text-right font-mono text-rose-300/80">{fmt(r.strike + (r.ce?.ltp ?? 0), 0)}</td>
+                  <td className={`px-2 py-1.5 text-center font-bold ${isAtm ? "bg-[var(--neon)]/20 text-[var(--neon)]" : itm ? "bg-background/60" : "bg-background/30"}`}>
+                    <div>{fmt(r.strike, 0)}</div>
+                    <div className="text-[9px] font-normal opacity-70">{r.pcr.toFixed(2)}</div>
                   </td>
-                  <td
-                    className={`px-2 py-1.5 text-center font-bold ${
-                      isAtm
-                        ? "bg-[var(--neon)]/20 text-[var(--neon)]"
-                        : itm
-                          ? "bg-background/60"
-                          : "bg-background/30"
-                    }`}
-                  >
-                    {fmt(r.strike, 0)}
-                  </td>
-                  <td className="px-2 py-1.5 text-left text-[10px] text-muted-foreground">
-                    {classifyReversal("pe", pctOf(r.pe?.oiChg ?? 0, maxPeOiChg), pctOf(peVol, maxPeVol))}
-                  </td>
+                  <td className="px-2 py-1.5 text-left font-mono text-emerald-300/80">{fmt(r.strike - (r.pe?.ltp ?? 0), 0)}</td>
                   <td className="px-2 py-1.5 text-right font-mono">{fmt(r.pe?.ltp ?? 0)}</td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${highlightPeVol}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono ${hlPeVol}`}>
                     {fmtN(peVol)}
-                    <div className="text-[9px] opacity-70">{pctOf(peVol, maxPeVol).toFixed(1)}%</div>
+                    <div className="text-[9px] opacity-70">{pctOf(peVol, maxPeVol).toFixed(0)}%</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${highlightPeOi}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono ${hlPeOi}`}>
                     {fmtN(peOi)}
-                    <div className="text-[9px] opacity-70">{pctOf(peOi, maxPeOi).toFixed(1)}%</div>
+                    <div className="text-[9px] opacity-70">{pctOf(peOi, maxPeOi).toFixed(0)}%</div>
                   </td>
                   <td className={`px-2 py-1.5 text-right font-mono ${(r.pe?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                    {fmtN(r.pe?.oiChg ?? 0)}
-                    <div className="text-[9px] opacity-70">{pctOf(Math.abs(r.pe?.oiChg ?? 0), maxPeOiChg).toFixed(1)}%</div>
+                    {(r.pe?.oiChgPct ?? 0).toFixed(1)}%
+                    <div className="text-[9px] opacity-70">{fmtN(r.pe?.oiChg ?? 0)}</div>
                   </td>
+                  <td className="px-2 py-1.5 text-right font-mono">{(r.pe?.iv ?? 0).toFixed(2)}</td>
+                  <td className="px-2 py-1.5 text-right"><SignalChip s={r.pe?.signal ?? "Neutral"} /></td>
+                  <td className="px-2 py-1.5 text-right font-mono text-foreground/90">{fmt(r.straddle)}</td>
                 </tr>
               );
             })}
           </tbody>
-          <tfoot className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            <tr className="border-t border-border bg-background/40">
-              <td className="px-2 py-2 text-right">
-                <div>Total CE</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.ceOiChg)}</div>
-              </td>
-              <td className="px-2 py-2 text-right">
-                <div>CE OI</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.ceOi)}</div>
-              </td>
-              <td className="px-2 py-2 text-right">
-                <div>CE Vol</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.ceVol)}</div>
-              </td>
+          <tfoot className="bg-background/50 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <td colSpan={3} className="px-2 py-2 text-right">Totals</td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceOiChg)}</td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceOi)}</td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceVol)}</td>
               <td colSpan={2}></td>
-              <td className="px-2 py-2 text-center">
-                <div>PE-CE OI Chg</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.peOiChg - oc.totals.ceOiChg)}</div>
-              </td>
+              <td className="px-2 py-2 text-center font-mono text-foreground">{pcr.toFixed(2)} / {pcrChg.toFixed(2)}</td>
               <td colSpan={2}></td>
-              <td className="px-2 py-2 text-right">
-                <div>PE Vol</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.peVol)}</div>
-              </td>
-              <td className="px-2 py-2 text-right">
-                <div>PE OI</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.peOi)}</div>
-              </td>
-              <td className="px-2 py-2 text-right">
-                <div>Total PE</div>
-                <div className="font-mono text-foreground">{fmtN(oc.totals.peOiChg)}</div>
-              </td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peVol)}</td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peOi)}</td>
+              <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peOiChg)}</td>
+              <td colSpan={3}></td>
             </tr>
           </tfoot>
         </table>
@@ -273,11 +224,15 @@ function Page() {
   );
 }
 
-function Pill({ label, value, tone }: { label: string; value: number; tone: "bull" | "bear" }) {
-  const color = tone === "bull" ? "border-[var(--bull)]/50 text-[var(--bull)] bg-[var(--bull)]/10" : "border-[var(--bear)]/50 text-[var(--bear)] bg-[var(--bear)]/10";
+function LevelCard({ label, sub, value, tone, subtle }: { label: string; sub: string; value: number; tone: "bull" | "bear"; subtle?: boolean }) {
+  const ring = tone === "bear" ? "border-rose-500/40 bg-rose-500/10" : "border-emerald-500/40 bg-emerald-500/10";
+  const dim = subtle ? "opacity-90" : "";
+  const text = tone === "bear" ? "text-rose-300" : "text-emerald-300";
   return (
-    <div className={`rounded-md border px-3 py-1.5 font-semibold ${color}`}>
-      {label} <span className="font-mono">{value.toFixed(2)}%</span>
+    <div className={`rounded-xl border px-4 py-3 ${ring} ${dim}`}>
+      <div className={`text-[10px] font-bold uppercase tracking-widest ${text}`}>{label}</div>
+      <div className="mt-1 font-mono text-2xl font-bold text-foreground">{fmt(value, 0)}</div>
+      <div className="mt-0.5 text-[10px] text-muted-foreground">{sub}</div>
     </div>
   );
 }
