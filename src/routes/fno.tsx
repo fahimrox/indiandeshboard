@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
-import { ChangePill, fmt } from "@/components/MarketBits";
+import { fmt } from "@/components/MarketBits";
 import { fnoStocksQuery } from "@/lib/dashboard-query";
-import { Flame, TrendingDown, TrendingUp, Activity } from "lucide-react";
-import { useState } from "react";
+import { Flame, TrendingDown, TrendingUp, Activity, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { FnoStock } from "@/lib/nse.functions";
 
 export const Route = createFileRoute("/fno")({
@@ -14,13 +14,9 @@ export const Route = createFileRoute("/fno")({
       {
         name: "description",
         content:
-          "All NSE F&O stocks with LTP, change %, volume, OI, OI change %, buildup classification, volume shocker and AI sentiment.",
+          "All NSE F&O stocks with LTP, change %, volume, OI, OI change %, buildup classification, volume shocker and AI sentiment. Sortable columns and live updates.",
       },
       { property: "og:title", content: "F&O Stocks — Live NSE Buildup" },
-      {
-        property: "og:description",
-        content: "NSE F&O underlyings with live buildup, OI change and AI sentiment.",
-      },
       { property: "og:url", content: "https://indiandeshboard.lovable.app/fno" },
     ],
     links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/fno" }],
@@ -47,13 +43,81 @@ function fmtN(n: number) {
   return n.toLocaleString("en-IN");
 }
 
+type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "buildup" | "aiSentiment";
+type SortDir = "asc" | "desc";
+
+const BUILDUP_ORDER: Record<FnoStock["buildup"], number> = {
+  "Long Buildup": 4,
+  "Short Covering": 3,
+  Neutral: 2,
+  "Long Unwinding": 1,
+  "Short Buildup": 0,
+};
+
+function SortHeader({
+  label,
+  k,
+  sortKey,
+  dir,
+  align = "right",
+  onClick,
+}: {
+  label: string;
+  k: SortKey;
+  sortKey: SortKey;
+  dir: SortDir;
+  align?: "left" | "right";
+  onClick: (k: SortKey) => void;
+}) {
+  const active = sortKey === k;
+  const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <th className={`px-3 py-3 text-${align}`}>
+      <button
+        onClick={() => onClick(k)}
+        className={`inline-flex items-center gap-1 text-xs uppercase tracking-wider transition hover:text-foreground ${
+          active ? "text-[var(--neon)]" : "text-muted-foreground"
+        }`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3" />
+      </button>
+    </th>
+  );
+}
+
 function Page() {
   const { data } = useSuspenseQuery(fnoStocksQuery);
   const [filter, setFilter] = useState<FnoStock["buildup"] | "All">("All");
   const [search, setSearch] = useState("");
-  const rows = data.data
-    .filter((s) => filter === "All" || s.buildup === filter)
-    .filter((s) => s.symbol.toLowerCase().includes(search.toLowerCase()));
+  const [sortKey, setSortKey] = useState<SortKey>("changePct");
+  const [dir, setDir] = useState<SortDir>("desc");
+
+  const onSort = (k: SortKey) => {
+    if (k === sortKey) setDir(dir === "asc" ? "desc" : "asc");
+    else {
+      setSortKey(k);
+      setDir(k === "symbol" ? "asc" : "desc");
+    }
+  };
+
+  const rows = useMemo(() => {
+    const filtered = data.data
+      .filter((s) => filter === "All" || s.buildup === filter)
+      .filter((s) => s.symbol.toLowerCase().includes(search.toLowerCase()));
+    const sorted = [...filtered].sort((a, b) => {
+      let av: number | string;
+      let bv: number | string;
+      if (sortKey === "symbol") { av = a.symbol; bv = b.symbol; }
+      else if (sortKey === "buildup") { av = BUILDUP_ORDER[a.buildup]; bv = BUILDUP_ORDER[b.buildup]; }
+      else { av = a[sortKey] as number; bv = b[sortKey] as number; }
+      if (typeof av === "string" && typeof bv === "string") {
+        return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
+      }
+      return dir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+    });
+    return sorted;
+  }, [data.data, filter, search, sortKey, dir]);
 
   const counts = {
     "Long Buildup": data.data.filter((s) => s.buildup === "Long Buildup").length,
@@ -66,7 +130,7 @@ function Page() {
     <DashboardShell title="F&O Stocks" subtitle="All NSE F&O underlyings — buildup & AI sentiment" updatedAt={data.updatedAt}>
       {data.source === "fallback" && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
-          NSE feed blocked from server right now. Try in a few minutes — auto-retry har 45s.
+          NSE feed blocked right now. Auto-retry every 15s during market hours.
         </div>
       )}
 
@@ -94,26 +158,26 @@ function Page() {
           className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-[var(--neon)]"
         />
         <button
-          onClick={() => { setFilter("All"); setSearch(""); }}
+          onClick={() => { setFilter("All"); setSearch(""); setSortKey("changePct"); setDir("desc"); }}
           className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
         >
           Reset
         </button>
-        <div className="ml-auto text-xs text-muted-foreground">{rows.length} stocks</div>
+        <div className="ml-auto text-xs text-muted-foreground">{rows.length} stocks • Sorted by {sortKey} {dir === "asc" ? "↑" : "↓"}</div>
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-2xl border border-border bg-card">
         <table className="w-full min-w-[900px] text-sm">
           <thead className="text-xs uppercase tracking-wider text-muted-foreground">
             <tr className="border-b border-border">
-              <th className="px-3 py-3 text-left">Symbol</th>
-              <th className="px-3 py-3 text-right">LTP</th>
-              <th className="px-3 py-3 text-right">Change %</th>
-              <th className="px-3 py-3 text-right">Volume</th>
-              <th className="px-3 py-3 text-right">OI</th>
-              <th className="px-3 py-3 text-right">OI Chg %</th>
-              <th className="px-3 py-3 text-left">Buildup</th>
-              <th className="px-3 py-3 text-right">AI Sentiment</th>
+              <SortHeader label="Symbol" k="symbol" sortKey={sortKey} dir={dir} align="left" onClick={onSort} />
+              <SortHeader label="LTP" k="ltp" sortKey={sortKey} dir={dir} onClick={onSort} />
+              <SortHeader label="Change %" k="changePct" sortKey={sortKey} dir={dir} onClick={onSort} />
+              <SortHeader label="Volume" k="volume" sortKey={sortKey} dir={dir} onClick={onSort} />
+              <SortHeader label="OI" k="oi" sortKey={sortKey} dir={dir} onClick={onSort} />
+              <SortHeader label="OI Chg %" k="oiChgPct" sortKey={sortKey} dir={dir} onClick={onSort} />
+              <SortHeader label="Buildup" k="buildup" sortKey={sortKey} dir={dir} align="left" onClick={onSort} />
+              <SortHeader label="AI Sentiment" k="aiSentiment" sortKey={sortKey} dir={dir} onClick={onSort} />
             </tr>
           </thead>
           <tbody>
