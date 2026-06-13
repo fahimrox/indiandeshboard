@@ -439,3 +439,116 @@ export const getFnoStocks = createServerFn({ method: "GET" }).handler(async () =
   cached("fno-stocks", fetchFnoStocks),
 );
 
+// ============ F&O SCREENER ============
+
+export type ScreenerTag =
+  | "Long Buildup"
+  | "Short Buildup"
+  | "Short Covering"
+  | "Long Unwinding"
+  | "Volume Shocker"
+  | "Day High Break"
+  | "Day Low Break"
+  | "Week High Break"
+  | "Week Low Break"
+  | "Month High Break"
+  | "Month Low Break"
+  | "Range Breakout"
+  | "High Call Writing"
+  | "High Put Writing";
+
+export type ScreenerRow = FnoStock & {
+  dayHigh: number;
+  dayLow: number;
+  weekHigh: number;
+  weekLow: number;
+  monthHigh: number;
+  monthLow: number;
+  tags: ScreenerTag[];
+};
+
+export type ScreenerResponse = { data: ScreenerRow[]; source: "nse" | "fallback"; updatedAt: number };
+
+function classifyScreener(
+  s: FnoStock,
+  levels: { dayHigh: number; dayLow: number; weekHigh: number; weekLow: number; monthHigh: number; monthLow: number },
+): ScreenerTag[] {
+  const tags: ScreenerTag[] = [];
+  if (s.buildup !== "Neutral") tags.push(s.buildup as ScreenerTag);
+  if (s.volumeShocker) tags.push("Volume Shocker");
+  if (levels.dayHigh > 0 && s.ltp >= levels.dayHigh * 0.999) tags.push("Day High Break");
+  if (levels.dayLow > 0 && s.ltp <= levels.dayLow * 1.001) tags.push("Day Low Break");
+  if (levels.weekHigh > 0 && s.ltp >= levels.weekHigh * 0.999) tags.push("Week High Break");
+  if (levels.weekLow > 0 && s.ltp <= levels.weekLow * 1.001) tags.push("Week Low Break");
+  if (levels.monthHigh > 0 && s.ltp >= levels.monthHigh * 0.999) tags.push("Month High Break");
+  if (levels.monthLow > 0 && s.ltp <= levels.monthLow * 1.001) tags.push("Month Low Break");
+  const range = levels.dayHigh - levels.dayLow;
+  if (range > 0 && (s.ltp > levels.dayHigh - range * 0.05 || s.ltp < levels.dayLow + range * 0.05) && s.volumeShocker) {
+    tags.push("Range Breakout");
+  }
+  if (s.buildup === "Short Buildup" && Math.abs(s.oiChgPct) > 6) tags.push("High Call Writing");
+  if (s.buildup === "Long Buildup" && Math.abs(s.oiChgPct) > 6) tags.push("High Put Writing");
+  return tags;
+}
+
+type LevelSet = { dayHigh: number; dayLow: number; weekHigh: number; weekLow: number; monthHigh: number; monthLow: number };
+
+async function fetchYahooLevels(symbols: string[]): Promise<Map<string, LevelSet>> {
+  const out = new Map<string, LevelSet>();
+  const CHUNK = 25;
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += CHUNK) chunks.push(symbols.slice(i, i + CHUNK));
+  const results = await Promise.all(chunks.map(async (chunk) => {
+    const url = `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk.map((s) => `${s}.NS`).join(","))}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": HEADERS_BASE["User-Agent"],
+          Accept: "application/json",
+          Referer: "https://finance.yahoo.com/",
+        },
+      });
+      if (!res.ok) return [] as Array<[string, LevelSet]>;
+      const json = (await res.json()) as { quoteResponse?: { result?: Array<Record<string, number | string>> } };
+      const rows: Array<[string, LevelSet]> = [];
+      for (const r of json.quoteResponse?.result ?? []) {
+        const sym = String(r.symbol ?? "").replace(".NS", "");
+        const dayHigh = num(r.regularMarketDayHigh);
+        const dayLow = num(r.regularMarketDayLow);
+        const wkHigh = num(r.fiftyTwoWeekHigh);
+        const wkLow = num(r.fiftyTwoWeekLow);
+        rows.push([sym, {
+          dayHigh,
+          dayLow,
+          weekHigh: dayHigh, // best-effort; would need 5d range otherwise
+          weekLow: dayLow,
+          monthHigh: wkHigh,
+          monthLow: wkLow,
+        }]);
+      }
+      return rows;
+    } catch {
+      return [] as Array<[string, LevelSet]>;
+    }
+  }));
+  for (const rows of results) for (const [k, v] of rows) out.set(k, v);
+  return out;
+}
+
+async function fetchFnoScreener(): Promise<ScreenerResponse> {
+  const stocksResp = await fetchFnoStocks();
+  const stocks = stocksResp.data;
+  const levels = await fetchYahooLevels(stocks.map((s) => s.symbol));
+  const rows: ScreenerRow[] = stocks.map((s) => {
+    const lv = levels.get(s.symbol) ?? { dayHigh: s.ltp, dayLow: s.ltp, weekHigh: s.ltp, weekLow: s.ltp, monthHigh: s.ltp, monthLow: s.ltp };
+    const tags = classifyScreener(s, lv);
+    return { ...s, ...lv, tags };
+  });
+  return { data: rows, source: stocksResp.source, updatedAt: Date.now() };
+}
+
+export const getFnoScreener = createServerFn({ method: "GET" }).handler(async () =>
+  cached("fno-screener", fetchFnoScreener),
+);
+
+
