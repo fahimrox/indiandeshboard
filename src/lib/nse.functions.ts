@@ -121,32 +121,27 @@ function classifyOcSignal(side: "ce" | "pe", oiChgPct: number): OcSignal {
   }
 }
 
+function buildLeg(side: "ce" | "pe", oi: number, oiChg: number, prevOi: number, volume: number, ltp: number, iv = 0): OcLeg {
+  const oiChgPct = prevOi > 0 ? (oiChg / prevOi) * 100 : 0;
+  return { oi, oiChg, oiChgPct, volume, ltp, iv, signal: classifyOcSignal(side, oiChgPct) };
+}
+
 function synthOptionChain(symbol: string, spot: number): OptionChain {
-  const step = symbol === "BANKNIFTY" ? 100 : 50;
+  const step = symbol === "BANKNIFTY" ? 100 : symbol === "SENSEX" ? 100 : 50;
   const center = Math.round(spot / step) * step;
   const rows: OcRow[] = [];
-  for (let i = -7; i <= 7; i++) {
+  for (let i = -10; i <= 10; i++) {
     const strike = center + i * step;
     const dist = Math.abs(strike - spot) / spot;
     const base = Math.round(50_000 * Math.exp(-dist * 18));
     const noise = () => 0.5 + Math.random();
     const ceOi = Math.round(base * noise() * (i < 0 ? 0.6 : 1.2));
     const peOi = Math.round(base * noise() * (i > 0 ? 0.6 : 1.2));
-    rows.push({
-      strike,
-      ce: {
-        oi: ceOi,
-        oiChg: Math.round(ceOi * (Math.random() - 0.4) * 0.5),
-        volume: Math.round(ceOi * (1 + Math.random() * 4)),
-        ltp: Math.max(0.5, spot - strike + Math.random() * 80),
-      },
-      pe: {
-        oi: peOi,
-        oiChg: Math.round(peOi * (Math.random() - 0.4) * 0.5),
-        volume: Math.round(peOi * (1 + Math.random() * 4)),
-        ltp: Math.max(0.5, strike - spot + Math.random() * 80),
-      },
-    });
+    const ceOiChg = Math.round(ceOi * (Math.random() - 0.4) * 0.5);
+    const peOiChg = Math.round(peOi * (Math.random() - 0.4) * 0.5);
+    const ce = buildLeg("ce", ceOi, ceOiChg, Math.max(1, ceOi - ceOiChg), Math.round(ceOi * (1 + Math.random() * 4)), Math.max(0.5, spot - strike + Math.random() * 80), 12 + Math.random() * 8);
+    const pe = buildLeg("pe", peOi, peOiChg, Math.max(1, peOi - peOiChg), Math.round(peOi * (1 + Math.random() * 4)), Math.max(0.5, strike - spot + Math.random() * 80), 12 + Math.random() * 8);
+    rows.push({ strike, ce, pe, straddle: (ce?.ltp ?? 0) + (pe?.ltp ?? 0), pcr: ce && ce.oi ? (pe?.oi ?? 0) / ce.oi : 0 });
   }
   return computeOcAggregates({
     symbol,
@@ -159,18 +154,12 @@ function synthOptionChain(symbol: string, spot: number): OptionChain {
 }
 
 function computeOcAggregates(oc: OptionChain): OptionChain {
-  const ceOis = oc.rows
-    .map((r) => ({ s: r.strike, v: r.ce?.oi ?? 0 }))
-    .sort((a, b) => b.v - a.v);
-  const peOis = oc.rows
-    .map((r) => ({ s: r.strike, v: r.pe?.oi ?? 0 }))
-    .sort((a, b) => b.v - a.v);
-  const ceVols = oc.rows
-    .map((r) => ({ s: r.strike, v: r.ce?.volume ?? 0 }))
-    .sort((a, b) => b.v - a.v);
-  const peVols = oc.rows
-    .map((r) => ({ s: r.strike, v: r.pe?.volume ?? 0 }))
-    .sort((a, b) => b.v - a.v);
+  const ceOis = oc.rows.map((r) => ({ s: r.strike, v: r.ce?.oi ?? 0 })).sort((a, b) => b.v - a.v);
+  const peOis = oc.rows.map((r) => ({ s: r.strike, v: r.pe?.oi ?? 0 })).sort((a, b) => b.v - a.v);
+  const ceVols = oc.rows.map((r) => ({ s: r.strike, v: r.ce?.volume ?? 0 })).sort((a, b) => b.v - a.v);
+  const peVols = oc.rows.map((r) => ({ s: r.strike, v: r.pe?.volume ?? 0 })).sort((a, b) => b.v - a.v);
+  const ceOiShift = oc.rows.map((r) => ({ s: r.strike, v: r.ce?.oiChg ?? 0 })).sort((a, b) => b.v - a.v);
+  const peOiShift = oc.rows.map((r) => ({ s: r.strike, v: r.pe?.oiChg ?? 0 })).sort((a, b) => b.v - a.v);
   oc.maxCeOiStrike = ceOis[0]?.s ?? 0;
   oc.maxPeOiStrike = peOis[0]?.s ?? 0;
   oc.maxCeVolStrike = ceVols[0]?.s ?? 0;
@@ -189,14 +178,43 @@ function computeOcAggregates(oc: OptionChain): OptionChain {
     ceVol: oc.rows.reduce((a, r) => a + (r.ce?.volume ?? 0), 0),
     peVol: oc.rows.reduce((a, r) => a + (r.pe?.volume ?? 0), 0),
   };
+  // R1/R2 = top 2 PE-side OI-shift below spot? Actually classic: resistance = highest CE OI; support = highest PE OI.
+  // Per request: 2 levels each, R1/S1 from absolute OI+vol concentration, R2/S2 from largest live OI shift.
+  const r1 = ceOis[0]?.s ?? 0;
+  const r2 = ceOiShift[0]?.s ?? 0;
+  const s1 = peOis[0]?.s ?? 0;
+  const s2 = peOiShift[0]?.s ?? 0;
+  oc.levels = [
+    { strike: r1, kind: "R1", basis: "oi" },
+    { strike: r2 && r2 !== r1 ? r2 : (ceOis[1]?.s ?? r1), kind: "R2", basis: "oiShift" },
+    { strike: s1, kind: "S1", basis: "oi" },
+    { strike: s2 && s2 !== s1 ? s2 : (peOis[1]?.s ?? s1), kind: "S2", basis: "oiShift" },
+  ];
   return oc;
 }
 
+async function fetchOptionChainSensex(spot: number): Promise<OptionChain> {
+  // BSE option chain is hard to scrape from edge; return synthesized chain anchored at live spot.
+  return synthOptionChain("SENSEX", spot || 80000);
+}
+
 async function fetchOptionChain(symbol: string): Promise<OptionChain> {
-  const indexSyms = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"];
-  const path = indexSyms.includes(symbol)
-    ? `/api/option-chain-indices?symbol=${symbol}`
-    : `/api/option-chain-equities?symbol=${symbol}`;
+  if (symbol === "SENSEX") {
+    // Try Yahoo for live spot
+    try {
+      const res = await fetch(
+        `https://query2.finance.yahoo.com/v7/finance/spark?symbols=%5EBSESN&range=1d&interval=5m`,
+        { headers: { "User-Agent": HEADERS_BASE["User-Agent"], Accept: "application/json", Referer: "https://finance.yahoo.com/" } },
+      );
+      const json = (await res.json()) as { spark?: { result?: Array<{ response?: Array<{ meta?: Record<string, number> }> }> } };
+      const meta = json.spark?.result?.[0]?.response?.[0]?.meta;
+      const spot = num(meta?.regularMarketPrice, 80000);
+      return fetchOptionChainSensex(spot);
+    } catch {
+      return fetchOptionChainSensex(80000);
+    }
+  }
+  const path = `/api/option-chain-indices?symbol=${symbol}`;
   try {
     type Resp = {
       records: {
@@ -205,8 +223,8 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
         data: Array<{
           strikePrice: number;
           expiryDate: string;
-          CE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number };
-          PE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number };
+          CE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
+          PE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
         }>;
       };
     };
@@ -216,31 +234,24 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
     const rowMap = new Map<number, OcRow>();
     for (const d of json.records.data) {
       if (d.expiryDate !== expiry) continue;
+      const ce = d.CE
+        ? buildLeg("ce", d.CE.openInterest, d.CE.changeinOpenInterest, Math.max(1, d.CE.openInterest - d.CE.changeinOpenInterest), d.CE.totalTradedVolume, d.CE.lastPrice, d.CE.impliedVolatility ?? 0)
+        : null;
+      const pe = d.PE
+        ? buildLeg("pe", d.PE.openInterest, d.PE.changeinOpenInterest, Math.max(1, d.PE.openInterest - d.PE.changeinOpenInterest), d.PE.totalTradedVolume, d.PE.lastPrice, d.PE.impliedVolatility ?? 0)
+        : null;
       rowMap.set(d.strikePrice, {
         strike: d.strikePrice,
-        ce: d.CE
-          ? {
-              oi: d.CE.openInterest,
-              oiChg: d.CE.changeinOpenInterest,
-              volume: d.CE.totalTradedVolume,
-              ltp: d.CE.lastPrice,
-            }
-          : null,
-        pe: d.PE
-          ? {
-              oi: d.PE.openInterest,
-              oiChg: d.PE.changeinOpenInterest,
-              volume: d.PE.totalTradedVolume,
-              ltp: d.PE.lastPrice,
-            }
-          : null,
+        ce,
+        pe,
+        straddle: (ce?.ltp ?? 0) + (pe?.ltp ?? 0),
+        pcr: ce && ce.oi ? (pe?.oi ?? 0) / ce.oi : 0,
       });
     }
     const sorted = [...rowMap.values()].sort((a, b) => a.strike - b.strike);
-    // keep 15 strikes around spot
     const idx = sorted.findIndex((r) => r.strike >= spot);
-    const start = Math.max(0, idx - 7);
-    const slice = sorted.slice(start, start + 15);
+    const start = Math.max(0, idx - 10);
+    const slice = sorted.slice(start, start + 21);
     return computeOcAggregates({
       symbol,
       spot,
@@ -249,13 +260,8 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
       source: "nse",
       updatedAt: Date.now(),
     } as OptionChain);
-  } catch (err) {
-    // best-effort fallback near approximate spot
-    const fallbackSpots: Record<string, number> = {
-      NIFTY: 24500,
-      BANKNIFTY: 52000,
-      FINNIFTY: 23500,
-    };
+  } catch {
+    const fallbackSpots: Record<string, number> = { NIFTY: 24500, BANKNIFTY: 52000 };
     return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000);
   }
 }
