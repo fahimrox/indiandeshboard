@@ -59,11 +59,36 @@ async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
 
 // ============ OPTION CHAIN ============
 
+export type OcSignal =
+  | "Strong Long Buildup"
+  | "Weak Long Buildup"
+  | "Strong Short Buildup"
+  | "Weak Short Buildup"
+  | "Strong Short Cover"
+  | "Weak Short Cover"
+  | "Strong Long Unwinding"
+  | "Weak Long Unwinding"
+  | "Neutral";
+
+export type OcLeg = {
+  oi: number;
+  oiChg: number;
+  oiChgPct: number;
+  volume: number;
+  ltp: number;
+  iv: number;
+  signal: OcSignal;
+} | null;
+
 export type OcRow = {
   strike: number;
-  ce: { oi: number; oiChg: number; volume: number; ltp: number } | null;
-  pe: { oi: number; oiChg: number; volume: number; ltp: number } | null;
+  ce: OcLeg;
+  pe: OcLeg;
+  straddle: number;
+  pcr: number;
 };
+
+export type SrLevel = { strike: number; kind: "R1" | "R2" | "S1" | "S2"; basis: "oi" | "oiShift" };
 
 export type OptionChain = {
   symbol: string;
@@ -74,23 +99,27 @@ export type OptionChain = {
   maxPeOiStrike: number;
   maxCeVolStrike: number;
   maxPeVolStrike: number;
-  second: {
-    ceOi: number;
-    peOi: number;
-    ceVol: number;
-    peVol: number;
-  };
-  totals: {
-    ceOi: number;
-    peOi: number;
-    ceOiChg: number;
-    peOiChg: number;
-    ceVol: number;
-    peVol: number;
-  };
+  second: { ceOi: number; peOi: number; ceVol: number; peVol: number };
+  totals: { ceOi: number; peOi: number; ceOiChg: number; peOiChg: number; ceVol: number; peVol: number };
+  levels: SrLevel[];
   source: "nse" | "fallback";
   updatedAt: number;
 };
+
+function classifyOcSignal(side: "ce" | "pe", oiChgPct: number): OcSignal {
+  const m = Math.abs(oiChgPct);
+  if (m < 1.5) return "Neutral";
+  const strong = m >= 15;
+  if (side === "ce") {
+    // CE writers are bearish; CE OI up = short buildup (bearish for spot)
+    if (oiChgPct > 0) return strong ? "Strong Short Buildup" : "Weak Short Buildup";
+    return strong ? "Strong Short Cover" : "Weak Short Cover";
+  } else {
+    // PE writers are bullish; PE OI up = short buildup on PE (bullish for spot)
+    if (oiChgPct > 0) return strong ? "Strong Short Buildup" : "Weak Short Buildup";
+    return strong ? "Strong Short Cover" : "Weak Short Cover";
+  }
+}
 
 function synthOptionChain(symbol: string, spot: number): OptionChain {
   const step = symbol === "BANKNIFTY" ? 100 : 50;
