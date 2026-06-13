@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SensexRouteImport } from './routes/sensex'
+import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
@@ -28,6 +29,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const SensexRoute = SensexRouteImport.update({
   id: '/sensex',
   path: '/sensex',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScreenerRoute = ScreenerRouteImport.update({
+  id: '/screener',
+  path: '/screener',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OptionchainRoute = OptionchainRouteImport.update({
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
+  '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
+  '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
+  '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
+    | '/screener'
     | '/sensex'
     | '/sitemap.xml'
     | '/sector/$key'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
+    | '/screener'
     | '/sensex'
     | '/sitemap.xml'
     | '/sector/$key'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
+    | '/screener'
     | '/sensex'
     | '/sitemap.xml'
     | '/sector/$key'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   HeatmapRoute: typeof HeatmapRoute
   Nifty50Route: typeof Nifty50Route
   OptionchainRoute: typeof OptionchainRoute
+  ScreenerRoute: typeof ScreenerRoute
   SensexRoute: typeof SensexRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SectorKeyRoute: typeof SectorKeyRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/sensex'
       fullPath: '/sensex'
       preLoaderRoute: typeof SensexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/screener': {
+      id: '/screener'
+      path: '/screener'
+      fullPath: '/screener'
+      preLoaderRoute: typeof ScreenerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/optionchain': {
@@ -243,6 +263,7 @@ const rootRouteChildren: RootRouteChildren = {
   HeatmapRoute: HeatmapRoute,
   Nifty50Route: Nifty50Route,
   OptionchainRoute: OptionchainRoute,
+  ScreenerRoute: ScreenerRoute,
   SensexRoute: SensexRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SectorKeyRoute: SectorKeyRoute,
