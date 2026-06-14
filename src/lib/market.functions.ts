@@ -71,7 +71,7 @@ async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
   return results.flat();
 }
 
-const INDICES = ["^NSEI", "^BSESN", "^NSEBANK"];
+const INDICES = ["^NSEI", "^BSESN", "^NSEBANK", "^INDIAVIX"];
 
 export const SECTORS = [
   { key: "it", symbol: "^CNXIT", name: "IT" },
