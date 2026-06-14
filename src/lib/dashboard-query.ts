@@ -51,10 +51,10 @@ export const fnoScreenerQuery = queryOptions({
   staleTime: 8_000,
 });
 
-export const optionChainQuery = (symbol: string, spot?: number) =>
+export const optionChainQuery = (symbol: string, spot?: number, expiry?: string) =>
   queryOptions({
-    queryKey: ["option-chain", symbol, spot ?? 0],
-    queryFn: () => getOptionChain({ data: { symbol, spot } }),
+    queryKey: ["option-chain", symbol, spot ?? 0, expiry ?? ""],
+    queryFn: () => getOptionChain({ data: { symbol, spot, expiry } }),
     refetchInterval: liveInterval(10_000),
     staleTime: 5_000,
   });
