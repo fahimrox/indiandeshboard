@@ -69,10 +69,10 @@ function fmtN(n: number) {
   return n.toLocaleString("en-IN");
 }
 
-type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "aiSentiment";
+type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "aiSentiment" | "signalTime";
 type SortDir = "asc" | "desc";
 
-const COLUMNS: Array<{ key: keyof ScreenerRow | "tags"; label: string; visible: boolean; sortable?: SortKey }> = [
+const COLUMNS: Array<{ key: keyof ScreenerRow | "tags" | "signalTime"; label: string; visible: boolean; sortable?: SortKey }> = [
   { key: "symbol", label: "Symbol", visible: true, sortable: "symbol" },
   { key: "ltp", label: "LTP", visible: true, sortable: "ltp" },
   { key: "changePct", label: "Chg %", visible: true, sortable: "changePct" },
@@ -82,8 +82,24 @@ const COLUMNS: Array<{ key: keyof ScreenerRow | "tags"; label: string; visible: 
   { key: "dayHigh", label: "Day H/L", visible: true },
   { key: "monthHigh", label: "52W H/L", visible: true },
   { key: "tags", label: "Setups", visible: true },
+  { key: "signalTime", label: "Signal Time", visible: true, sortable: "signalTime" },
   { key: "aiSentiment", label: "AI", visible: true, sortable: "aiSentiment" },
 ];
+
+function fmtTime(ts: number) {
+  return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+function signalDirection(row: ScreenerRow): "up" | "down" | "flat" {
+  // Bullish setups → up, bearish → down
+  const bull = row.tags.some((t) => t === "Long Buildup" || t === "Short Covering" || t === "Day High Break" || t === "Week High Break" || t === "Month High Break" || t === "High Put Writing");
+  const bear = row.tags.some((t) => t === "Short Buildup" || t === "Long Unwinding" || t === "Day Low Break" || t === "Week Low Break" || t === "Month Low Break" || t === "High Call Writing");
+  if (bull && !bear) return "up";
+  if (bear && !bull) return "down";
+  if (row.aiSentiment > 5) return "up";
+  if (row.aiSentiment < -5) return "down";
+  return "flat";
+}
 
 function Page() {
   const { data } = useSuspenseQuery(fnoScreenerQuery);
