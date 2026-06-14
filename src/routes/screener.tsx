@@ -268,6 +268,21 @@ function Page() {
                       </div>
                     </td>
                   )}
+                  {colVis.signalTime && (
+                    <td className="px-3 py-2 text-right font-mono text-xs">
+                      {(() => {
+                        const dirS = signalDirection(s);
+                        const arrow = dirS === "up" ? "▲" : dirS === "down" ? "▼" : "•";
+                        const cls = dirS === "up" ? "text-[var(--bull)]" : dirS === "down" ? "text-[var(--bear)]" : "text-muted-foreground";
+                        return (
+                          <span className={`inline-flex items-center gap-1 ${cls}`}>
+                            <span>{arrow}</span>
+                            <span>{fmtTime(data.updatedAt)}</span>
+                          </span>
+                        );
+                      })()}
+                    </td>
+                  )}
                   {colVis.aiSentiment && (
                     <td className="px-3 py-2 text-right">
                       <span className={`font-mono text-xs ${s.aiSentiment >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
