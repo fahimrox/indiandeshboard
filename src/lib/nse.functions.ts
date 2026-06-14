@@ -231,14 +231,13 @@ function computeOcAggregates(oc: OptionChain): OptionChain {
   return oc;
 }
 
-async function fetchOptionChainSensex(spot: number): Promise<OptionChain> {
+async function fetchOptionChainSensex(spot: number, expiry?: string): Promise<OptionChain> {
   // BSE option chain is hard to scrape from edge; return synthesized chain anchored at live spot.
-  return synthOptionChain("SENSEX", spot || 80000);
+  return synthOptionChain("SENSEX", spot || 80000, expiry);
 }
 
-async function fetchOptionChain(symbol: string): Promise<OptionChain> {
+async function fetchOptionChain(symbol: string, expiry?: string): Promise<OptionChain> {
   if (symbol === "SENSEX") {
-    // Try Yahoo for live spot
     try {
       const res = await fetch(
         `https://query2.finance.yahoo.com/v7/finance/spark?symbols=%5EBSESN&range=1d&interval=5m`,
@@ -247,9 +246,9 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
       const json = (await res.json()) as { spark?: { result?: Array<{ response?: Array<{ meta?: Record<string, number> }> }> } };
       const meta = json.spark?.result?.[0]?.response?.[0]?.meta;
       const spot = num(meta?.regularMarketPrice, 80000);
-      return fetchOptionChainSensex(spot);
+      return fetchOptionChainSensex(spot, expiry);
     } catch {
-      return fetchOptionChainSensex(80000);
+      return fetchOptionChainSensex(80000, expiry);
     }
   }
   const path = `/api/option-chain-indices?symbol=${symbol}`;
@@ -268,10 +267,12 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
     };
     const json = await nseGet<Resp>(path);
     const spot = json.records.underlyingValue;
-    const expiry = json.records.expiryDates[0];
+    const allExpiries = json.records.expiryDates ?? [];
+    const expiries = symbol === "BANKNIFTY" ? filterMonthlyExpiries(allExpiries) : allExpiries;
+    const chosen = expiry && expiries.includes(expiry) ? expiry : (expiries[0] ?? allExpiries[0]);
     const rowMap = new Map<number, OcRow>();
     for (const d of json.records.data) {
-      if (d.expiryDate !== expiry) continue;
+      if (d.expiryDate !== chosen) continue;
       const ce = d.CE
         ? buildLeg("ce", d.CE.openInterest, d.CE.changeinOpenInterest, Math.max(1, d.CE.openInterest - d.CE.changeinOpenInterest), d.CE.totalTradedVolume, d.CE.lastPrice, d.CE.impliedVolatility ?? 0)
         : null;
@@ -293,24 +294,25 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
     return computeOcAggregates({
       symbol,
       spot,
-      expiry,
+      expiry: chosen,
+      expiries,
       rows: slice,
       source: "nse",
       updatedAt: Date.now(),
     } as OptionChain);
   } catch {
     const fallbackSpots: Record<string, number> = { NIFTY: 24500, BANKNIFTY: 52000 };
-    return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000);
+    return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000, expiry);
   }
 }
 
 export const getOptionChain = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional() }))
+  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
-    return cached(`oc:${data.symbol}`, async () => {
-      const oc = await fetchOptionChain(data.symbol);
+    return cached(`oc:${data.symbol}:${data.expiry ?? ""}`, async () => {
+      const oc = await fetchOptionChain(data.symbol, data.expiry);
       if (data.spot && oc.source === "fallback") {
-        return synthOptionChain(data.symbol, data.spot);
+        return synthOptionChain(data.symbol, data.spot, data.expiry);
       }
       return oc;
     });
