@@ -127,7 +127,41 @@ function buildLeg(side: "ce" | "pe", oi: number, oiChg: number, prevOi: number, 
   return { oi, oiChg, oiChgPct, volume, ltp, iv, signal: classifyOcSignal(side, oiChgPct) };
 }
 
-function synthOptionChain(symbol: string, spot: number): OptionChain {
+function nextWeeklyExpiries(symbol: string, count = 6): string[] {
+  // NIFTY: Thursday, BANKNIFTY: monthly-only (last weekly of month), SENSEX: Friday.
+  const dow = symbol === "SENSEX" ? 5 : 4; // 4=Thu, 5=Fri
+  const out: string[] = [];
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  for (let i = 0; i < count * 7 + 7 && out.length < count; i++) {
+    if (d.getUTCDay() === dow) {
+      const day = d.getUTCDate().toString().padStart(2, "0");
+      const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+      const year = d.getUTCFullYear();
+      out.push(`${day}-${month}-${year}`);
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function filterMonthlyExpiries(expiries: string[]): string[] {
+  // Keep only the last expiry per (month, year).
+  const byMonth = new Map<string, string>();
+  for (const e of expiries) {
+    const parsed = new Date(e);
+    if (isNaN(parsed.getTime())) {
+      byMonth.set(e.slice(3), e);
+      continue;
+    }
+    const key = `${parsed.getUTCFullYear()}-${parsed.getUTCMonth()}`;
+    const prev = byMonth.get(key);
+    if (!prev || new Date(e) > new Date(prev)) byMonth.set(key, e);
+  }
+  return [...byMonth.values()];
+}
+
+function synthOptionChain(symbol: string, spot: number, expiry?: string): OptionChain {
   const step = symbol === "BANKNIFTY" ? 100 : symbol === "SENSEX" ? 100 : 50;
   const center = Math.round(spot / step) * step;
   const rows: OcRow[] = [];
@@ -144,10 +178,13 @@ function synthOptionChain(symbol: string, spot: number): OptionChain {
     const pe = buildLeg("pe", peOi, peOiChg, Math.max(1, peOi - peOiChg), Math.round(peOi * (1 + Math.random() * 4)), Math.max(0.5, strike - spot + Math.random() * 80), 12 + Math.random() * 8);
     rows.push({ strike, ce, pe, straddle: (ce?.ltp ?? 0) + (pe?.ltp ?? 0), pcr: ce && ce.oi ? (pe?.oi ?? 0) / ce.oi : 0 });
   }
+  let expiries = nextWeeklyExpiries(symbol, 6);
+  if (symbol === "BANKNIFTY") expiries = filterMonthlyExpiries(expiries);
   return computeOcAggregates({
     symbol,
     spot,
-    expiry: "WEEKLY",
+    expiry: expiry ?? expiries[0] ?? "WEEKLY",
+    expiries,
     rows,
     source: "fallback",
     updatedAt: Date.now(),
