@@ -94,6 +94,7 @@ export type OptionChain = {
   symbol: string;
   spot: number;
   expiry: string;
+  expiries: string[];
   rows: OcRow[];
   maxCeOiStrike: number;
   maxPeOiStrike: number;
