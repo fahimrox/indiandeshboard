@@ -127,13 +127,14 @@ function Page() {
       .filter((s) => s.symbol.toLowerCase().includes(search.toLowerCase()))
       .filter((s) => active.size === 0 || [...active].every((t) => s.tags.includes(t)));
     const sorted = [...filtered].sort((a, b) => {
-      const av = a[sortKey] as number | string;
-      const bv = b[sortKey] as number | string;
+      const get = (r: ScreenerRow) => (sortKey === "signalTime" ? data.updatedAt : (r as unknown as Record<string, number | string>)[sortKey]);
+      const av = get(a);
+      const bv = get(b);
       if (typeof av === "string" && typeof bv === "string") return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
       return dir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
     });
     return sorted;
-  }, [data.data, search, active, sortKey, dir]);
+  }, [data.data, data.updatedAt, search, active, sortKey, dir]);
 
   const tagCounts = useMemo(() => {
     const map = new Map<ScreenerTag, number>();
