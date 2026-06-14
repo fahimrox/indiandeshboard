@@ -71,7 +71,7 @@ async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
   return results.flat();
 }
 
-const INDICES = ["^NSEI", "^BSESN", "^NSEBANK"];
+const INDICES = ["^NSEI", "^BSESN", "^NSEBANK", "^INDIAVIX"];
 
 export const SECTORS = [
   { key: "it", symbol: "^CNXIT", name: "IT" },
@@ -164,50 +164,114 @@ function statsFor(stocks: Quote[]) {
   };
 }
 
-function buildCommentary(opts: {
-  niftyPct: number;
+type IndexBias = "Bullish" | "Bearish" | "Neutral";
+
+function biasOf(pct: number): IndexBias {
+  if (pct >= 0.25) return "Bullish";
+  if (pct <= -0.25) return "Bearish";
+  return "Neutral";
+}
+
+function reversalChance(pct: number, breadthPct: number, vixChg: number): number {
+  // Heuristic 0..100: divergence between price direction and breadth + VIX spike
+  const divergence = Math.abs(Math.sign(pct) * 50 - (breadthPct - 50));
+  const vixBoost = Math.max(0, vixChg) * 4;
+  return Math.min(99, Math.round(divergence + vixBoost));
+}
+
+function indexNote(label: string, q: Quote | null | undefined, bullsPct: number, vixChg: number) {
+  if (!q) return null;
+  const bias = biasOf(q.changePct);
+  const rev = reversalChance(q.changePct, bullsPct, vixChg);
+  const reason =
+    bias === "Bullish"
+      ? `holding above prior close with breadth at ${bullsPct.toFixed(0)}% bulls — momentum favors longs`
+      : bias === "Bearish"
+        ? `losing prior close with breadth at ${bullsPct.toFixed(0)}% bulls — sellers in control`
+        : `coiling near prior close, breadth ${bullsPct.toFixed(0)}% bulls — waiting for trigger`;
+  return { label, bias, changePct: q.changePct, reason, reversalChance: rev };
+}
+
+function buildPulse(opts: {
+  nifty?: Quote | null;
+  bank?: Quote | null;
+  sensex?: Quote | null;
+  vix?: Quote | null;
   bullsPct: number;
+  advance: number;
+  decline: number;
   topSector?: { label: string; changePct: number };
   bottomSector?: { label: string; changePct: number };
   topGainer?: Quote;
   topLoser?: Quote;
-  advance: number;
-  decline: number;
-}): { tone: "Bullish" | "Bearish" | "Neutral"; lines: string[] } {
-  const { niftyPct, bullsPct, topSector, bottomSector, topGainer, topLoser, advance, decline } = opts;
-  const tone: "Bullish" | "Bearish" | "Neutral" =
-    bullsPct >= 55 ? "Bullish" : bullsPct <= 45 ? "Bearish" : "Neutral";
-  const dir = niftyPct >= 0 ? "up" : "down";
+  pcr: number;
+}) {
+  const { nifty, bank, sensex, vix, bullsPct, advance, decline, topSector, bottomSector, topGainer, topLoser, pcr } = opts;
+  const vixChg = vix?.changePct ?? 0;
+  const vixLvl = vix?.price ?? 0;
+  const overallTone: IndexBias = bullsPct >= 55 ? "Bullish" : bullsPct <= 45 ? "Bearish" : "Neutral";
+  const indices = [
+    indexNote("NIFTY 50", nifty, bullsPct, vixChg),
+    indexNote("BANK NIFTY", bank, bullsPct, vixChg),
+    indexNote("SENSEX", sensex, bullsPct, vixChg),
+  ].filter(Boolean) as Array<{ label: string; bias: IndexBias; changePct: number; reason: string; reversalChance: number }>;
+
+  const vixStatus =
+    vixLvl === 0
+      ? "VIX unavailable"
+      : vixLvl < 12
+        ? `India VIX at ${vixLvl.toFixed(2)} — extreme complacency, options cheap`
+        : vixLvl < 15
+          ? `India VIX at ${vixLvl.toFixed(2)} — low fear, trending environment`
+          : vixLvl < 18
+            ? `India VIX at ${vixLvl.toFixed(2)} — balanced volatility`
+            : vixLvl < 22
+              ? `India VIX at ${vixLvl.toFixed(2)} — elevated fear, expect wider ranges`
+              : `India VIX at ${vixLvl.toFixed(2)} — high fear, defensive bias`;
+  const vixDir = vixChg >= 0 ? `up ${vixChg.toFixed(2)}%` : `down ${Math.abs(vixChg).toFixed(2)}%`;
+
+  const pcrStatus =
+    pcr === 0
+      ? ""
+      : pcr > 1.3
+        ? `PCR at ${pcr.toFixed(2)} — heavy put writing, supportive for bulls`
+        : pcr < 0.8
+          ? `PCR at ${pcr.toFixed(2)} — heavy call writing, bearish overhang`
+          : `PCR at ${pcr.toFixed(2)} — balanced positioning`;
+
   const lines: string[] = [];
   lines.push(
-    `Market is showing a ${tone.toLowerCase()} bias — NIFTY is ${dir} ${Math.abs(niftyPct).toFixed(2)}% with ${advance} stocks advancing vs ${decline} declining.`,
+    `Overall market is ${overallTone.toLowerCase()} — ${advance} advances vs ${decline} declines, bulls control ${bullsPct.toFixed(0)}% of breadth.`,
   );
+  for (const i of indices) {
+    lines.push(
+      `${i.label}: ${i.bias} (${i.changePct >= 0 ? "+" : ""}${i.changePct.toFixed(2)}%) — ${i.reason}. Reversal odds: ${i.reversalChance}%.`,
+    );
+  }
+  lines.push(`${vixStatus}, VIX ${vixDir} — ${vixChg > 3 ? "risk-off creeping in, hedge longs" : vixChg < -3 ? "fear easing, risk-on continuation likely" : "volatility steady, follow trend"}.`);
+  if (pcrStatus) lines.push(pcrStatus + ".");
   if (topSector && bottomSector) {
     lines.push(
-      `Sector rotation: ${topSector.label} is leading the move (${topSector.changePct >= 0 ? "+" : ""}${topSector.changePct.toFixed(2)}%) while ${bottomSector.label} is the biggest drag (${bottomSector.changePct.toFixed(2)}%).`,
+      `Sector flow: ${topSector.label} leads at ${topSector.changePct >= 0 ? "+" : ""}${topSector.changePct.toFixed(2)}%, ${bottomSector.label} drags at ${bottomSector.changePct.toFixed(2)}% — rotation favors ${topSector.changePct >= 0 ? "risk-on" : "defensive"} names.`,
     );
   }
   if (topGainer && topLoser) {
     const tg = topGainer.symbol.replace(".NS", "").replace(".BO", "");
     const tl = topLoser.symbol.replace(".NS", "").replace(".BO", "");
     lines.push(
-      `Heaviest contributors: ${tg} surging ${topGainer.changePct >= 0 ? "+" : ""}${topGainer.changePct.toFixed(2)}% on the upside; ${tl} bleeding ${topLoser.changePct.toFixed(2)}% on the downside.`,
+      `Stock impact: ${tg} (${topGainer.changePct >= 0 ? "+" : ""}${topGainer.changePct.toFixed(2)}%) powering up; ${tl} (${topLoser.changePct.toFixed(2)}%) dragging down — intraday flows skewed ${topGainer.changePct + topLoser.changePct >= 0 ? "positive" : "negative"}.`,
     );
   }
-  if (tone === "Bullish") {
+  const trendChange = indices.filter((i) => i.reversalChance >= 55);
+  if (trendChange.length) {
     lines.push(
-      `Breadth confirms strength — buyers are stepping in across sectors, suggesting continuation as long as the index holds above prior pivot.`,
-    );
-  } else if (tone === "Bearish") {
-    lines.push(
-      `Weak breadth signals distribution — selling pressure is broad-based, traders should respect downside until breadth flips back.`,
+      `Trend watch: ${trendChange.map((i) => `${i.label} (${i.reversalChance}%)`).join(", ")} showing reversal potential — divergence between price and breadth.`,
     );
   } else {
-    lines.push(
-      `Mixed breadth — no decisive directional conviction yet, watch the leading sector for a breakout cue.`,
-    );
+    lines.push(`Trend watch: no major reversal signals across indices — current direction likely persists into close.`);
   }
-  return { tone, lines };
+
+  return { tone: overallTone, lines, indices, vixStatus, pcrStatus };
 }
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
@@ -223,20 +287,28 @@ export const getDashboard = createServerFn({ method: "GET" }).handler(async () =
   });
   const s = statsFor(stocks);
   const sortedSectors = [...sectorList].sort((a, b) => b.changePct - a.changePct);
-  const commentary = buildCommentary({
-    niftyPct: indexMap["^NSEI"]?.changePct ?? 0,
-    bullsPct: (s.advance / Math.max(1, s.advance + s.decline)) * 100,
+  const bullsPct = (s.advance / Math.max(1, s.advance + s.decline)) * 100;
+  // crude PCR proxy from breadth (real PCR loaded on option chain page); leave 0 if unknown
+  const pcr = 0;
+  const commentary = buildPulse({
+    nifty: indexMap["^NSEI"],
+    bank: indexMap["^NSEBANK"],
+    sensex: indexMap["^BSESN"],
+    vix: indexMap["^INDIAVIX"],
+    bullsPct,
+    advance: s.advance,
+    decline: s.decline,
     topSector: sortedSectors[0],
     bottomSector: sortedSectors[sortedSectors.length - 1],
     topGainer: s.gainers[0],
     topLoser: s.losers[0],
-    advance: s.advance,
-    decline: s.decline,
+    pcr,
   });
   return {
     nifty: indexMap["^NSEI"] ?? null,
     sensex: indexMap["^BSESN"] ?? null,
     bankNifty: indexMap["^NSEBANK"] ?? null,
+    vix: indexMap["^INDIAVIX"] ?? null,
     sectors: sectorList,
     ...s,
     commentary,

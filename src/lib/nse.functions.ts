@@ -94,6 +94,7 @@ export type OptionChain = {
   symbol: string;
   spot: number;
   expiry: string;
+  expiries: string[];
   rows: OcRow[];
   maxCeOiStrike: number;
   maxPeOiStrike: number;
@@ -126,7 +127,41 @@ function buildLeg(side: "ce" | "pe", oi: number, oiChg: number, prevOi: number, 
   return { oi, oiChg, oiChgPct, volume, ltp, iv, signal: classifyOcSignal(side, oiChgPct) };
 }
 
-function synthOptionChain(symbol: string, spot: number): OptionChain {
+function nextWeeklyExpiries(symbol: string, count = 6): string[] {
+  // NIFTY: Thursday, BANKNIFTY: monthly-only (last weekly of month), SENSEX: Friday.
+  const dow = symbol === "SENSEX" ? 5 : 4; // 4=Thu, 5=Fri
+  const out: string[] = [];
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  for (let i = 0; i < count * 7 + 7 && out.length < count; i++) {
+    if (d.getUTCDay() === dow) {
+      const day = d.getUTCDate().toString().padStart(2, "0");
+      const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+      const year = d.getUTCFullYear();
+      out.push(`${day}-${month}-${year}`);
+    }
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+function filterMonthlyExpiries(expiries: string[]): string[] {
+  // Keep only the last expiry per (month, year).
+  const byMonth = new Map<string, string>();
+  for (const e of expiries) {
+    const parsed = new Date(e);
+    if (isNaN(parsed.getTime())) {
+      byMonth.set(e.slice(3), e);
+      continue;
+    }
+    const key = `${parsed.getUTCFullYear()}-${parsed.getUTCMonth()}`;
+    const prev = byMonth.get(key);
+    if (!prev || new Date(e) > new Date(prev)) byMonth.set(key, e);
+  }
+  return [...byMonth.values()];
+}
+
+function synthOptionChain(symbol: string, spot: number, expiry?: string): OptionChain {
   const step = symbol === "BANKNIFTY" ? 100 : symbol === "SENSEX" ? 100 : 50;
   const center = Math.round(spot / step) * step;
   const rows: OcRow[] = [];
@@ -143,10 +178,13 @@ function synthOptionChain(symbol: string, spot: number): OptionChain {
     const pe = buildLeg("pe", peOi, peOiChg, Math.max(1, peOi - peOiChg), Math.round(peOi * (1 + Math.random() * 4)), Math.max(0.5, strike - spot + Math.random() * 80), 12 + Math.random() * 8);
     rows.push({ strike, ce, pe, straddle: (ce?.ltp ?? 0) + (pe?.ltp ?? 0), pcr: ce && ce.oi ? (pe?.oi ?? 0) / ce.oi : 0 });
   }
+  let expiries = nextWeeklyExpiries(symbol, 6);
+  if (symbol === "BANKNIFTY") expiries = filterMonthlyExpiries(expiries);
   return computeOcAggregates({
     symbol,
     spot,
-    expiry: "WEEKLY",
+    expiry: expiry ?? expiries[0] ?? "WEEKLY",
+    expiries,
     rows,
     source: "fallback",
     updatedAt: Date.now(),
@@ -193,14 +231,13 @@ function computeOcAggregates(oc: OptionChain): OptionChain {
   return oc;
 }
 
-async function fetchOptionChainSensex(spot: number): Promise<OptionChain> {
+async function fetchOptionChainSensex(spot: number, expiry?: string): Promise<OptionChain> {
   // BSE option chain is hard to scrape from edge; return synthesized chain anchored at live spot.
-  return synthOptionChain("SENSEX", spot || 80000);
+  return synthOptionChain("SENSEX", spot || 80000, expiry);
 }
 
-async function fetchOptionChain(symbol: string): Promise<OptionChain> {
+async function fetchOptionChain(symbol: string, expiry?: string): Promise<OptionChain> {
   if (symbol === "SENSEX") {
-    // Try Yahoo for live spot
     try {
       const res = await fetch(
         `https://query2.finance.yahoo.com/v7/finance/spark?symbols=%5EBSESN&range=1d&interval=5m`,
@@ -209,9 +246,9 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
       const json = (await res.json()) as { spark?: { result?: Array<{ response?: Array<{ meta?: Record<string, number> }> }> } };
       const meta = json.spark?.result?.[0]?.response?.[0]?.meta;
       const spot = num(meta?.regularMarketPrice, 80000);
-      return fetchOptionChainSensex(spot);
+      return fetchOptionChainSensex(spot, expiry);
     } catch {
-      return fetchOptionChainSensex(80000);
+      return fetchOptionChainSensex(80000, expiry);
     }
   }
   const path = `/api/option-chain-indices?symbol=${symbol}`;
@@ -230,10 +267,12 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
     };
     const json = await nseGet<Resp>(path);
     const spot = json.records.underlyingValue;
-    const expiry = json.records.expiryDates[0];
+    const allExpiries = json.records.expiryDates ?? [];
+    const expiries = symbol === "BANKNIFTY" ? filterMonthlyExpiries(allExpiries) : allExpiries;
+    const chosen = expiry && expiries.includes(expiry) ? expiry : (expiries[0] ?? allExpiries[0]);
     const rowMap = new Map<number, OcRow>();
     for (const d of json.records.data) {
-      if (d.expiryDate !== expiry) continue;
+      if (d.expiryDate !== chosen) continue;
       const ce = d.CE
         ? buildLeg("ce", d.CE.openInterest, d.CE.changeinOpenInterest, Math.max(1, d.CE.openInterest - d.CE.changeinOpenInterest), d.CE.totalTradedVolume, d.CE.lastPrice, d.CE.impliedVolatility ?? 0)
         : null;
@@ -255,24 +294,25 @@ async function fetchOptionChain(symbol: string): Promise<OptionChain> {
     return computeOcAggregates({
       symbol,
       spot,
-      expiry,
+      expiry: chosen,
+      expiries,
       rows: slice,
       source: "nse",
       updatedAt: Date.now(),
     } as OptionChain);
   } catch {
     const fallbackSpots: Record<string, number> = { NIFTY: 24500, BANKNIFTY: 52000 };
-    return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000);
+    return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000, expiry);
   }
 }
 
 export const getOptionChain = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional() }))
+  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
-    return cached(`oc:${data.symbol}`, async () => {
-      const oc = await fetchOptionChain(data.symbol);
+    return cached(`oc:${data.symbol}:${data.expiry ?? ""}`, async () => {
+      const oc = await fetchOptionChain(data.symbol, data.expiry);
       if (data.spot && oc.source === "fallback") {
-        return synthOptionChain(data.symbol, data.spot);
+        return synthOptionChain(data.symbol, data.spot, data.expiry);
       }
       return oc;
     });

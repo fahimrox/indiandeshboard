@@ -13,7 +13,7 @@ export const Route = createFileRoute("/optionchain")({
       {
         name: "description",
         content:
-          "Live option chain for NIFTY, BANKNIFTY and SENSEX with straddle, IV, OI change, signal and 4-level support/resistance computed from live OI and volume.",
+          "Live option chain for NIFTY, BANKNIFTY and SENSEX with IV, OI change, signal classification and 4-level support/resistance.",
       },
       { property: "og:title", content: "Option Chain — NIFTY, BANKNIFTY, SENSEX Live" },
       { property: "og:url", content: "https://indiandeshboard.lovable.app/optionchain" },
@@ -63,7 +63,8 @@ function pctOf(v: number, max: number) {
 
 function Page() {
   const [symbol, setSymbol] = useState<(typeof SYMBOLS)[number]>("NIFTY");
-  const { data: oc } = useSuspenseQuery(optionChainQuery(symbol));
+  const [expiry, setExpiry] = useState<string | undefined>(undefined);
+  const { data: oc } = useSuspenseQuery(optionChainQuery(symbol, undefined, expiry));
 
   const maxCeOi = Math.max(...oc.rows.map((r) => r.ce?.oi ?? 0), 1);
   const maxPeOi = Math.max(...oc.rows.map((r) => r.pe?.oi ?? 0), 1);
@@ -78,17 +79,19 @@ function Page() {
   const s1 = oc.levels.find((l) => l.kind === "S1")?.strike ?? 0;
   const s2 = oc.levels.find((l) => l.kind === "S2")?.strike ?? 0;
 
+  const expiryKind = symbol === "BANKNIFTY" ? "Monthly" : "Weekly";
+
   return (
     <DashboardShell
       title="Option Chain"
-      subtitle={`${symbol} • Spot ${fmt(oc.spot)} • Expiry ${oc.expiry} • PCR ${pcr.toFixed(2)}`}
+      subtitle={`${symbol} • Spot ${fmt(oc.spot)} • ${expiryKind} expiry ${oc.expiry} • PCR ${pcr.toFixed(2)}`}
       updatedAt={oc.updatedAt}
     >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {SYMBOLS.map((s) => (
           <button
             key={s}
-            onClick={() => setSymbol(s)}
+            onClick={() => { setSymbol(s); setExpiry(undefined); }}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
               symbol === s
                 ? "bg-[var(--neon)] text-background"
@@ -98,6 +101,22 @@ function Page() {
             {s}
           </button>
         ))}
+
+        <div className="ml-2 flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1">
+          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Expiry ({expiryKind})
+          </label>
+          <select
+            value={oc.expiry}
+            onChange={(e) => setExpiry(e.target.value)}
+            className="rounded bg-background/40 px-2 py-1 text-xs font-semibold outline-none"
+          >
+            {(oc.expiries ?? [oc.expiry]).map((e) => (
+              <option key={e} value={e}>{e}</option>
+            ))}
+          </select>
+        </div>
+
         <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">
           Live • Auto-refresh 10s during market hours
         </span>
@@ -118,17 +137,16 @@ function Page() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full min-w-[1400px] text-xs">
+        <table className="w-full min-w-[1280px] text-sm">
           <thead className="bg-background/60 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <th colSpan={2} className="border-b border-border px-2 py-2 text-center bg-rose-900/30 text-rose-200">CALL — Interpret</th>
+              <th className="border-b border-border px-2 py-2 text-center bg-rose-900/30 text-rose-200">CE Signal</th>
               <th colSpan={6} className="border-b border-border px-2 py-2 text-center bg-rose-900/20 text-rose-200">CALL OPTIONS</th>
               <th className="border-b border-border bg-[var(--neon)]/15 px-2 py-2 text-center text-foreground">Strike</th>
               <th colSpan={6} className="border-b border-border px-2 py-2 text-center bg-emerald-900/20 text-emerald-200">PUT OPTIONS</th>
-              <th colSpan={2} className="border-b border-border px-2 py-2 text-center bg-emerald-900/30 text-emerald-200">PUT — Interpret</th>
+              <th className="border-b border-border px-2 py-2 text-center bg-emerald-900/30 text-emerald-200">PE Signal</th>
             </tr>
             <tr className="border-b border-border">
-              <th className="px-2 py-2 text-right">Straddle</th>
               <th className="px-2 py-2 text-left">Signal</th>
               <th className="px-2 py-2 text-right">IV</th>
               <th className="px-2 py-2 text-right">OI Chg</th>
@@ -144,7 +162,6 @@ function Page() {
               <th className="px-2 py-2 text-right">OI Chg</th>
               <th className="px-2 py-2 text-right">IV</th>
               <th className="px-2 py-2 text-right">Signal</th>
-              <th className="px-2 py-2 text-right">Straddle</th>
             </tr>
           </thead>
           <tbody>
@@ -161,51 +178,49 @@ function Page() {
               const hlPeVol = r.strike === oc.maxPeVolStrike ? "bg-amber-500/40" : r.strike === oc.second.peVol ? "bg-amber-500/15" : "";
               return (
                 <tr key={r.strike} className={`border-b border-border/40 ${isAtm ? "ring-1 ring-inset ring-[var(--neon)]/60" : ""}`}>
-                  <td className="px-2 py-1.5 text-right font-mono text-foreground/90">{fmt(r.straddle)}</td>
                   <td className="px-2 py-1.5"><SignalChip s={r.ce?.signal ?? "Neutral"} /></td>
-                  <td className="px-2 py-1.5 text-right font-mono">{(r.ce?.iv ?? 0).toFixed(2)}</td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${(r.ce?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+                  <td className="px-2 py-1.5 text-right font-mono font-normal">{(r.ce?.iv ?? 0).toFixed(2)}</td>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${(r.ce?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
                     {(r.ce?.oiChgPct ?? 0).toFixed(1)}%
-                    <div className="text-[9px] opacity-70">{fmtN(r.ce?.oiChg ?? 0)}</div>
+                    <div className="text-[10px] opacity-70">{fmtN(r.ce?.oiChg ?? 0)}</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${hlCeOi}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${hlCeOi}`}>
                     {fmtN(ceOi)}
-                    <div className="text-[9px] opacity-70">{pctOf(ceOi, maxCeOi).toFixed(0)}%</div>
+                    <div className="text-[10px] opacity-70">{pctOf(ceOi, maxCeOi).toFixed(0)}%</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${hlCeVol}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${hlCeVol}`}>
                     {fmtN(ceVol)}
-                    <div className="text-[9px] opacity-70">{pctOf(ceVol, maxCeVol).toFixed(0)}%</div>
+                    <div className="text-[10px] opacity-70">{pctOf(ceVol, maxCeVol).toFixed(0)}%</div>
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono">{fmt(r.ce?.ltp ?? 0)}</td>
-                  <td className="px-2 py-1.5 text-right font-mono text-rose-300/80">{fmt(r.strike + (r.ce?.ltp ?? 0), 0)}</td>
-                  <td className={`px-2 py-1.5 text-center font-bold ${isAtm ? "bg-[var(--neon)]/20 text-[var(--neon)]" : itm ? "bg-background/60" : "bg-background/30"}`}>
-                    <div>{fmt(r.strike, 0)}</div>
-                    <div className="text-[9px] font-normal opacity-70">{r.pcr.toFixed(2)}</div>
+                  <td className="px-2 py-1.5 text-right font-mono font-normal">{fmt(r.ce?.ltp ?? 0)}</td>
+                  <td className="px-2 py-1.5 text-right font-mono font-normal text-rose-300/80">{fmt(r.strike + (r.ce?.ltp ?? 0), 0)}</td>
+                  <td className={`px-2 py-1.5 text-center ${isAtm ? "bg-[var(--neon)]/20 text-[var(--neon)]" : itm ? "bg-background/60" : "bg-background/30"}`}>
+                    <div className="font-mono text-base font-extrabold tracking-wide">{fmt(r.strike, 0)}</div>
+                    <div className="text-[10px] font-normal opacity-70">{r.pcr.toFixed(2)}</div>
                   </td>
-                  <td className="px-2 py-1.5 text-left font-mono text-emerald-300/80">{fmt(r.strike - (r.pe?.ltp ?? 0), 0)}</td>
-                  <td className="px-2 py-1.5 text-right font-mono">{fmt(r.pe?.ltp ?? 0)}</td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${hlPeVol}`}>
+                  <td className="px-2 py-1.5 text-left font-mono font-normal text-emerald-300/80">{fmt(r.strike - (r.pe?.ltp ?? 0), 0)}</td>
+                  <td className="px-2 py-1.5 text-right font-mono font-normal">{fmt(r.pe?.ltp ?? 0)}</td>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${hlPeVol}`}>
                     {fmtN(peVol)}
-                    <div className="text-[9px] opacity-70">{pctOf(peVol, maxPeVol).toFixed(0)}%</div>
+                    <div className="text-[10px] opacity-70">{pctOf(peVol, maxPeVol).toFixed(0)}%</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${hlPeOi}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${hlPeOi}`}>
                     {fmtN(peOi)}
-                    <div className="text-[9px] opacity-70">{pctOf(peOi, maxPeOi).toFixed(0)}%</div>
+                    <div className="text-[10px] opacity-70">{pctOf(peOi, maxPeOi).toFixed(0)}%</div>
                   </td>
-                  <td className={`px-2 py-1.5 text-right font-mono ${(r.pe?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+                  <td className={`px-2 py-1.5 text-right font-mono font-normal ${(r.pe?.oiChg ?? 0) >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
                     {(r.pe?.oiChgPct ?? 0).toFixed(1)}%
-                    <div className="text-[9px] opacity-70">{fmtN(r.pe?.oiChg ?? 0)}</div>
+                    <div className="text-[10px] opacity-70">{fmtN(r.pe?.oiChg ?? 0)}</div>
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono">{(r.pe?.iv ?? 0).toFixed(2)}</td>
+                  <td className="px-2 py-1.5 text-right font-mono font-normal">{(r.pe?.iv ?? 0).toFixed(2)}</td>
                   <td className="px-2 py-1.5 text-right"><SignalChip s={r.pe?.signal ?? "Neutral"} /></td>
-                  <td className="px-2 py-1.5 text-right font-mono text-foreground/90">{fmt(r.straddle)}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot className="bg-background/50 text-[10px] uppercase tracking-wider text-muted-foreground">
             <tr>
-              <td colSpan={3} className="px-2 py-2 text-right">Totals</td>
+              <td colSpan={2} className="px-2 py-2 text-right">Totals</td>
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceOiChg)}</td>
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceOi)}</td>
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.ceVol)}</td>
@@ -215,7 +230,7 @@ function Page() {
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peVol)}</td>
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peOi)}</td>
               <td className="px-2 py-2 text-right font-mono text-foreground">{fmtN(oc.totals.peOiChg)}</td>
-              <td colSpan={3}></td>
+              <td colSpan={2}></td>
             </tr>
           </tfoot>
         </table>

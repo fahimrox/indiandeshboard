@@ -35,9 +35,10 @@ function useMarketOpenStatus() {
   return open;
 }
 
-export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
+export function IndexHeroCard({ q, label, vix }: { q: Quote; label: string; vix?: Quote | null }) {
   const up = q.changePct >= 0;
   const marketOpen = useMarketOpenStatus();
+  const vixUp = (vix?.changePct ?? 0) >= 0;
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
       <div
@@ -48,8 +49,8 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
         }`}
       />
       <div className="relative">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">
               {label} {marketOpen ? "LIVE" : "LAST PRICE"}
             </div>
@@ -60,11 +61,22 @@ export function IndexHeroCard({ q, label }: { q: Quote; label: string }) {
               <ChangePill pct={q.changePct} change={q.change} />
             </div>
           </div>
-          <div className="rounded-md border border-border bg-background/40 px-2 py-1 text-[10px] uppercase tracking-wider">
-            {marketOpen ? (
-              <span className="text-[var(--bull)] animate-pulse">● LIVE</span>
-            ) : (
-              <span className="text-muted-foreground">● Market Closed</span>
+          <div className="flex flex-col items-end gap-2">
+            <div className="rounded-md border border-border bg-background/40 px-2 py-1 text-[10px] uppercase tracking-wider">
+              {marketOpen ? (
+                <span className="text-[var(--bull)] animate-pulse">● LIVE</span>
+              ) : (
+                <span className="text-muted-foreground">● Market Closed</span>
+              )}
+            </div>
+            {vix && (
+              <div className="rounded-lg border border-border bg-background/40 px-3 py-2 text-right">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">India VIX</div>
+                <div className="font-mono text-lg font-semibold tabular-nums">{fmt(vix.price)}</div>
+                <div className={`text-[10px] font-semibold ${vixUp ? "text-[var(--bear)]" : "text-[var(--bull)]"}`}>
+                  {vixUp ? "▲" : "▼"} {fmt(Math.abs(vix.changePct))}%
+                </div>
+              </div>
             )}
           </div>
         </div>
