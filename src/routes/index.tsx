@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
 import {
@@ -9,7 +9,7 @@ import {
   fmt,
 } from "@/components/MarketBits";
 import { dashboardQuery } from "@/lib/dashboard-query";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Activity } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
