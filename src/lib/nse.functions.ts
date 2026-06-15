@@ -42,7 +42,7 @@ async function nseGet<T>(path: string): Promise<T> {
 }
 
 const cache = new Map<string, { at: number; data: unknown }>();
-const TTL = 30_000;
+const TTL = 8_000;
 
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
@@ -328,6 +328,7 @@ export type FnoStock = {
   oi: number;
   oiChgPct: number;
   buildup: "Long Buildup" | "Short Buildup" | "Short Covering" | "Long Unwinding" | "Neutral";
+  signalTime: number | null;
   volumeShocker: boolean;
   aiSentiment: number; // -100..100
 };
@@ -342,6 +343,17 @@ function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
   if (priceChg > 0 && oiChg < 0) return "Short Covering";
   if (priceChg < 0 && oiChg < 0) return "Long Unwinding";
   return "Neutral";
+}
+
+const signalSeenAt = new Map<string, { key: string; at: number }>();
+
+function stampSignal(symbol: string, buildup: FnoStock["buildup"], now: number) {
+  if (buildup === "Neutral") return null;
+  const key = `${symbol}:${buildup}`;
+  const prev = signalSeenAt.get(symbol);
+  if (prev?.key === key) return prev.at;
+  signalSeenAt.set(symbol, { key, at: now });
+  return now;
 }
 
 const FNO_FALLBACK_SYMBOLS = [
@@ -365,6 +377,7 @@ function stableNoise(symbol: string, min: number, max: number) {
 }
 
 function synthFno(): FnoStock[] {
+  const now = Date.now();
   return FNO_FALLBACK_SYMBOLS.map((symbol) => {
     const changePct = stableNoise(symbol, -3, 3);
     const oiChgPct = stableNoise(`${symbol}:oi`, -10, 10);
@@ -373,7 +386,7 @@ function synthFno(): FnoStock[] {
     const oi = Math.floor(stableNoise(`${symbol}:oiBase`, 50000, 8050000));
     const buildup = classifyBuildup(changePct, oiChgPct);
     const aiSentiment = Math.max(-100, Math.min(100, Math.round(changePct * 12 + oiChgPct * 0.5)));
-    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, volumeShocker: false, aiSentiment };
+    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, signalTime: stampSignal(symbol, buildup, now), volumeShocker: false, aiSentiment };
   }).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
 }
 
