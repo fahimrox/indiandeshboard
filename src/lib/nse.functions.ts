@@ -429,6 +429,7 @@ async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, Yaho
 }
 
 async function fetchFnoStocks(): Promise<FnoResponse> {
+  const now = Date.now();
   try {
     type Resp = {
       data: Array<{
@@ -472,6 +473,7 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
           oi,
           oiChgPct: oiChg,
           buildup,
+          signalTime: stampSignal(symbol, buildup, now),
           volumeShocker: false,
           aiSentiment,
         };
@@ -482,9 +484,9 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
-    return { data: stocks, source: "nse", updatedAt: Date.now() };
+    return { data: stocks, source: "nse", updatedAt: now };
   } catch (err) {
-    return { data: synthFno(), source: "fallback", updatedAt: Date.now() };
+    return { data: synthFno(), source: "fallback", updatedAt: now };
   }
 }
 
