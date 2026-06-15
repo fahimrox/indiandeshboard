@@ -43,8 +43,19 @@ function fmtN(n: number) {
   return n.toLocaleString("en-IN");
 }
 
-type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "buildup" | "aiSentiment";
+type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "buildup" | "signalTime" | "aiSentiment";
 type SortDir = "asc" | "desc";
+
+function fmtSignalTime(ts: number | null) {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
 
 const BUILDUP_ORDER: Record<FnoStock["buildup"], number> = {
   "Long Buildup": 4,
@@ -110,6 +121,7 @@ function Page() {
       let bv: number | string;
       if (sortKey === "symbol") { av = a.symbol; bv = b.symbol; }
       else if (sortKey === "buildup") { av = BUILDUP_ORDER[a.buildup]; bv = BUILDUP_ORDER[b.buildup]; }
+      else if (sortKey === "signalTime") { av = a.signalTime ?? 0; bv = b.signalTime ?? 0; }
       else { av = a[sortKey] as number; bv = b[sortKey] as number; }
       if (typeof av === "string" && typeof bv === "string") {
         return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
@@ -167,7 +179,7 @@ function Page() {
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full min-w-[900px] text-sm">
+        <table className="w-full min-w-[980px] text-sm">
           <thead className="text-xs uppercase tracking-wider text-muted-foreground">
             <tr className="border-b border-border">
               <SortHeader label="Symbol" k="symbol" sortKey={sortKey} dir={dir} align="left" onClick={onSort} />
@@ -177,6 +189,7 @@ function Page() {
               <SortHeader label="OI" k="oi" sortKey={sortKey} dir={dir} onClick={onSort} />
               <SortHeader label="OI Chg %" k="oiChgPct" sortKey={sortKey} dir={dir} onClick={onSort} />
               <SortHeader label="Buildup" k="buildup" sortKey={sortKey} dir={dir} align="left" onClick={onSort} />
+              <SortHeader label="Time" k="signalTime" sortKey={sortKey} dir={dir} onClick={onSort} />
               <SortHeader label="AI Sentiment" k="aiSentiment" sortKey={sortKey} dir={dir} onClick={onSort} />
             </tr>
           </thead>
@@ -212,6 +225,9 @@ function Page() {
                       {s.buildup === "Long Unwinding" && <Activity className="h-3 w-3" />}
                       {s.buildup}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono text-xs text-muted-foreground">
+                    {fmtSignalTime(s.signalTime)}
                   </td>
                   <td className="px-3 py-2 text-right">
                     <div className="inline-flex items-center gap-2">

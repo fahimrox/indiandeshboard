@@ -87,7 +87,11 @@ const COLUMNS: Array<{ key: keyof ScreenerRow | "tags" | "signalTime"; label: st
 ];
 
 function fmtTime(ts: number) {
-  return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  return new Date(ts).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+function fmtSignalTime(ts: number | null) {
+  return ts ? fmtTime(ts) : "—";
 }
 
 function signalDirection(row: ScreenerRow): "up" | "down" | "flat" {
@@ -127,7 +131,7 @@ function Page() {
       .filter((s) => s.symbol.toLowerCase().includes(search.toLowerCase()))
       .filter((s) => active.size === 0 || [...active].every((t) => s.tags.includes(t)));
     const sorted = [...filtered].sort((a, b) => {
-      const get = (r: ScreenerRow) => (sortKey === "signalTime" ? data.updatedAt : (r as unknown as Record<string, number | string>)[sortKey]);
+      const get = (r: ScreenerRow) => (sortKey === "signalTime" ? (r.signalTime ?? 0) : (r as unknown as Record<string, number | string>)[sortKey]);
       const av = get(a);
       const bv = get(b);
       if (typeof av === "string" && typeof bv === "string") return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
@@ -277,7 +281,7 @@ function Page() {
                         return (
                           <span className={`inline-flex items-center gap-1 ${cls}`}>
                             <span>{arrow}</span>
-                            <span>{fmtTime(data.updatedAt)}</span>
+                            <span>{fmtSignalTime(s.signalTime)}</span>
                           </span>
                         );
                       })()}

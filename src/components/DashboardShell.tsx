@@ -98,7 +98,7 @@ export function DashboardShell({
           <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
             <span className={`h-2 w-2 rounded-full ${marketOpen ? "animate-pulse bg-[var(--neon)]" : "bg-muted-foreground"}`} />
             <span className="text-muted-foreground">{marketOpen ? "Updated" : "Last update"}</span>
-            <span className="font-mono text-foreground">
+            <span className="font-mono text-foreground" suppressHydrationWarning>
               {new Date(updatedAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata" })} IST
             </span>
           </div>

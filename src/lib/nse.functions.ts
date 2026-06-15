@@ -42,7 +42,7 @@ async function nseGet<T>(path: string): Promise<T> {
 }
 
 const cache = new Map<string, { at: number; data: unknown }>();
-const TTL = 30_000;
+const TTL = 8_000;
 
 async function cached<T>(key: string, fn: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
@@ -251,28 +251,33 @@ async function fetchOptionChain(symbol: string, expiry?: string): Promise<Option
       return fetchOptionChainSensex(80000, expiry);
     }
   }
-  const path = `/api/option-chain-indices?symbol=${symbol}`;
+  const contractPath = `/api/option-chain-contract-info?symbol=${encodeURIComponent(symbol)}`;
   try {
+    type ContractInfo = { expiryDates?: string[] };
     type Resp = {
       records: {
         expiryDates: string[];
         underlyingValue: number;
         data: Array<{
           strikePrice: number;
-          expiryDate: string;
+          expiryDate?: string;
+          expiryDates?: string;
           CE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
           PE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
         }>;
       };
     };
-    const json = await nseGet<Resp>(path);
-    const spot = json.records.underlyingValue;
-    const allExpiries = json.records.expiryDates ?? [];
+    const contracts = await nseGet<ContractInfo>(contractPath);
+    const allExpiries = contracts.expiryDates ?? [];
     const expiries = symbol === "BANKNIFTY" ? filterMonthlyExpiries(allExpiries) : allExpiries;
     const chosen = expiry && expiries.includes(expiry) ? expiry : (expiries[0] ?? allExpiries[0]);
+    if (!chosen) throw new Error("No option-chain expiry");
+    const path = `/api/option-chain-v3?type=Indices&symbol=${encodeURIComponent(symbol)}&expiry=${encodeURIComponent(chosen)}`;
+    const json = await nseGet<Resp>(path);
+    const spot = json.records.underlyingValue;
+    if (!json.records.data?.length || !spot) throw new Error("Empty option-chain rows");
     const rowMap = new Map<number, OcRow>();
     for (const d of json.records.data) {
-      if (d.expiryDate !== chosen) continue;
       const ce = d.CE
         ? buildLeg("ce", d.CE.openInterest, d.CE.changeinOpenInterest, Math.max(1, d.CE.openInterest - d.CE.changeinOpenInterest), d.CE.totalTradedVolume, d.CE.lastPrice, d.CE.impliedVolatility ?? 0)
         : null;
@@ -328,6 +333,7 @@ export type FnoStock = {
   oi: number;
   oiChgPct: number;
   buildup: "Long Buildup" | "Short Buildup" | "Short Covering" | "Long Unwinding" | "Neutral";
+  signalTime: number | null;
   volumeShocker: boolean;
   aiSentiment: number; // -100..100
 };
@@ -342,6 +348,17 @@ function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
   if (priceChg > 0 && oiChg < 0) return "Short Covering";
   if (priceChg < 0 && oiChg < 0) return "Long Unwinding";
   return "Neutral";
+}
+
+const signalSeenAt = new Map<string, { key: string; at: number }>();
+
+function stampSignal(symbol: string, buildup: FnoStock["buildup"], now: number) {
+  if (buildup === "Neutral") return null;
+  const key = `${symbol}:${buildup}`;
+  const prev = signalSeenAt.get(symbol);
+  if (prev?.key === key) return prev.at;
+  signalSeenAt.set(symbol, { key, at: now });
+  return now;
 }
 
 const FNO_FALLBACK_SYMBOLS = [
@@ -365,6 +382,7 @@ function stableNoise(symbol: string, min: number, max: number) {
 }
 
 function synthFno(): FnoStock[] {
+  const now = Date.now();
   return FNO_FALLBACK_SYMBOLS.map((symbol) => {
     const changePct = stableNoise(symbol, -3, 3);
     const oiChgPct = stableNoise(`${symbol}:oi`, -10, 10);
@@ -373,7 +391,7 @@ function synthFno(): FnoStock[] {
     const oi = Math.floor(stableNoise(`${symbol}:oiBase`, 50000, 8050000));
     const buildup = classifyBuildup(changePct, oiChgPct);
     const aiSentiment = Math.max(-100, Math.min(100, Math.round(changePct * 12 + oiChgPct * 0.5)));
-    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, volumeShocker: false, aiSentiment };
+    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, signalTime: null, volumeShocker: false, aiSentiment };
   }).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
 }
 
@@ -416,6 +434,7 @@ async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, Yaho
 }
 
 async function fetchFnoStocks(): Promise<FnoResponse> {
+  const now = Date.now();
   try {
     type Resp = {
       data: Array<{
@@ -459,6 +478,7 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
           oi,
           oiChgPct: oiChg,
           buildup,
+          signalTime: stampSignal(symbol, buildup, now),
           volumeShocker: false,
           aiSentiment,
         };
@@ -469,9 +489,9 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
-    return { data: stocks, source: "nse", updatedAt: Date.now() };
+    return { data: stocks, source: "nse", updatedAt: now };
   } catch (err) {
-    return { data: synthFno(), source: "fallback", updatedAt: Date.now() };
+    return { data: synthFno(), source: "fallback", updatedAt: now };
   }
 }
 
