@@ -251,28 +251,33 @@ async function fetchOptionChain(symbol: string, expiry?: string): Promise<Option
       return fetchOptionChainSensex(80000, expiry);
     }
   }
-  const path = `/api/option-chain-indices?symbol=${symbol}`;
+  const contractPath = `/api/option-chain-contract-info?symbol=${encodeURIComponent(symbol)}`;
   try {
+    type ContractInfo = { expiryDates?: string[] };
     type Resp = {
       records: {
         expiryDates: string[];
         underlyingValue: number;
         data: Array<{
           strikePrice: number;
-          expiryDate: string;
+          expiryDate?: string;
+          expiryDates?: string;
           CE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
           PE?: { openInterest: number; changeinOpenInterest: number; totalTradedVolume: number; lastPrice: number; impliedVolatility?: number };
         }>;
       };
     };
-    const json = await nseGet<Resp>(path);
-    const spot = json.records.underlyingValue;
-    const allExpiries = json.records.expiryDates ?? [];
+    const contracts = await nseGet<ContractInfo>(contractPath);
+    const allExpiries = contracts.expiryDates ?? [];
     const expiries = symbol === "BANKNIFTY" ? filterMonthlyExpiries(allExpiries) : allExpiries;
     const chosen = expiry && expiries.includes(expiry) ? expiry : (expiries[0] ?? allExpiries[0]);
+    if (!chosen) throw new Error("No option-chain expiry");
+    const path = `/api/option-chain-v3?type=Indices&symbol=${encodeURIComponent(symbol)}&expiry=${encodeURIComponent(chosen)}`;
+    const json = await nseGet<Resp>(path);
+    const spot = json.records.underlyingValue;
+    if (!json.records.data?.length || !spot) throw new Error("Empty option-chain rows");
     const rowMap = new Map<number, OcRow>();
     for (const d of json.records.data) {
-      if (d.expiryDate !== chosen) continue;
       const ce = d.CE
         ? buildLeg("ce", d.CE.openInterest, d.CE.changeinOpenInterest, Math.max(1, d.CE.openInterest - d.CE.changeinOpenInterest), d.CE.totalTradedVolume, d.CE.lastPrice, d.CE.impliedVolatility ?? 0)
         : null;
