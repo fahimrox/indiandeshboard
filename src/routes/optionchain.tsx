@@ -64,7 +64,10 @@ function pctOf(v: number, max: number) {
 function Page() {
   const [symbol, setSymbol] = useState<(typeof SYMBOLS)[number]>("NIFTY");
   const [expiry, setExpiry] = useState<string | undefined>(undefined);
+  const [mounted, setMounted] = useState(false);
   const { data: oc, refetch, isFetching } = useSuspenseQuery(optionChainQuery(symbol, undefined, expiry));
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const id = setInterval(() => refetch(), 10_000);
@@ -111,15 +114,19 @@ function Page() {
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground">
             Expiry ({expiryKind})
           </label>
-          <select
-            value={oc.expiry}
-            onChange={(e) => setExpiry(e.target.value)}
-            className="rounded bg-background/40 px-2 py-1 text-xs font-semibold outline-none"
-          >
-            {(oc.expiries ?? [oc.expiry]).map((e) => (
-              <option key={e} value={e}>{e}</option>
-            ))}
-          </select>
+          {mounted ? (
+            <select
+              value={oc.expiry}
+              onChange={(e) => setExpiry(e.target.value)}
+              className="rounded bg-background/40 px-2 py-1 text-xs font-semibold outline-none"
+            >
+              {(oc.expiries ?? [oc.expiry]).map((e) => (
+                <option key={e} value={e}>{e}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="rounded bg-background/40 px-2 py-1 text-xs font-semibold">{oc.expiry}</span>
+          )}
         </div>
 
         <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">

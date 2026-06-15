@@ -87,7 +87,7 @@ const COLUMNS: Array<{ key: keyof ScreenerRow | "tags" | "signalTime"; label: st
 ];
 
 function fmtTime(ts: number) {
-  return new Date(ts).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+  return new Date(ts).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 }
 
 function fmtSignalTime(ts: number | null) {
