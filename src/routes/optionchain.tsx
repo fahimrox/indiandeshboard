@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { fmt } from "@/components/MarketBits";
 import { optionChainQuery } from "@/lib/dashboard-query";
@@ -64,7 +64,12 @@ function pctOf(v: number, max: number) {
 function Page() {
   const [symbol, setSymbol] = useState<(typeof SYMBOLS)[number]>("NIFTY");
   const [expiry, setExpiry] = useState<string | undefined>(undefined);
-  const { data: oc } = useSuspenseQuery(optionChainQuery(symbol, undefined, expiry));
+  const { data: oc, refetch, isFetching } = useSuspenseQuery(optionChainQuery(symbol, undefined, expiry));
+
+  useEffect(() => {
+    const id = setInterval(() => refetch(), 10_000);
+    return () => clearInterval(id);
+  }, [refetch]);
 
   const maxCeOi = Math.max(...oc.rows.map((r) => r.ce?.oi ?? 0), 1);
   const maxPeOi = Math.max(...oc.rows.map((r) => r.pe?.oi ?? 0), 1);
@@ -118,7 +123,7 @@ function Page() {
         </div>
 
         <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">
-          Live • Auto-refresh 10s during market hours
+          {isFetching ? "Refreshing…" : "Live"} • Auto-refresh 10s
         </span>
       </div>
 
