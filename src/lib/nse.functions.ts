@@ -386,7 +386,7 @@ function synthFno(): FnoStock[] {
     const oi = Math.floor(stableNoise(`${symbol}:oiBase`, 50000, 8050000));
     const buildup = classifyBuildup(changePct, oiChgPct);
     const aiSentiment = Math.max(-100, Math.min(100, Math.round(changePct * 12 + oiChgPct * 0.5)));
-    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, signalTime: stampSignal(symbol, buildup, now), volumeShocker: false, aiSentiment };
+    return { symbol, ltp, changePct, volume, oi, oiChgPct, buildup, signalTime: null, volumeShocker: false, aiSentiment };
   }).sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
 }
 
