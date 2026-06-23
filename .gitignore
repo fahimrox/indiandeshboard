@@ -30,3 +30,18 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local environment and secrets
+.env
+*.enc
+fyers_config.enc
+generate_token.py
+
+# Heavy JSON data files
+angel_one_scrip_master.json
+upstox_instruments.json
+
+# Cache directories and test files
+eod_cache/
+test_*.ts
+

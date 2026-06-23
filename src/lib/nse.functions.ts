@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { saveEodData, getEodData } from "./services/persistentCache";
 
 // NSE scraper. NSE requires a cookie session — we hit the homepage first,
 // reuse cookies for the JSON API, and cache responses to dodge rate limits.
@@ -103,8 +104,9 @@ export type OptionChain = {
   second: { ceOi: number; peOi: number; ceVol: number; peVol: number };
   totals: { ceOi: number; peOi: number; ceOiChg: number; peOiChg: number; ceVol: number; peVol: number };
   levels: SrLevel[];
-  source: "nse" | "fallback";
+  source: "nse" | "fallback" | "fyers" | "angelone";
   updatedAt: number;
+  isEod?: boolean;
 };
 
 function classifyOcSignal(side: "ce" | "pe", oiChgPct: number): OcSignal {
@@ -311,15 +313,13 @@ async function fetchOptionChain(symbol: string, expiry?: string): Promise<Option
   }
 }
 
+import { marketDataLayer } from "./services/marketDataLayer";
+
 export const getOptionChain = createServerFn({ method: "GET" })
   .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
     return cached(`oc:${data.symbol}:${data.expiry ?? ""}`, async () => {
-      const oc = await fetchOptionChain(data.symbol, data.expiry);
-      if (data.spot && oc.source === "fallback") {
-        return synthOptionChain(data.symbol, data.spot, data.expiry);
-      }
-      return oc;
+      return await marketDataLayer.getOptionChain(data.symbol, data.spot, data.expiry);
     });
   });
 
@@ -338,7 +338,7 @@ export type FnoStock = {
   aiSentiment: number; // -100..100
 };
 
-type FnoResponse = { data: FnoStock[]; source: "nse" | "fallback"; updatedAt: number };
+type FnoResponse = { data: FnoStock[]; source: "nse" | "fallback"; updatedAt: number; isEod?: boolean };
 type YahooMiniQuote = { price: number; prevClose: number; changePct: number };
 
 function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
@@ -397,39 +397,19 @@ function synthFno(): FnoStock[] {
 
 async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, YahooMiniQuote>> {
   const out = new Map<string, YahooMiniQuote>();
-  const CHUNK = 20;
-  const chunks: string[][] = [];
-  for (let i = 0; i < symbols.length; i += CHUNK) {
-    chunks.push(symbols.slice(i, i + CHUNK));
-  }
-  const results = await Promise.all(chunks.map(async (chunk) => {
-    const url = `https://query2.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
-      chunk.map((s) => `${s}.NS`).join(","),
-    )}&range=1d&interval=5m`;
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": HEADERS_BASE["User-Agent"],
-        Accept: "application/json, text/plain, */*",
-        Referer: "https://finance.yahoo.com/",
-        Origin: "https://finance.yahoo.com",
-      },
-    });
-    if (!res.ok) return [] as Array<[string, YahooMiniQuote]>;
-    const json = (await res.json()) as {
-      spark?: { result?: Array<{ symbol: string; response?: Array<{ meta?: Record<string, number | string> }> }> };
-    };
-    const rows: Array<[string, YahooMiniQuote]> = [];
-    for (const r of json.spark?.result ?? []) {
-      const meta = r.response?.[0]?.meta;
-      if (!meta) continue;
-      const symbol = String(meta.symbol ?? r.symbol).replace(".NS", "");
-      const price = num(meta.regularMarketPrice);
-      const prevClose = num(meta.chartPreviousClose ?? meta.previousClose, price);
-      if (price > 0) rows.push([symbol, { price, prevClose, changePct: prevClose ? ((price - prevClose) / prevClose) * 100 : 0 }]);
+  try {
+    const quotes = await marketDataLayer.getQuotes(symbols);
+    for (const q of quotes) {
+      const cleanSym = q.symbol.replace(".NS", "").replace(".BO", "");
+      out.set(cleanSym, {
+        price: q.price,
+        prevClose: q.prevClose,
+        changePct: q.changePct,
+      });
     }
-    return rows;
-  }));
-  for (const rows of results) for (const [symbol, quote] of rows) out.set(symbol, quote);
+  } catch (err) {
+    console.error("Failed to fetch quotes for mini quotes:", err);
+  }
   return out;
 }
 
@@ -489,8 +469,17 @@ async function fetchFnoStocks(): Promise<FnoResponse> {
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
-    return { data: stocks, source: "nse", updatedAt: now };
+    const result: FnoResponse = { data: stocks, source: "nse", updatedAt: now };
+    await saveEodData("fno_stocks", result);
+    return result;
   } catch (err) {
+    const cachedData = await getEodData("fno_stocks");
+    if (cachedData) {
+      return {
+        ...cachedData,
+        isEod: true,
+      };
+    }
     return { data: synthFno(), source: "fallback", updatedAt: now };
   }
 }
@@ -527,7 +516,7 @@ export type ScreenerRow = FnoStock & {
   tags: ScreenerTag[];
 };
 
-export type ScreenerResponse = { data: ScreenerRow[]; source: "nse" | "fallback"; updatedAt: number };
+export type ScreenerResponse = { data: ScreenerRow[]; source: "nse" | "fallback"; updatedAt: number; isEod?: boolean };
 
 function classifyScreener(
   s: FnoStock,
@@ -596,15 +585,44 @@ async function fetchYahooLevels(symbols: string[]): Promise<Map<string, LevelSet
 }
 
 async function fetchFnoScreener(): Promise<ScreenerResponse> {
-  const stocksResp = await fetchFnoStocks();
-  const stocks = stocksResp.data;
-  const levels = await fetchYahooLevels(stocks.map((s) => s.symbol));
-  const rows: ScreenerRow[] = stocks.map((s) => {
-    const lv = levels.get(s.symbol) ?? { dayHigh: s.ltp, dayLow: s.ltp, weekHigh: s.ltp, weekLow: s.ltp, monthHigh: s.ltp, monthLow: s.ltp };
-    const tags = classifyScreener(s, lv);
-    return { ...s, ...lv, tags };
-  });
-  return { data: rows, source: stocksResp.source, updatedAt: Date.now() };
+  try {
+    const stocksResp = await fetchFnoStocks();
+    const stocks = stocksResp.data;
+    const levels = await fetchYahooLevels(stocks.map((s) => s.symbol));
+    const rows: ScreenerRow[] = stocks.map((s) => {
+      const lv = levels.get(s.symbol) ?? { dayHigh: s.ltp, dayLow: s.ltp, weekHigh: s.ltp, weekLow: s.ltp, monthHigh: s.ltp, monthLow: s.ltp };
+      const tags = classifyScreener(s, lv);
+      return { ...s, ...lv, tags };
+    });
+    const result: ScreenerResponse = { data: rows, source: stocksResp.source, updatedAt: Date.now() };
+    if (stocksResp.source !== "fallback" && !stocksResp.isEod) {
+      await saveEodData("fno_screener", result);
+    }
+    return result;
+  } catch (err) {
+    const cachedData = await getEodData("fno_screener");
+    if (cachedData) {
+      return {
+        ...cachedData,
+        isEod: true,
+      };
+    }
+    // Fallback logic requires "stocks" which might not be defined if fetchFnoStocks fails.
+    // Try to get stocks from stocksResp or fallback to synthetic.
+    let stocksFallback: FnoStock[] = [];
+    try {
+      const stocksResp = await fetchFnoStocks();
+      stocksFallback = stocksResp.data;
+    } catch (e) {
+      // ignore
+    }
+    const rowsFallback: ScreenerRow[] = stocksFallback.map((s) => {
+      const lv = { dayHigh: s.ltp, dayLow: s.ltp, weekHigh: s.ltp, weekLow: s.ltp, monthHigh: s.ltp, monthLow: s.ltp };
+      const tags = classifyScreener(s, lv);
+      return { ...s, ...lv, tags };
+    });
+    return { data: rowsFallback, source: "fallback", updatedAt: Date.now() };
+  }
 }
 
 export const getFnoScreener = createServerFn({ method: "GET" }).handler(async () =>

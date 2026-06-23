@@ -18,59 +18,6 @@ export type Quote = {
   exchange: string;
 };
 
-async function fetchYahooChunk(symbols: string[]): Promise<Quote[]> {
-  const url = `https://query2.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(
-    symbols.join(","),
-  )}&range=1d&interval=5m`;
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "en-US,en;q=0.9",
-      Referer: "https://finance.yahoo.com/",
-      Origin: "https://finance.yahoo.com",
-    },
-  });
-  if (!res.ok) throw new Error(`Yahoo request failed: ${res.status}`);
-  const json = (await res.json()) as {
-    spark: { result: Array<{ symbol: string; response: Array<{ meta: any }> }> };
-  };
-  const out: Quote[] = [];
-  for (const r of json.spark?.result ?? []) {
-    const meta = r.response?.[0]?.meta;
-    if (!meta) continue;
-    const price = meta.regularMarketPrice ?? 0;
-    const prev = meta.chartPreviousClose ?? meta.previousClose ?? price;
-    out.push({
-      symbol: meta.symbol,
-      name: meta.longName ?? meta.shortName ?? meta.symbol,
-      price,
-      prevClose: prev,
-      change: price - prev,
-      changePct: prev ? ((price - prev) / prev) * 100 : 0,
-      dayHigh: meta.regularMarketDayHigh ?? price,
-      dayLow: meta.regularMarketDayLow ?? price,
-      open:
-        meta.regularMarketDayHigh && meta.regularMarketDayLow
-          ? (meta.regularMarketDayHigh + meta.regularMarketDayLow) / 2
-          : price,
-      marketState: meta.marketState ?? "UNKNOWN",
-      currency: meta.currency ?? "INR",
-      exchange: meta.fullExchangeName ?? meta.exchangeName ?? "",
-    });
-  }
-  return out;
-}
-
-async function fetchYahoo(symbols: string[]): Promise<Quote[]> {
-  const CHUNK = 10;
-  const chunks: string[][] = [];
-  for (let i = 0; i < symbols.length; i += CHUNK) chunks.push(symbols.slice(i, i + CHUNK));
-  const results = await Promise.all(chunks.map((c) => fetchYahooChunk(c)));
-  return results.flat();
-}
-
 const INDICES = ["^NSEI", "^BSESN", "^NSEBANK", "^INDIAVIX"];
 
 export const SECTORS = [
@@ -126,15 +73,17 @@ const SENSEX_STOCKS = [
   "TECHM.NS","TATASTEEL.NS","JSWSTEEL.NS","ADANIPORTS.NS","INDUSINDBK.NS",
 ];
 
+import { marketDataLayer } from "./services/marketDataLayer";
+
 const cache = new Map<string, { at: number; data: Quote[] }>();
 const TTL_MS = 25_000;
 
-async function cachedYahoo(symbols: string[]): Promise<Quote[]> {
+async function cachedQuotes(symbols: string[]): Promise<Quote[]> {
   const key = [...symbols].sort().join(",");
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
   try {
-    const data = await fetchYahoo(symbols);
+    const data = await marketDataLayer.getQuotes(symbols);
     cache.set(key, { at: Date.now(), data });
     return data;
   } catch (err) {
@@ -145,7 +94,7 @@ async function cachedYahoo(symbols: string[]): Promise<Quote[]> {
 
 export const getQuotes = createServerFn({ method: "GET" })
   .inputValidator(z.object({ symbols: z.array(z.string()).min(1).max(60) }))
-  .handler(async ({ data }) => cachedYahoo(data.symbols));
+  .handler(async ({ data }) => cachedQuotes(data.symbols));
 
 function statsFor(stocks: Quote[]) {
   const advance = stocks.filter((s) => s.changePct > 0).length;
@@ -276,9 +225,9 @@ function buildPulse(opts: {
 
 export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
   const [indices, sectors, stocks] = await Promise.all([
-    cachedYahoo(INDICES),
-    cachedYahoo(SECTORS.map((s) => s.symbol)),
-    cachedYahoo(NIFTY_STOCKS),
+    cachedQuotes(INDICES),
+    cachedQuotes(SECTORS.map((s) => s.symbol)),
+    cachedQuotes(NIFTY_STOCKS),
   ]);
   const indexMap = Object.fromEntries(indices.map((q) => [q.symbol, q]));
   const sectorList = sectors.map((q) => {
@@ -320,7 +269,7 @@ export const getIndexConstituents = createServerFn({ method: "GET" })
   .inputValidator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
   .handler(async ({ data }) => {
     const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
-    const stocks = await cachedYahoo(map[data.index]);
+    const stocks = await cachedQuotes(map[data.index]);
     return { ...statsFor(stocks), updatedAt: Date.now() };
   });
 
@@ -331,8 +280,8 @@ export const getSectorDetail = createServerFn({ method: "GET" })
     if (!sector) throw new Error("Unknown sector");
     const list = SECTOR_STOCKS[data.key] ?? [];
     const [idxArr, stocks] = await Promise.all([
-      cachedYahoo([sector.symbol]),
-      list.length ? cachedYahoo(list) : Promise.resolve([]),
+      cachedQuotes([sector.symbol]),
+      list.length ? cachedQuotes(list) : Promise.resolve([]),
     ]);
     return {
       sector: { ...sector, quote: idxArr[0] ?? null },

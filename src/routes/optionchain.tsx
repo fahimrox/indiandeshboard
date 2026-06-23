@@ -130,11 +130,23 @@ function Page() {
         </div>
 
         <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">
-          {isFetching ? "Refreshing…" : "Live"} • Auto-refresh 10s
+          {isFetching ? "Refreshing…" : oc.isEod ? "EOD Data" : "Live"} • Auto-refresh 10s
         </span>
       </div>
 
-      {oc.source === "fallback" && (
+      {oc.isEod && (
+        <div className="mb-3 rounded-lg border border-[var(--neon)]/40 bg-[var(--neon)]/10 px-4 py-2.5 text-xs text-foreground">
+          Showing EOD (End of Day) data from the last trading day. Live updates will resume during next market hours.
+        </div>
+      )}
+
+      {oc.fyersTokenStatus && !oc.fyersTokenStatus.ok && !oc.isEod && (
+        <div className="mb-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs text-rose-200">
+          FYERS Connection Warning: {oc.fyersTokenStatus.error || "Token missing or expired"}. Automatically switched to backup feed ({oc.source}).
+        </div>
+      )}
+
+      {oc.source === "fallback" && !oc.isEod && (
         <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs text-amber-200">
           Upstream blocked — showing simulated chain. Live data resumes when feed responds.
         </div>

@@ -140,7 +140,13 @@ function Page() {
 
   return (
     <DashboardShell title="F&O Stocks" subtitle="All NSE F&O underlyings — buildup & AI sentiment" updatedAt={data.updatedAt}>
-      {data.source === "fallback" && (
+      {data.isEod && (
+        <div className="mb-4 rounded-lg border border-[var(--neon)]/40 bg-[var(--neon)]/10 px-4 py-3 text-xs text-foreground">
+          Showing EOD (End of Day) data from the last trading day. Live updates will resume during next market hours.
+        </div>
+      )}
+
+      {data.source === "fallback" && !data.isEod && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
           NSE feed blocked right now. Auto-retry every 15s during market hours.
         </div>
