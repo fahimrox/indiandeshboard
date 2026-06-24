@@ -76,3 +76,32 @@
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
 }
+
+/* ── Lab Dropdown Nav ────────────────────────────────────────────── */
+/* Panel invisible & non-interactive by default */
+.lab-dropdown .lab-panel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+/* Show on hover over the container OR when any child has focus */
+.lab-dropdown:hover .lab-panel,
+.lab-dropdown:focus-within .lab-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Rotate chevron when open */
+.lab-dropdown:hover .lab-chevron,
+.lab-dropdown:focus-within .lab-chevron {
+  transform: rotate(180deg);
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+

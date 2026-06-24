@@ -77,8 +77,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "author", content: "IndexMover" },
-      { property: "og:site_name", content: "IndexMover" },
+      { name: "author", content: "Market Dashboard" },
+      { property: "og:site_name", content: "Market Dashboard" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -94,7 +94,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "WebSite",
-          name: "IndexMover",
+          name: "Market Dashboard",
           url: "https://indiandeshboard.lovable.app",
           description:
             "Live Indian stock market dashboard with NIFTY, BANK NIFTY, SENSEX, F&O, option chain and sector heatmap.",

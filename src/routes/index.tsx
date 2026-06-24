@@ -14,13 +14,13 @@ import { Sparkles, Activity } from "lucide-react";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "IndexMover — Live NSE & BSE Market Dashboard" },
+      { title: "Market Dashboard — Live NSE & BSE" },
       {
         name: "description",
         content:
           "Live NIFTY 50, BANK NIFTY and SENSEX dashboard with realtime auto-refresh, sector heatmap, AI sentiment and option chain for Indian markets.",
       },
-      { property: "og:title", content: "IndexMover — Live NSE & BSE Market Dashboard" },
+      { property: "og:title", content: "Market Dashboard — Live NSE & BSE" },
       {
         property: "og:description",
         content:
@@ -53,7 +53,7 @@ function IndexPage() {
 
   return (
     <DashboardShell
-      title="Index Dashboard"
+      title="Market Dashboard"
       subtitle="Live Indian market intelligence"
       updatedAt={data.updatedAt}
     >
