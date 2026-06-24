@@ -15,6 +15,7 @@ import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
+import { Route as FutureDashboardRouteImport } from './routes/future-dashboard'
 import { Route as FnoboardRouteImport } from './routes/fnoboard'
 import { Route as FnoRouteImport } from './routes/fno'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
@@ -51,6 +52,11 @@ const HeatmapRoute = HeatmapRouteImport.update({
   path: '/heatmap',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FutureDashboardRoute = FutureDashboardRouteImport.update({
+  id: '/future-dashboard',
+  path: '/future-dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FnoboardRoute = FnoboardRouteImport.update({
   id: '/fnoboard',
   path: '/fnoboard',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
+  '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
+  '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
+  '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
+    | '/future-dashboard'
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
+    | '/future-dashboard'
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
+    | '/future-dashboard'
     | '/heatmap'
     | '/nifty50'
     | '/optionchain'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   BankniftyRoute: typeof BankniftyRoute
   FnoRoute: typeof FnoRoute
   FnoboardRoute: typeof FnoboardRoute
+  FutureDashboardRoute: typeof FutureDashboardRoute
   HeatmapRoute: typeof HeatmapRoute
   Nifty50Route: typeof Nifty50Route
   OptionchainRoute: typeof OptionchainRoute
@@ -217,6 +230,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HeatmapRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/future-dashboard': {
+      id: '/future-dashboard'
+      path: '/future-dashboard'
+      fullPath: '/future-dashboard'
+      preLoaderRoute: typeof FutureDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fnoboard': {
       id: '/fnoboard'
       path: '/fnoboard'
@@ -260,6 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   BankniftyRoute: BankniftyRoute,
   FnoRoute: FnoRoute,
   FnoboardRoute: FnoboardRoute,
+  FutureDashboardRoute: FutureDashboardRoute,
   HeatmapRoute: HeatmapRoute,
   Nifty50Route: Nifty50Route,
   OptionchainRoute: OptionchainRoute,

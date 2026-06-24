@@ -68,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "F&O Lab",
     icon: Activity,
     items: [
+      { to: "/future-dashboard", label: "Future Dashboard" },
       { to: "/fno", label: "F&O Stocks" },
       { to: "/fnoboard", label: "F&O Board" },
     ],
