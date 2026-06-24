@@ -7,6 +7,52 @@ import { Flame, TrendingDown, TrendingUp, Activity, ArrowUp, ArrowDown, ArrowUpD
 import { useMemo, useState } from "react";
 import type { FnoStock } from "@/lib/nse.functions";
 
+
+// Generate circular initials badge
+function StockAvatar({ symbol }: { symbol: string }) {
+  const initials = symbol.slice(0, 2);
+  const charCodeSum = symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    "bg-red-500/10 text-red-400 border-red-500/20",
+    "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    "bg-green-500/10 text-green-400 border-green-500/20",
+    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    "bg-pink-500/10 text-pink-400 border-pink-500/20",
+    "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  ];
+  const colorClass = colors[charCodeSum % colors.length];
+
+  return (
+    <div
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${colorClass}`}
+    >
+      {initials}
+    </div>
+  );
+}
+
+// Stock Logo component with fallback to initials avatar
+function StockLogo({ symbol }: { symbol: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const logoUrl = `https://dharunashokkumar.github.io/indian-listed-company-logos/nse/NSE_${symbol}.svg`;
+
+  if (imgFailed) {
+    return <StockAvatar symbol={symbol} />;
+  }
+
+  return (
+    <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md bg-white flex items-center justify-center border border-border">
+      <img
+        src={logoUrl}
+        alt={symbol}
+        className="h-6 w-6 object-contain"
+        onError={() => setImgFailed(true)}
+      />
+    </div>
+  );
+}
+
 export const Route = createFileRoute("/fno")({
   head: () => ({
     meta: [
@@ -86,9 +132,8 @@ function SortHeader({
     <th className={`px-3 py-3 text-${align}`}>
       <button
         onClick={() => onClick(k)}
-        className={`inline-flex items-center gap-1 text-xs uppercase tracking-wider transition hover:text-foreground ${
-          active ? "text-[var(--neon)]" : "text-muted-foreground"
-        }`}
+        className={`inline-flex items-center gap-1 text-xs uppercase tracking-wider transition hover:text-foreground ${active ? "text-[var(--neon)]" : "text-muted-foreground"
+          }`}
       >
         <span>{label}</span>
         <Icon className="h-3 w-3" />
@@ -157,9 +202,8 @@ function Page() {
           <button
             key={k}
             onClick={() => setFilter(filter === k ? "All" : k)}
-            className={`rounded-xl border p-4 text-left transition ${
-              filter === k ? "border-[var(--neon)] ring-1 ring-[var(--neon)]/50" : "border-border bg-card hover:border-[var(--neon)]/40"
-            }`}
+            className={`rounded-xl border p-4 text-left transition ${filter === k ? "border-[var(--neon)] ring-1 ring-[var(--neon)]/50" : "border-border bg-card hover:border-[var(--neon)]/40"
+              }`}
           >
             <div className="text-xs uppercase tracking-widest text-muted-foreground">{k}</div>
             <div className="mt-1 font-mono text-2xl font-bold">{counts[k]}</div>
@@ -206,6 +250,7 @@ function Page() {
                 <tr key={s.symbol} className="border-b border-border/40 hover:bg-background/30">
                   <td className="px-3 py-2 font-semibold">
                     <div className="flex items-center gap-2">
+                      <StockLogo symbol={s.symbol} />
                       <span>{s.symbol}</span>
                       {s.volumeShocker && (
                         <span className="rounded bg-[var(--neon)]/20 px-1.5 py-0.5 text-[9px] font-bold text-[var(--neon)]">

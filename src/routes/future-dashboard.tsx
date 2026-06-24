@@ -77,6 +77,27 @@ function StockAvatar({ symbol }: { symbol: string }) {
   );
 }
 
+// Stock Logo component with fallback to initials avatar
+function StockLogo({ symbol }: { symbol: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const logoUrl = `https://dharunashokkumar.github.io/indian-listed-company-logos/nse/NSE_${symbol}.svg`;
+
+  if (imgFailed) {
+    return <StockAvatar symbol={symbol} />;
+  }
+
+  return (
+    <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md bg-white flex items-center justify-center border border-border">
+      <img
+        src={logoUrl}
+        alt={symbol}
+        className="h-6 w-6 object-contain"
+        onError={() => setImgFailed(true)}
+      />
+    </div>
+  );
+}
+
 // Dynamic AI Summary Generator
 function generateAiSummary(stocks: FnoStock[]) {
   const longBuildup = stocks.filter((s) => s.buildup === "Long Buildup").length;
@@ -288,20 +309,20 @@ function DashboardCard({
     <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold tracking-tight text-foreground select-none">
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground select-none">
             {title}
           </h2>
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-              <button className="text-[11px] font-semibold text-[var(--neon)] hover:underline cursor-pointer">
+              <button className="text-xs font-semibold text-[var(--neon)] hover:underline cursor-pointer">
                 View All
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl bg-card border border-border text-foreground max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <div className="flex items-center gap-2">
-                  <div className={`h-2.5 w-2.5 rounded-full ${isNegativeColor ? "bg-[var(--bear)]" : "bg-[var(--bull)]"}`} />
-                  <DialogTitle className="text-lg font-bold">{title} — Full List</DialogTitle>
+                  <div className={`h-3 w-3 rounded-full ${isNegativeColor ? "bg-[var(--bear)]" : "bg-[var(--bull)]"}`} />
+                  <DialogTitle className="text-xl font-bold">{title} — Full List</DialogTitle>
                 </div>
               </DialogHeader>
 
@@ -335,14 +356,14 @@ function DashboardCard({
                       <SortHeader label="AI Sentiment" k="aiSentiment" sortKey={sortKey} dir={dir} onClick={handleSort} />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/40 font-mono">
+                  <tbody className="divide-y divide-border/40 font-mono text-xs sm:text-sm">
                     {modalRows.map((s) => {
                       const up = s.changePct >= 0;
                       return (
                         <tr key={s.symbol} className="hover:bg-background/40">
                           <td className="px-3 py-3 text-left font-semibold font-sans text-foreground">
                             <div className="flex items-center gap-2">
-                              <StockAvatar symbol={s.symbol} />
+                              <StockLogo symbol={s.symbol} />
                               <span>{s.symbol}</span>
                             </div>
                           </td>
@@ -376,24 +397,26 @@ function DashboardCard({
         </div>
 
         {/* Stock List Rows */}
-        <div className="space-y-3.5">
+        <div className="space-y-4">
           {topFive.map((stock) => {
             const val = stock.changePct;
             const pct = maxVal > 0 ? (Math.abs(val) / maxVal) * 100 : 0;
             const up = val >= 0;
 
             return (
-              <div key={stock.symbol} className="flex items-center justify-between text-xs">
-                {/* Symbol */}
-                <div className="flex items-center gap-2 w-[85px] shrink-0">
-                  <StockAvatar symbol={stock.symbol} />
-                  <span className="font-semibold text-foreground truncate">{stock.symbol}</span>
+              <div key={stock.symbol} className="flex items-center justify-between text-sm">
+                {/* Symbol with Logo */}
+                <div className="flex items-center gap-2.5 w-[120px] shrink-0">
+                  <StockLogo symbol={stock.symbol} />
+                  <span className="font-bold text-foreground truncate text-sm sm:text-base">{stock.symbol}</span>
                 </div>
 
-                {/* Progress Bar Container */}
-                <div className="flex-1 mx-3 h-2.5 bg-border/40 rounded-full overflow-hidden relative">
+                {/* Progress Bar Container - Square and Thick */}
+                <div className={`flex-1 mx-3 h-5 bg-muted/10 overflow-hidden relative border-l-2 ${
+                  isNegativeColor ? "border-[var(--bear)]" : "border-[var(--bull)]"
+                }`}>
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${
+                    className={`h-full transition-all duration-500 ${
                       isNegativeColor ? "bg-[var(--bear)]" : "bg-[var(--bull)]"
                     }`}
                     style={{ width: `${Math.min(100, Math.max(4, pct))}%` }}
@@ -402,7 +425,7 @@ function DashboardCard({
 
                 {/* Percentage value */}
                 <div
-                  className={`w-[60px] text-right font-mono font-medium shrink-0 ${
+                  className={`w-[70px] text-right font-mono font-bold shrink-0 text-sm sm:text-base ${
                     up ? "text-[var(--bull)]" : "text-[var(--bear)]"
                   }`}
                 >
@@ -413,7 +436,7 @@ function DashboardCard({
           })}
 
           {topFive.length === 0 && (
-            <div className="py-6 text-center text-xs text-muted-foreground select-none">
+            <div className="py-6 text-center text-sm text-muted-foreground select-none">
               No stocks in this category
             </div>
           )}
@@ -456,25 +479,25 @@ function Page() {
   const longBuildup = useMemo(() => {
     return [...expiryFilteredStocks]
       .filter((s) => s.buildup === "Long Buildup")
-      .sort((a, b) => b.oiChgPct - a.oiChgPct);
+      .sort((a, b) => b.changePct - a.changePct);
   }, [expiryFilteredStocks]);
 
   const shortBuildup = useMemo(() => {
     return [...expiryFilteredStocks]
       .filter((s) => s.buildup === "Short Buildup")
-      .sort((a, b) => b.oiChgPct - a.oiChgPct);
+      .sort((a, b) => a.changePct - b.changePct);
   }, [expiryFilteredStocks]);
 
   const longUnwinding = useMemo(() => {
     return [...expiryFilteredStocks]
       .filter((s) => s.buildup === "Long Unwinding")
-      .sort((a, b) => a.oiChgPct - b.oiChgPct); // most negative
+      .sort((a, b) => a.changePct - b.changePct);
   }, [expiryFilteredStocks]);
 
   const shortCovering = useMemo(() => {
     return [...expiryFilteredStocks]
       .filter((s) => s.buildup === "Short Covering")
-      .sort((a, b) => a.oiChgPct - b.oiChgPct); // most negative
+      .sort((a, b) => b.changePct - a.changePct);
   }, [expiryFilteredStocks]);
 
   const aiSummaryText = useMemo(() => generateAiSummary(expiryFilteredStocks), [expiryFilteredStocks]);
@@ -500,14 +523,14 @@ function Page() {
 
       {/* Expiries Selector */}
       <div className="flex flex-wrap items-center justify-end gap-1.5 mb-6 bg-card border border-border p-1.5 rounded-xl">
-        <span className="mr-auto pl-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none">
+        <span className="mr-auto pl-2 text-sm font-bold text-muted-foreground uppercase tracking-wider select-none">
           Active Expiries
         </span>
         {activeExpiries.map((exp) => (
           <button
             key={exp.value}
             onClick={() => setSelectedExpiry(exp.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer select-none ${
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition cursor-pointer select-none ${
               selectedExpiry === exp.value
                 ? "bg-[var(--neon)]/15 text-[var(--neon)] border border-[var(--neon)]/30"
                 : "border border-border hover:bg-sidebar-accent text-sidebar-foreground/80"
@@ -518,7 +541,7 @@ function Page() {
         ))}
         <button
           onClick={() => setSelectedExpiry("All")}
-          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer select-none ${
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition cursor-pointer select-none ${
             selectedExpiry === "All"
               ? "bg-[var(--neon)]/15 text-[var(--neon)] border border-[var(--neon)]/30"
               : "border border-border hover:bg-sidebar-accent text-sidebar-foreground/80"
@@ -571,15 +594,15 @@ function Page() {
         <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-[var(--neon)]/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-2 mb-3">
-          <div className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--neon)]/15">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--neon)]/15">
             <Sparkles className="h-4 w-4 text-[var(--neon)]" />
           </div>
-          <h2 className="text-sm font-bold tracking-tight text-foreground select-none">
+          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground select-none">
             AI Market Sentiment & Index Impact Analysis
           </h2>
         </div>
 
-        <p className="text-xs text-muted-foreground leading-relaxed font-sans max-w-4xl" dangerouslySetInnerHTML={{ __html: aiSummaryText }} />
+        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed font-sans w-full" dangerouslySetInnerHTML={{ __html: aiSummaryText }} />
       </div>
     </DashboardShell>
   );

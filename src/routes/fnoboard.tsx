@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
 import { fnoStocksQuery } from "@/lib/dashboard-query";
 import { fmt } from "@/components/MarketBits";
+import { useState } from "react";
 
 export const Route = createFileRoute("/fnoboard")({
   head: () => ({
@@ -28,6 +29,46 @@ export const Route = createFileRoute("/fnoboard")({
   notFoundComponent: () => <div className="p-8">Not found</div>,
 });
 
+function StockAvatar({ symbol }: { symbol: string }) {
+  const initials = symbol.slice(0, 2);
+  const charCodeSum = symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    "bg-red-500/10 text-red-400 border-red-500/20",
+    "bg-blue-500/10 text-blue-400 border-blue-500/20",
+    "bg-green-500/10 text-green-400 border-green-500/20",
+    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    "bg-purple-500/10 text-purple-400 border-purple-500/20",
+    "bg-pink-500/10 text-pink-400 border-pink-500/20",
+    "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+  ];
+  const colorClass = colors[charCodeSum % colors.length];
+  return (
+    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${colorClass}`}>
+      {initials}
+    </div>
+  );
+}
+
+function StockLogo({ symbol }: { symbol: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const logoUrl = `https://dharunashokkumar.github.io/indian-listed-company-logos/nse/NSE_${symbol}.svg`;
+
+  if (imgFailed) {
+    return <StockAvatar symbol={symbol} />;
+  }
+
+  return (
+    <div className="h-8 w-8 shrink-0 overflow-hidden rounded-md bg-white flex items-center justify-center border border-border">
+      <img
+        src={logoUrl}
+        alt={symbol}
+        className="h-8 w-8 object-contain"
+        onError={() => setImgFailed(true)}
+      />
+    </div>
+  );
+}
+
 function Page() {
   const { data } = useSuspenseQuery(fnoStocksQuery);
   const sorted = [...data.data].sort((a, b) => b.changePct - a.changePct);
@@ -51,7 +92,10 @@ function Page() {
               className="flex flex-col rounded-lg border border-border p-2 text-xs"
               style={{ background: bg }}
             >
-              <div className="truncate font-semibold">{s.symbol}</div>
+              <div className="flex items-center gap-2">
+                <StockLogo symbol={s.symbol} />
+                <span className="truncate font-semibold">{s.symbol}</span>
+              </div>
               <div className="mt-1 font-mono">{fmt(s.ltp)}</div>
               <div className={`font-mono ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
                 {up ? "+" : ""}{fmt(s.changePct)}%
