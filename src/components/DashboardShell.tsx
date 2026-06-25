@@ -77,7 +77,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Option Lab",
     icon: ListTree,
-    items: [{ to: "/optionchain", label: "Option Chain" }],
+    items: [
+      { to: "/optionchain", label: "Option Chain" },
+      { to: "/open-interest", label: "Open Interest" },
+    ],
   },
   {
     label: "Screener Lab",
