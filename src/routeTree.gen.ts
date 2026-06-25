@@ -14,6 +14,7 @@ import { Route as SensexRouteImport } from './routes/sensex'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
+import { Route as IndexContributionRouteImport } from './routes/index-contribution'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
 import { Route as FutureDashboardRouteImport } from './routes/future-dashboard'
 import { Route as FnoboardRouteImport } from './routes/fnoboard'
@@ -45,6 +46,11 @@ const OptionchainRoute = OptionchainRouteImport.update({
 const Nifty50Route = Nifty50RouteImport.update({
   id: '/nifty50',
   path: '/nifty50',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexContributionRoute = IndexContributionRouteImport.update({
+  id: '/index-contribution',
+  path: '/index-contribution',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HeatmapRoute = HeatmapRouteImport.update({
@@ -90,6 +96,7 @@ export interface FileRoutesByFullPath {
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
+  '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
@@ -104,6 +111,7 @@ export interface FileRoutesByTo {
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
+  '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
@@ -119,6 +127,7 @@ export interface FileRoutesById {
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
+  '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
@@ -135,6 +144,7 @@ export interface FileRouteTypes {
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
+    | '/index-contribution'
     | '/nifty50'
     | '/optionchain'
     | '/screener'
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
+    | '/index-contribution'
     | '/nifty50'
     | '/optionchain'
     | '/screener'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
+    | '/index-contribution'
     | '/nifty50'
     | '/optionchain'
     | '/screener'
@@ -178,6 +190,7 @@ export interface RootRouteChildren {
   FnoboardRoute: typeof FnoboardRoute
   FutureDashboardRoute: typeof FutureDashboardRoute
   HeatmapRoute: typeof HeatmapRoute
+  IndexContributionRoute: typeof IndexContributionRoute
   Nifty50Route: typeof Nifty50Route
   OptionchainRoute: typeof OptionchainRoute
   ScreenerRoute: typeof ScreenerRoute
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/nifty50'
       fullPath: '/nifty50'
       preLoaderRoute: typeof Nifty50RouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/index-contribution': {
+      id: '/index-contribution'
+      path: '/index-contribution'
+      fullPath: '/index-contribution'
+      preLoaderRoute: typeof IndexContributionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/heatmap': {
@@ -282,6 +302,7 @@ const rootRouteChildren: RootRouteChildren = {
   FnoboardRoute: FnoboardRoute,
   FutureDashboardRoute: FutureDashboardRoute,
   HeatmapRoute: HeatmapRoute,
+  IndexContributionRoute: IndexContributionRoute,
   Nifty50Route: Nifty50Route,
   OptionchainRoute: OptionchainRoute,
   ScreenerRoute: ScreenerRoute,

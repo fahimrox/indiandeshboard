@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getDashboard, getQuotes, getIndexConstituents, getSectorDetail } from "./market.functions";
+import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail } from "./market.functions";
 import { getFnoStocks, getOptionChain, getFnoScreener } from "./nse.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
@@ -25,6 +25,14 @@ export const constituentsQuery = (index: "nifty" | "banknifty" | "sensex") =>
   queryOptions({
     queryKey: ["constituents", index],
     queryFn: () => getIndexConstituents({ data: { index } }),
+    refetchInterval: liveInterval(15_000),
+    staleTime: 8_000,
+  });
+
+export const indexContributionsQuery = (index: "nifty" | "banknifty" | "sensex") =>
+  queryOptions({
+    queryKey: ["index-contributions", index],
+    queryFn: () => getIndexContributions({ data: { index } }),
     refetchInterval: liveInterval(15_000),
     staleTime: 8_000,
   });

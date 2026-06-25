@@ -62,6 +62,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/nifty50", label: "NIFTY 50" },
       { to: "/banknifty", label: "BANK NIFTY" },
       { to: "/sensex", label: "SENSEX" },
+      { to: "/index-contribution", label: "Index Contribution" },
     ],
   },
   {
@@ -120,7 +121,7 @@ function NavGroupButton({
         <button
           type="button"
           disabled
-          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all select-none text-sidebar-foreground/35 cursor-default`}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all select-none text-sidebar-foreground/35 cursor-default"
         >
           <Icon className="h-3.5 w-3.5 shrink-0" />
           <span className="whitespace-nowrap">{group.label}</span>
@@ -140,19 +141,20 @@ function NavGroupButton({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all select-none cursor-pointer ${
-              isActive
+            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all select-none cursor-pointer ${isActive
                 ? "bg-[var(--neon)]/15 text-[var(--neon)] ring-1 ring-[var(--neon)]/30"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            }`}
+              }`}
           >
             <Icon className="h-3.5 w-3.5 shrink-0" />
             <span className="whitespace-nowrap">{group.label}</span>
             <ChevronDown
-              className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+              className={`h-3 w-3 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""
+                }`}
             />
           </button>
         </DropdownMenuTrigger>
+
         <DropdownMenuContent
           className="w-[180px] bg-sidebar border border-border p-1.5 shadow-2xl rounded-xl z-50"
           align="start"
@@ -163,6 +165,7 @@ function NavGroupButton({
               item.to === "/"
                 ? pathname === "/"
                 : pathname === item.to || pathname.startsWith(item.to + "/");
+
             return (
               <DropdownMenuItem
                 key={item.to}
@@ -172,16 +175,14 @@ function NavGroupButton({
                 <Link
                   to={item.to}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors w-full cursor-pointer ${
-                    itemActive
+                  className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors w-full cursor-pointer ${itemActive
                       ? "bg-[var(--neon)]/15 text-[var(--neon)]"
                       : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  }`}
+                    }`}
                 >
                   <span
-                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                      itemActive ? "bg-[var(--neon)]" : "bg-transparent"
-                    }`}
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${itemActive ? "bg-[var(--neon)]" : "bg-transparent"
+                      }`}
                   />
                   {item.label}
                 </Link>
@@ -300,11 +301,10 @@ export function DashboardShell({
           <div className="flex shrink-0 items-center gap-2 ml-2">
             <div className="hidden lg:flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
               <span
-                className={`h-2 w-2 rounded-full ${
-                  marketOpen
-                    ? "animate-pulse bg-[var(--neon)]"
-                    : "bg-muted-foreground"
-                }`}
+                className={`h-2 w-2 rounded-full ${marketOpen
+                  ? "animate-pulse bg-[var(--neon)]"
+                  : "bg-muted-foreground"
+                  }`}
               />
               <span className="text-muted-foreground whitespace-nowrap">
                 {marketOpen ? "Live" : "Market Closed"}
@@ -481,11 +481,10 @@ export function DashboardShell({
         {updatedAt && (
           <div className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs">
             <span
-              className={`h-2 w-2 rounded-full ${
-                marketOpen
-                  ? "animate-pulse bg-[var(--neon)]"
-                  : "bg-muted-foreground"
-              }`}
+              className={`h-2 w-2 rounded-full ${marketOpen
+                ? "animate-pulse bg-[var(--neon)]"
+                : "bg-muted-foreground"
+                }`}
             />
             <span className="text-muted-foreground">
               {marketOpen ? "Updated" : "Last update"}

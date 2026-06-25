@@ -273,6 +273,59 @@ export const getIndexConstituents = createServerFn({ method: "GET" })
     return { ...statsFor(stocks), updatedAt: Date.now() };
   });
 
+export type ContributorRow = {
+  rank: number;
+  symbol: string;
+  price: number;
+  changePct: number;
+  change: number;
+  contributionPct: number;
+  contributionPoints: number;
+};
+
+export const getIndexContributions = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
+  .handler(async ({ data }) => {
+    const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
+    const indexSymbolMap = { nifty: "^NSEI", banknifty: "^NSEBANK", sensex: "^BSESN" } as const;
+    const [allStocks, indexQuotes] = await Promise.all([
+      cachedQuotes(map[data.index]),
+      cachedQuotes([indexSymbolMap[data.index]]),
+    ]);
+    const indexQuote = indexQuotes[0] ?? null;
+    const indexChange = indexQuote?.change ?? 0;
+    const totalAbsChange = allStocks.reduce((sum, s) => sum + Math.abs(s.changePct), 0) || 1;
+    const totalNetChange = allStocks.reduce((sum, s) => sum + s.changePct, 0);
+    const pointFactor = Math.abs(totalNetChange) > 0.01
+      ? indexChange / totalNetChange
+      : indexChange / totalAbsChange;
+    const rows: ContributorRow[] = allStocks
+      .map((s) => ({
+        rank: 0,
+        symbol: s.symbol.replace(".NS", "").replace(".BO", ""),
+        price: s.price,
+        changePct: s.changePct,
+        change: s.change,
+        contributionPct: (s.changePct / totalAbsChange) * 100,
+        contributionPoints: s.changePct * pointFactor,
+      }))
+      .sort((a, b) => b.contributionPct - a.contributionPct)
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+    const positive = rows.filter((r) => r.contributionPct >= 0);
+    const negative = rows.filter((r) => r.contributionPct < 0);
+
+    return {
+      index: data.index,
+      rows,
+      positive,
+      negative,
+      indexQuote,
+      indexChange,
+      updatedAt: Date.now(),
+    };
+  });
+
 export const getSectorDetail = createServerFn({ method: "GET" })
   .inputValidator(z.object({ key: z.string() }))
   .handler(async ({ data }) => {
