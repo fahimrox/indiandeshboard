@@ -125,6 +125,7 @@ export const upstoxService = {
         string,
         {
           last_price: number;
+          net_change?: number;
           volume: number;
           ohlc: { open: number; high: number; low: number; close: number };
           instrument_token: string;

@@ -13,7 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SensexRouteImport } from './routes/sensex'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
-import { Route as OpenInterestRouteImport } from './routes/open-interest'
+import { Route as OiAnalysisRouteImport } from './routes/oi-analysis'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
 import { Route as IndexContributionRouteImport } from './routes/index-contribution'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
@@ -44,9 +44,9 @@ const OptionchainRoute = OptionchainRouteImport.update({
   path: '/optionchain',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OpenInterestRoute = OpenInterestRouteImport.update({
-  id: '/open-interest',
-  path: '/open-interest',
+const OiAnalysisRoute = OiAnalysisRouteImport.update({
+  id: '/oi-analysis',
+  path: '/oi-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Nifty50Route = Nifty50RouteImport.update({
@@ -104,7 +104,7 @@ export interface FileRoutesByFullPath {
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
-  '/open-interest': typeof OpenInterestRoute
+  '/oi-analysis': typeof OiAnalysisRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -120,7 +120,7 @@ export interface FileRoutesByTo {
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
-  '/open-interest': typeof OpenInterestRoute
+  '/oi-analysis': typeof OiAnalysisRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -137,7 +137,7 @@ export interface FileRoutesById {
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
-  '/open-interest': typeof OpenInterestRoute
+  '/oi-analysis': typeof OiAnalysisRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -155,7 +155,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/index-contribution'
     | '/nifty50'
-    | '/open-interest'
+    | '/oi-analysis'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -171,7 +171,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/index-contribution'
     | '/nifty50'
-    | '/open-interest'
+    | '/oi-analysis'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -187,7 +187,7 @@ export interface FileRouteTypes {
     | '/heatmap'
     | '/index-contribution'
     | '/nifty50'
-    | '/open-interest'
+    | '/oi-analysis'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -204,7 +204,7 @@ export interface RootRouteChildren {
   HeatmapRoute: typeof HeatmapRoute
   IndexContributionRoute: typeof IndexContributionRoute
   Nifty50Route: typeof Nifty50Route
-  OpenInterestRoute: typeof OpenInterestRoute
+  OiAnalysisRoute: typeof OiAnalysisRoute
   OptionchainRoute: typeof OptionchainRoute
   ScreenerRoute: typeof ScreenerRoute
   SensexRoute: typeof SensexRoute
@@ -242,11 +242,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OptionchainRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/open-interest': {
-      id: '/open-interest'
-      path: '/open-interest'
-      fullPath: '/open-interest'
-      preLoaderRoute: typeof OpenInterestRouteImport
+    '/oi-analysis': {
+      id: '/oi-analysis'
+      path: '/oi-analysis'
+      fullPath: '/oi-analysis'
+      preLoaderRoute: typeof OiAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/nifty50': {
@@ -324,7 +324,7 @@ const rootRouteChildren: RootRouteChildren = {
   HeatmapRoute: HeatmapRoute,
   IndexContributionRoute: IndexContributionRoute,
   Nifty50Route: Nifty50Route,
-  OpenInterestRoute: OpenInterestRoute,
+  OiAnalysisRoute: OiAnalysisRoute,
   OptionchainRoute: OptionchainRoute,
   ScreenerRoute: ScreenerRoute,
   SensexRoute: SensexRoute,

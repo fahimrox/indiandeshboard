@@ -1,0 +1,235 @@
+.ticker-container {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #0F1117;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  height: 34px;
+  padding: 0 18px;
+  box-sizing: border-box;
+}
+
+.ticker-track {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+  will-change: transform;
+  animation: ticker-scroll linear infinite;
+}
+
+.ticker-container.paused .ticker-track {
+  animation-play-state: paused;
+}
+
+@keyframes ticker-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.ticker-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  user-select: none;
+}
+
+.ticker-item:hover {
+  opacity: 0.8;
+}
+
+.ticker-label {
+  color: #9CA3AF;
+  font-weight: 500;
+  font-size: 14px;
+  font-family: Inter, system-ui, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.ticker-price {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 15px;
+  font-family: Inter, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.ticker-change {
+  font-weight: 600;
+  font-size: 13px;
+  font-family: Inter, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.ticker-change.positive {
+  color: #22C55E;
+}
+
+.ticker-change.negative {
+  color: #EF4444;
+}
+
+.ticker-change.neutral {
+  color: #9CA3AF;
+}
+
+.ticker-separator {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  margin: 0 20px;
+}
+
+.ticker-signal-category {
+  color: #F59E0B;
+  font-weight: 700;
+  font-size: 11px;
+  font-family: Inter, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.ticker-signal-category.long-buildup {
+  color: #22C55E;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.ticker-signal-category.short-buildup {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.ticker-signal-category.short-covering {
+  color: #22C55E;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.ticker-signal-category.long-unwinding {
+  color: #F59E0B;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.ticker-signal-category.volume-shocker {
+  color: #A855F7;
+  background: rgba(168, 85, 247, 0.12);
+}
+
+.ticker-signal-category.breakout {
+  color: #22C55E;
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.ticker-signal-category.breakdown {
+  color: #EF4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.ticker-signal-category.high-oi {
+  color: #3B82F6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.ticker-signal-category.high-volume {
+  color: #A855F7;
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.ticker-signal-category.high-delivery {
+  color: #06B6D4;
+  background: rgba(6, 182, 212, 0.1);
+}
+
+.ticker-arrow {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.ticker-arrow.up {
+  color: #22C55E;
+}
+
+.ticker-arrow.down {
+  color: #EF4444;
+}
+
+.ticker-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: #1a1d2e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: Inter, system-ui, sans-serif;
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  min-width: 160px;
+}
+
+.ticker-tooltip .tt-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 0;
+  gap: 20px;
+}
+
+.ticker-tooltip .tt-label {
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+.ticker-tooltip .tt-value {
+  color: #ffffff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ticker-tooltip .tt-title {
+  font-weight: 700;
+  color: #ffffff;
+  font-size: 13px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.ticker-vix .ticker-price {
+  color: #F59E0B;
+}
+
+@media (max-width: 768px) {
+  .ticker-container {
+    height: 30px;
+    padding: 0 10px;
+  }
+  .ticker-label {
+    font-size: 12px;
+  }
+  .ticker-price {
+    font-size: 13px;
+  }
+  .ticker-change {
+    font-size: 11px;
+  }
+  .ticker-separator {
+    margin: 0 12px;
+  }
+  .ticker-signal-category {
+    font-size: 10px;
+  }
+}

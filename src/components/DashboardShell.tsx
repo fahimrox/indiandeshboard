@@ -27,6 +27,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { isMarketOpenIst } from "@/lib/market-hours";
+import { TopTicker } from "@/components/TopTicker/TopTicker";
 import {
   Dialog,
   DialogContent,
@@ -79,7 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: ListTree,
     items: [
       { to: "/optionchain", label: "Option Chain" },
-      { to: "/open-interest", label: "Open Interest" },
+      { to: "/oi-analysis", label: "OI Analysis" },
     ],
   },
   {
@@ -206,7 +207,7 @@ export function DashboardShell({
   updatedAt,
 }: {
   children: ReactNode;
-  title: string;
+  title?: string;
   subtitle?: string;
   updatedAt?: number;
 }) {
@@ -266,6 +267,9 @@ export function DashboardShell({
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* ── Live Market Ticker ──────────────────────────────────────────── */}
+      <TopTicker />
+
       {/* ── Top Nav Bar ─────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-40 border-b border-border bg-sidebar/95 backdrop-blur">
         <div className="flex items-center gap-3 px-4 py-2.5">
@@ -474,6 +478,7 @@ export function DashboardShell({
       </div>
 
       {/* ── Page Header ─────────────────────────────────────────────────── */}
+      {title && (
       <header className="flex flex-wrap items-end justify-between gap-3 border-b border-border bg-background/70 px-6 py-4 backdrop-blur">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
@@ -504,6 +509,7 @@ export function DashboardShell({
           </div>
         )}
       </header>
+      )}
 
       <main className="px-6 py-6">{children}</main>
     </div>

@@ -403,11 +403,7 @@ export const angelOneService = {
       const volume = item.volume || 0;
       const prevClose = item.close || ltp;
       
-      // Calculate OI change
-      // SmartAPI doesn't return absolute OI change directly in FULL mode sometimes,
-      // but let's approximate or use it if available (some responses contain netChange / oiChange).
-      // If not, we can calculate based on stable daily trends or default to 0.
-      const oiChg = item.oiChange || 0;
+      const oiChg = item.chgOi ?? item.changeoi ?? item.oiChange ?? item.netChange ?? 0;
       const prevOi = oi - oiChg;
       const oiChgPct = prevOi > 0 ? (oiChg / prevOi) * 100 : 0;
 
