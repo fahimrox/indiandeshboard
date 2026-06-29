@@ -1120,10 +1120,14 @@ function applyCurrentFilter() {
   renderLiveCommentary(filtered);
 }
 
+let updateTimeout = null;
+
 // Receive live data from parent React window
 window.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'UPDATE_DATA') {
     const raw = event.data.data;
+    if (!raw) return;
+    
     if (raw.expiry) {
       DATA.expiry = raw.expiry;
       $('#expiry').textContent = raw.expiry;
@@ -1148,16 +1152,19 @@ window.addEventListener('message', (event) => {
       });
     }
     
-    // Refresh calculations and UI
-    marketScore();
-    renderOverview();
-    renderIndexSentiment();
-    renderCommentary();
-    renderSignals();
-    renderSR();
-    renderSmart();
-    renderBS();
-    applyCurrentFilter();
+    // Debounce the rendering to aggregate rapid consecutive postMessages
+    if (updateTimeout) clearTimeout(updateTimeout);
+    updateTimeout = setTimeout(() => {
+      marketScore();
+      renderOverview();
+      renderIndexSentiment();
+      renderCommentary();
+      renderSignals();
+      renderSR();
+      renderSmart();
+      renderBS();
+      applyCurrentFilter();
+    }, 50);
   }
 });
 
