@@ -4,15 +4,13 @@ import { OISidebar } from "./OISidebar";
 import { OIBottomPanels } from "./OIBottomPanels";
 import { generateMockOIData, type OIDataPoint } from "./mockData";
 
-export type ViewMode = "change+total" | "change" | "total";
 export type StrikeFilter = "All" | "ATM" | "5" | "10" | "20";
-export type TimeRange = "3min" | "5min" | "10min" | "15min" | "30min" | "1hr" | "2hr" | "3hr" | "all";
+export type TimeRange = "3min" | "5min" | "15min" | "30min" | "1hr" | "2hr" | "all";
 export type IndexType = "NIFTY" | "BANKNIFTY" | "MIDCPNIFTY" | "SENSEX";
 export type ModeType = "Live" | "Historical";
 
 export function OIAnalysisDashboard() {
   const [strikeFilter, setStrikeFilter] = useState<StrikeFilter>("10");
-  const [viewMode, setViewMode] = useState<ViewMode>("change+total");
   const [selectedMode, setSelectedMode] = useState<ModeType>("Live");
   const [timeRange, setTimeRange] = useState<TimeRange>("15min");
   const [selectedIndex, setSelectedIndex] = useState<IndexType>("NIFTY");
@@ -76,8 +74,6 @@ export function OIAnalysisDashboard() {
         {/* Main Chart */}
         <OIMainChart
           data={oiData}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
           timeRange={timeRange}
           onTimeRangeChange={setTimeRange}
         />

@@ -223,46 +223,10 @@ function buildPulse(opts: {
   return { tone: overallTone, lines, indices, vixStatus, pcrStatus };
 }
 
+import { dashboardService } from "./services/dashboardService.server";
+
 export const getDashboard = createServerFn({ method: "GET" }).handler(async () => {
-  const [indices, sectors, stocks] = await Promise.all([
-    cachedQuotes(INDICES),
-    cachedQuotes(SECTORS.map((s) => s.symbol)),
-    cachedQuotes(NIFTY_STOCKS),
-  ]);
-  const indexMap = Object.fromEntries(indices.map((q) => [q.symbol, q]));
-  const sectorList = sectors.map((q) => {
-    const meta = SECTORS.find((s) => s.symbol === q.symbol);
-    return { ...q, key: meta?.key ?? q.symbol, label: meta?.name ?? q.name };
-  });
-  const s = statsFor(stocks);
-  const sortedSectors = [...sectorList].sort((a, b) => b.changePct - a.changePct);
-  const bullsPct = (s.advance / Math.max(1, s.advance + s.decline)) * 100;
-  // crude PCR proxy from breadth (real PCR loaded on option chain page); leave 0 if unknown
-  const pcr = 0;
-  const commentary = buildPulse({
-    nifty: indexMap["^NSEI"],
-    bank: indexMap["^NSEBANK"],
-    sensex: indexMap["^BSESN"],
-    vix: indexMap["^INDIAVIX"],
-    bullsPct,
-    advance: s.advance,
-    decline: s.decline,
-    topSector: sortedSectors[0],
-    bottomSector: sortedSectors[sortedSectors.length - 1],
-    topGainer: s.gainers[0],
-    topLoser: s.losers[0],
-    pcr,
-  });
-  return {
-    nifty: indexMap["^NSEI"] ?? null,
-    sensex: indexMap["^BSESN"] ?? null,
-    bankNifty: indexMap["^NSEBANK"] ?? null,
-    vix: indexMap["^INDIAVIX"] ?? null,
-    sectors: sectorList,
-    ...s,
-    commentary,
-    updatedAt: Date.now(),
-  };
+  return await dashboardService.getDashboardData();
 });
 
 export const getIndexConstituents = createServerFn({ method: "GET" })

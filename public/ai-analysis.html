@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Market Analysis | Index Intelligence</title>
+<style>
+:root{
+  --bg:#070b14; --bg2:#0b1220; --panel:#0e1626; --panel2:#121c30;
+  --line:#1b2942; --txt:#e8eefc; --txt2:#9fb0cd; --txt3:#647599;
+  --bull:#18e29a; --bear:#ff5d73; --warn:#ffc857; --info:#5db9ff; --purple:#b18cff;
+  --glow:0 0 0 1px rgba(93,185,255,.08), 0 18px 50px -20px rgba(0,0,0,.7);
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'Segoe UI',Inter,system-ui,-apple-system,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(91,185,255,.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 10%, rgba(177,140,255,.06), transparent 55%),
+    var(--bg);
+  color:var(--txt); line-height:1.5; -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:'JetBrains Mono','SF Mono',Consolas,monospace; font-variant-numeric:tabular-nums;}
+a{color:var(--info); text-decoration:none}
+.wrap{max-width:1480px; margin:0 auto; padding:18px 20px 60px}
+header.top{
+  position:sticky; top:0; z-index:50;
+  background:linear-gradient(180deg, rgba(8,12,22,.96), rgba(8,12,22,.82));
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.top-in{max-width:1480px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:18px; flex-wrap:wrap}
+.brand{display:flex; align-items:center; gap:12px}
+.logo{width:38px;height:38px;border-radius:10px;
+  background:conic-gradient(from 210deg,var(--bull),var(--info),var(--purple),var(--bull));
+  display:grid;place-items:center;font-weight:800;color:#04121c; box-shadow:0 0 22px rgba(93,185,255,.35)}
+.brand h1{font-size:16px; letter-spacing:.3px}
+.brand .sub{font-size:11px;color:var(--txt3); font-weight:600; letter-spacing:1.5px; text-transform:uppercase}
+.top-meta{margin-left:auto; display:flex; align-items:center; gap:18px; font-size:12.5px}
+.pill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--txt2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bull);box-shadow:0 0 10px var(--bull);animation:pulse 1.6s infinite}
+.dot.off{background:var(--bear);box-shadow:0 0 10px var(--bear);animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+section.block{margin-top:26px}
+.sec-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.sec-num{width:26px;height:26px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:12px;font-weight:700;color:var(--info)}
+.sec-title{font-size:15.5px;font-weight:700;letter-spacing:.2px}
+.sec-desc{font-size:12px;color:var(--txt3);margin-left:8px}
+.sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.grid{display:grid;gap:14px}
+.card{background:linear-gradient(180deg,var(--panel),var(--bg2)); border:1px solid var(--line);
+  border-radius:var(--radius); padding:16px; box-shadow:var(--glow); position:relative; overflow:hidden}
+.card .ttl{font-size:12px;color:var(--txt2);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card .ttl .ic{font-size:14px}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:7px;font-size:11px;font-weight:700;letter-spacing:.4px}
+.bull{background:rgba(24,226,154,.12);color:var(--bull);border:1px solid rgba(24,226,154,.3)}
+.bear{background:rgba(255,93,115,.12);color:var(--bear);border:1px solid rgba(255,93,115,.3)}
+.neu{background:rgba(255,200,87,.12);color:var(--warn);border:1px solid rgba(255,200,87,.3)}
+.info{background:rgba(93,185,255,.12);color:var(--info);border:1px solid rgba(93,185,255,.3)}
+.big{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.up{color:var(--bull)}.down{color:var(--bear)}.flat{color:var(--warn)}
+.bar{height:8px;border-radius:6px;background:#0a1426;overflow:hidden;border:1px solid var(--line)}
+.bar > i{display:block;height:100%;border-radius:6px;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.overview-grid{grid-template-columns:1.1fr 1.1fr 1fr}
+.gauge{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.semi{position:relative;width:230px;height:120px}
+.semi svg{width:100%;height:100%}
+.semi .label{position:absolute;bottom:-2px;left:0;right:0;text-align:center}
+.mood-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:12px}
+.mood-cell{text-align:center;padding:9px 4px;border-radius:9px;background:var(--panel2);border:1px solid var(--line)}
+.mood-cell .v{font-size:13px;font-weight:800}
+.mood-cell .k{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-top:3px}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.kv:last-child{border-bottom:0}
+.kv .k{font-size:12px;color:var(--txt2)}
+.kv .v{font-size:13px;font-weight:700}
+.sector-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.sector{padding:12px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);position:relative;overflow:hidden}
+.sector .nm{font-size:11px;color:var(--txt2);font-weight:600;letter-spacing:.3px}
+.sector .ch{font-size:16px;font-weight:800;margin-top:4px}
+.sector .bar-mini{position:absolute;left:0;bottom:0;height:3px}
+.idx-grid{grid-template-columns:repeat(4,1fr)}
+@media(max-width:1100px){.idx-grid{grid-template-columns:repeat(2,1fr)} .overview-grid{grid-template-columns:1fr}}
+.idx-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.idx-name{font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}
+.idx-ltp{font-size:13px;font-weight:700}
+.pcr-meter{margin:12px 0}
+.pcr-scale{height:10px;border-radius:8px;background:linear-gradient(90deg,var(--bear),#2a3650,var(--bull));position:relative}
+.pcr-needle{position:absolute;top:-5px;width:4px;height:20px;background:#fff;border-radius:3px;box-shadow:0 0 8px #fff;transition:left .8s}
+.mini-row{display:flex;justify-content:space-between;font-size:11.5px;padding:5px 0;border-bottom:1px dashed var(--line)}
+.mini-row:last-child{border-bottom:0}
+.mini-row .k{color:var(--txt3)}
+.cp-bar{display:flex;height:14px;border-radius:5px;overflow:hidden;margin-top:6px}
+.cp-bar .c{background:linear-gradient(180deg,#ff7d91,#e0384f)}
+.cp-bar .p{background:linear-gradient(180deg,#36f0b3,#0bbf80)}
+.two-col{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.two-col{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{text-align:left;padding:8px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{color:var(--txt3);font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:hover{background:rgba(93,185,255,.04)}
+.ai-note{font-size:12.5px;line-height:1.6;color:var(--txt);background:rgba(93,185,255,.05);
+  border:1px solid rgba(93,185,255,.18);border-left:3px solid var(--info);border-radius:9px;padding:11px 13px;margin-top:12px}
+.ai-note b{color:var(--info)}
+.bu{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;letter-spacing:.3px}
+.bu-long{background:rgba(24,226,154,.14);color:var(--bull)}
+.bu-short{background:rgba(255,93,115,.14);color:var(--bear)}
+.bu-scov{background:rgba(255,200,87,.14);color:var(--warn)}
+.bu-lunw{background:rgba(177,140,255,.14);color:var(--purple)}
+.heat{display:inline-block;width:46px;height:6px;border-radius:4px;background:#0a1426;overflow:hidden;vertical-align:middle}
+.heat i{display:block;height:100%}
+.sig-card{border-left:3px solid var(--info)}
+.sig-type{font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;letter-spacing:.4px}
+.st-vs{background:linear-gradient(90deg,rgba(24,226,154,.25),rgba(24,226,154,.08));color:var(--bull);border:1px solid rgba(24,226,154,.4)}
+.st-s{background:rgba(24,226,154,.12);color:var(--bull);border:1px solid rgba(24,226,154,.3)}
+.st-w{background:rgba(255,200,87,.12);color:var(--warn);border:1px solid rgba(255,200,87,.3)}
+.st-r{background:rgba(255,93,115,.12);color:var(--bear);border:1px solid rgba(255,93,115,.3)}
+.lvl-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.lvl{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px;text-align:center}
+.lvl .lk{font-size:9.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px}
+.lvl .lv{font-size:15px;font-weight:800;margin-top:3px}
+.rr{font-size:11px;color:var(--txt3);margin-top:9px}
+.rr b{color:var(--info)}
+.sr-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.sr-cols{grid-template-columns:1fr}}
+.sr-stack{display:flex;flex-direction:column-reverse;gap:5px}
+.sr-row{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:7px;font-size:12px}
+.sr-r{background:rgba(255,93,115,.07);border:1px solid rgba(255,93,115,.2)}
+.sr-s{background:rgba(24,226,154,.07);border:1px solid rgba(24,226,154,.2)}
+.sr-p{background:rgba(255,200,87,.08);border:1px solid rgba(255,200,87,.25)}
+.sr-tag{font-size:10px;font-weight:700;color:var(--txt3)}
+.bs-grid{grid-template-columns:1fr 1fr}
+@media(max-width:900px){.bs-grid{grid-template-columns:1fr}}
+.bs-panel{border-top:3px solid}
+.bs-buy{border-top-color:var(--bull)}
+.bs-sell{border-top-color:var(--purple)}
+.bs-panel .pttl{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.bs-panel .picon{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;font-size:17px;font-weight:800}
+.bs-buy .picon{background:rgba(24,226,154,.15);color:var(--bull)}
+.bs-sell .picon{background:rgba(177,140,255,.15);color:var(--purple)}
+.bs-panel .pttl h3{font-size:15px;font-weight:800}
+.bs-panel .pttl p{font-size:11px;color:var(--txt3);margin-top:1px}
+.idx-card{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px;margin-bottom:11px}
+.idx-card .ic-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;gap:6px;flex-wrap:wrap}
+.idx-card .ic-name{font-size:13.5px;font-weight:800}
+.scenario{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.scn{border-radius:8px;padding:9px 10px;border:1px solid var(--line)}
+.scn-up{background:rgba(24,226,154,.06);border-color:rgba(24,226,154,.22)}
+.scn-dn{background:rgba(255,93,115,.06);border-color:rgba(255,93,115,.22)}
+.scn .scn-ttl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:5px}
+.scn .scn-lvl{font-size:11px;color:var(--txt2);margin-bottom:2px}
+.scn .scn-lvl b{color:var(--txt)}
+.scn .scn-act{font-size:10.5px;font-weight:700;margin-top:7px;padding-top:6px;border-top:1px dashed var(--line)}
+.strat-box{background:rgba(177,140,255,.06);border:1px solid rgba(177,140,255,.24);border-radius:8px;padding:10px;margin-top:4px}
+.strat-name{font-size:12.5px;font-weight:800;color:var(--purple);letter-spacing:.3px}
+.strat-legs{font-size:11px;color:var(--txt);margin-top:6px;font-family:'JetBrains Mono',Consolas,monospace;background:rgba(0,0,0,.2);padding:6px 8px;border-radius:6px}
+.strat-note{font-size:10.5px;color:var(--txt2);margin-top:6px;line-height:1.55}
+.foot{margin-top:34px;text-align:center;font-size:11px;color:var(--txt3);line-height:1.7}
+.foot .dis{margin-top:8px;color:#5a6a8a}
+.card,section.block{animation:fade .5s ease both}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ===================== S8: AI LIVE COMMENTARY ===================== */
+.s8-live-dot{width:8px;height:8px;border-radius:50%;background:var(--bull);box-shadow:0 0 8px var(--bull);animation:pulse 1.6s infinite;flex-shrink:0}
+.s8-count{display:inline-flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--line);border-radius:999px;min-width:24px;height:24px;padding:0 8px;font-size:11px;font-weight:800;color:var(--info)}
+.s8-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.s8-filt{padding:5px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);font-size:11px;font-weight:600;color:var(--txt2);cursor:pointer;transition:all .15s;user-select:none}
+.s8-filt:hover{border-color:var(--info);color:var(--txt)}
+.s8-filt.fa{background:rgba(93,185,255,.1);border-color:rgba(93,185,255,.3);color:var(--info)}
+.s8-filt.fb{background:rgba(24,226,154,.1);border-color:rgba(24,226,154,.3);color:var(--bull)}
+.s8-filt.fc{background:rgba(255,93,115,.1);border-color:rgba(255,93,115,.3);color:var(--bear)}
+.s8-filt.fd{background:rgba(255,200,87,.1);border-color:rgba(255,200,87,.3);color:var(--warn)}
+.s8-filt.fe{background:rgba(177,140,255,.1);border-color:rgba(177,140,255,.3);color:var(--purple)}
+.lsig{border-radius:12px;border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),var(--bg2));padding:15px 16px;position:relative;overflow:hidden;transition:border-color .2s}
+.lsig:hover{border-color:rgba(93,185,255,.3)}
+.lsig-bull{border-left:3px solid var(--bull)}
+.lsig-bear{border-left:3px solid var(--bear)}
+.lsig-neu{border-left:3px solid var(--warn)}
+.lsig-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
+.lsig-ico{width:28px;height:28px;flex-shrink:0;border-radius:8px;display:grid;place-items:center;font-size:14px;margin-top:1px}
+.ico-warn{background:rgba(255,93,115,.15)}
+.ico-bolt{background:rgba(255,200,87,.15)}
+.ico-info{background:rgba(93,185,255,.15)}
+.lsig-name{font-size:13.5px;font-weight:800;color:var(--txt);display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.3}
+.lsig-meta{display:flex;align-items:center;gap:8px;margin-top:4px}
+.lsig-date{font-size:10.5px;color:var(--info);font-weight:600;letter-spacing:.3px}
+.lsig-time{font-size:10.5px;color:var(--txt3)}
+.lsig-body{font-size:12.5px;color:var(--txt);line-height:1.6;margin-bottom:10px}
+.lsig-etsl{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:11px;font-size:11.5px;font-weight:700}
+.lsig-entry{color:var(--bull)}
+.lsig-target{color:var(--info)}
+.lsig-sl{color:var(--bear)}
+.lsig-div{height:1px;background:var(--line);margin:10px 0}
+.conv-wrap{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+.conv-lbl{font-size:11.5px;color:var(--txt2);white-space:nowrap}
+.conv-track{flex:1;max-width:140px;height:8px;border-radius:5px;background:#0a1426;overflow:hidden;border:1px solid var(--line)}
+.conv-fill{height:100%;border-radius:5px;transition:width .7s ease}
+.conv-pct{font-size:12px;font-weight:800;color:var(--txt);min-width:36px}
+.lsig-ai{font-size:11.5px;font-style:italic;color:var(--txt3);margin-top:2px}
+.s8-empty{text-align:center;padding:40px 16px;color:var(--txt3);font-size:13px;border:1px dashed var(--line);border-radius:12px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <div class="logo">AI</div>
+      <div>
+        <h1>Index AI Analysis</h1>
+        <div class="sub">Options · Derivatives · Market Intelligence</div>
+      </div>
+    </div>
+    <div class="top-meta">
+      <span class="pill"><span class="dot" id="mktDot"></span><span id="mktStatus">Market Open</span></span>
+      <span class="pill mono" id="clock">--:--:--</span>
+      <span class="pill">Expiry: <b id="expiry" class="mono" style="color:var(--info);margin-left:5px">--</b></span>
+      <span class="pill" id="autoFeed">AI Engine: <b style="color:var(--bull)">LIVE</b></span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- S1 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <div class="sec-title">Market AI Overview</div>
+      <div class="sec-desc">bias · trend · breadth · mood · sentiment</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid overview-grid">
+      <div class="card">
+        <div class="ttl"><span class="ic">🧭</span> AI Market Bias</div>
+        <div class="gauge">
+          <div class="semi">
+            <svg viewBox="0 0 230 120">
+              <defs>
+                <linearGradient id="gg" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stop-color="#ff5d73"/>
+                  <stop offset=".5" stop-color="#ffc857"/>
+                  <stop offset="1" stop-color="#18e29a"/>
+                </linearGradient>
+              </defs>
+              <path d="M20,115 A95,95 0 0,1 210,115" fill="none" stroke="#16233a" stroke-width="18" stroke-linecap="round"/>
+              <path id="gArc" d="M20,115 A95,95 0 0,1 210,115" fill="none" stroke="url(#gg)" stroke-width="18" stroke-linecap="round" stroke-dasharray="298" stroke-dashoffset="298"/>
+              <text id="gScore" x="115" y="100" text-anchor="middle" fill="#e8eefc" font-size="34" font-weight="800">--</text>
+              <text x="115" y="118" text-anchor="middle" fill="#647599" font-size="10">/ 100</text>
+            </svg>
+            <div class="label"><span class="tag" id="gTag">--</span></div>
+          </div>
+          <div class="ai-note" id="biasNote">Analyzing market structure…</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ttl"><span class="ic">📊</span> Breadth & Market Mood</div>
+        <div class="kv"><span class="k">Advances</span><span class="v up mono" id="adv">--</span></div>
+        <div class="kv"><span class="k">Declines</span><span class="v down mono" id="dec">--</span></div>
+        <div class="kv"><span class="k">A/D Ratio</span><span class="v mono" id="adr">--</span></div>
+        <div class="bar" style="margin:8px 0 4px"><i id="adBar" style="width:0;background:linear-gradient(90deg,var(--bear),var(--bull))"></i></div>
+        <div style="font-size:10px;color:var(--txt3);display:flex;justify-content:space-between"><span>Decline</span><span>Advance</span></div>
+        <div class="mood-row">
+          <div class="mood-cell"><div class="v up" id="mTrend">--</div><div class="k">Trend</div></div>
+          <div class="mood-cell"><div class="v" id="mMood">--</div><div class="k">Mood</div></div>
+          <div class="mood-cell"><div class="v" id="mBreadth">--</div><div class="k">Breadth</div></div>
+          <div class="mood-cell"><div class="v" id="mFlow">--</div><div class="k">Flow</div></div>
+          <div class="mood-cell"><div class="v" id="mVol">--</div><div class="k">Volatility</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ttl"><span class="ic">⚡</span> India VIX Intelligence</div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <div class="big mono" id="vixVal">--</div>
+          <span class="mono" id="vixChg" style="font-size:13px;font-weight:700">--</span>
+        </div>
+        <div style="font-size:11px;color:var(--txt3);margin-top:2px" id="vixZone">Volatility Regime: --</div>
+        <div class="bar" style="margin:10px 0"><i id="vixBar" style="width:0;background:linear-gradient(90deg,var(--bull),var(--warn),var(--bear))"></i></div>
+        <div class="ai-note" id="vixNote" style="font-size:11.5px">Reading volatility…</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="ttl"><span class="ic">🏭</span> NSE Sectoral Movement <span style="font-weight:400;color:var(--txt3);text-transform:none;letter-spacing:0">(AI weighted rotation map)</span></div>
+      <div class="grid sector-grid" id="sectorGrid"></div>
+    </div>
+  </section>
+
+  <!-- S2 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <div class="sec-title">Live Index Sentiment</div>
+      <div class="sec-desc">PCR · OI shift · call/put writing · reversal probability</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid idx-grid" id="idxGrid"></div>
+  </section>
+
+  <!-- S3 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">3</div>
+      <div class="sec-title">AI Option-Chain Commentary</div>
+      <div class="sec-desc">strike-wise OI + volume shift · buildup / unwinding detection</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid two-col" id="commentaryGrid"></div>
+  </section>
+
+  <!-- S4 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">4</div>
+      <div class="sec-title">AI Trade Signals</div>
+      <div class="sec-desc">strike · entry · SL · T1 · T2 · signal strength</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))" id="signalGrid"></div>
+  </section>
+
+  <!-- S5 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <div class="sec-title">Support &amp; Resistance Levels</div>
+      <div class="sec-desc">pivot-based + OI-based (smart money walls)</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid idx-grid" id="srGrid"></div>
+  </section>
+
+  <!-- S6 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <div class="sec-title">Smart Money Footprint &amp; Risk Matrix</div>
+      <div class="sec-desc">max pain · OI walls · institutional positioning · risk plan</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid overview-grid" id="smartGrid"></div>
+  </section>
+
+  <!-- S7 -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">7</div>
+      <div class="sec-title">AI Buyer &amp; Seller Action Plan</div>
+      <div class="sec-desc">directional calls for buyers · premium-selling strategies for sellers</div>
+      <div class="sec-line"></div>
+    </div>
+    <div class="grid bs-grid" id="bsGrid"></div>
+  </section>
+
+  <!-- S8: AI LIVE COMMENTARY -->
+  <section class="block">
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <div class="sec-title">AI Live Commentary</div>
+      <div class="sec-desc">real-time option flow · buildup alerts · smart money signals</div>
+      <div class="sec-line"></div>
+      <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
+        <div class="s8-live-dot"></div>
+        <span style="font-size:11px;color:var(--bull);font-weight:700;letter-spacing:.5px">LIVE</span>
+        <span class="s8-count" id="s8Count">0</span>
+      </div>
+    </div>
+    <div class="card" style="padding:18px">
+      <div class="s8-filters" id="s8Filters">
+        <span class="s8-filt fa" onclick="s8Filter('ALL',this)">All signals</span>
+        <span class="s8-filt" onclick="s8Filter('BULLISH',this)">🟢 Bullish</span>
+        <span class="s8-filt" onclick="s8Filter('BEARISH',this)">🔴 Bearish</span>
+        <span class="s8-filt" onclick="s8Filter('NEUTRAL',this)">🟡 Neutral</span>
+        <span class="s8-filt" onclick="s8Filter('HIGH',this)">⚡ High conviction 70%+</span>
+      </div>
+      <div class="grid" style="gap:10px" id="s8List"></div>
+    </div>
+  </section>
+
+  <div class="foot">
+    Built for educational/analytical purpose. Replace the <span class="mono">DATA</span> object with your live broker/NSE feed.
+    <div class="dis">Disclaimer: Derivatives trading involves substantial risk. This is not investment advice. Always do your own research.</div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   DATA LAYER
+   ========================================================================= */
+const DATA = {
+  lastUpdate:"2026-06-28 09:45:12",
+  expiry:"04 JUL 2026",
+  breadth:{ adv:1612, dec:1320, unchanged:118 },
+  vix:{ value:13.42, prevClose:12.85, high:14.6, low:11.2 },
+  sectors:[
+    {name:"NIFTY IT",    ch:+1.42},
+    {name:"NIFTY BANK",  ch:+0.88},
+    {name:"NIFTY AUTO",  ch:+0.64},
+    {name:"NIFTY FIN",   ch:+0.51},
+    {name:"NIFTY FMCG",  ch:+0.22},
+    {name:"NIFTY PHARMA",ch:-0.18},
+    {name:"NIFTY METAL", ch:-0.74},
+    {name:"NIFTY ENERGY",ch:-1.05},
+    {name:"NIFTY MEDIA", ch:-1.63},
+    {name:"NIFTY REALTY",ch:+0.95},
+    {name:"NIFTY PSE",   ch:+0.39},
+    {name:"NIFTY PSB",   ch:+0.71}
+  ],
+  indices:{
+    NIFTY:{
+      ltp:24180.55, prevClose:24012.30,
+      chain:[
+        {strike:23800, ceLtp:412.5, ceOI:1842000, ceOIc:-42000, ceVol:38200, peLtp:0,    peOI:612000,  peOIc:+18000, peVol:0},
+        {strike:23900, ceLtp:318.2, ceOI:2540000, ceOIc:+88000, ceVol:64100, peLtp:6.5,  peOI:940000,  peOIc:+31000, peVol:14800},
+        {strike:24000, ceLtp:224.8, ceOI:3980000, ceOIc:+155000,ceVol:112400,peLtp:12.4, peOI:1520000, peOIc:+62000, peVol:38400},
+        {strike:24100, ceLtp:142.6, ceOI:5210000, ceOIc:+210000,ceVol:168200,peLtp:31.8, peOI:2840000, peOIc:+145000,peVol:71200},
+        {strike:24200, ceLtp:78.4,  ceOI:6420000, ceOIc:+312000,ceVol:224500,peLtp:67.2, peOI:3420000, peOIc:+98000, peVol:88100},
+        {strike:24300, ceLtp:38.9,  ceOI:7840000, ceOIc:+428000,ceVol:298400,peLtp:127.5,peOI:2640000, peOIc:-64000, peVol:64500},
+        {strike:24400, ceLtp:16.2,  ceOI:7120000, ceOIc:+184000,ceVol:184600,peLtp:204.8,peOI:1840000, peOIc:-82000, peVol:42100},
+        {strike:24500, ceLtp:6.1,   ceOI:4640000, ceOIc:-58000, ceVol:88400, peLtp:294.5,peOI:1240000, peOIc:-41000, peVol:28400}
+      ],
+      dayHigh:24218, dayLow:24042, vwap:24148
+    },
+    BANKNIFTY:{
+      ltp:52340.20, prevClose:51980.60,
+      chain:[
+        {strike:51800, ceLtp:612.0, ceOI:920000,  ceOIc:+22000, ceVol:18400, peLtp:8.5,  peOI:410000,  peOIc:+12000, peVol:8400},
+        {strike:52000, ceLtp:448.5, ceOI:1480000, ceOIc:+68000, ceVol:32400, peLtp:18.4, peOI:720000,  peOIc:+28000, peVol:16200},
+        {strike:52200, ceLtp:312.2, ceOI:2240000, ceOIc:+124000,ceVol:58400, peLtp:42.6, peOI:1180000, peOIc:+62000, peVol:32400},
+        {strike:52400, ceLtp:198.4, ceOI:3420000, ceOIc:+218000,ceVol:98200, peLtp:84.2, peOI:2240000, peOIc:+148000,peVol:72400},
+        {strike:52600, ceLtp:118.6, ceOI:4840000, ceOIc:+342000,ceVol:148400,peLtp:162.5,peOI:3120000, peOIc:+184000,peVol:98200},
+        {strike:52800, ceLtp:62.4,  ceOI:5840000, ceOIc:+412000,ceVol:184200,peLtp:264.0,peOI:2240000, peOIc:-42000, peVol:62400},
+        {strike:53000, ceLtp:28.8,  ceOI:4120000, ceOIc:+84000, ceVol:88400, peLtp:388.4,peOI:1480000, peOIc:-62000, peVol:38400}
+      ],
+      dayHigh:52482, dayLow:52118, vwap:52310
+    },
+    MIDCAPNIFTY:{
+      ltp:11842.75, prevClose:11810.40,
+      chain:[
+        {strike:11700, ceLtp:182.4, ceOI:540000,  ceOIc:+18000, ceVol:12400, peLtp:4.2,  peOI:280000,  peOIc:+8000,  peVol:4200},
+        {strike:11800, ceLtp:118.6, ceOI:840000,  ceOIc:+42000, ceVol:22400, peLtp:18.8, peOI:520000,  peOIc:+28000, peVol:9800},
+        {strike:11900, ceLtp:68.2,  ceOI:1240000, ceOIc:+88000, ceVol:38400, peLtp:62.4, peOI:840000,  peOIc:+52000, peVol:18400},
+        {strike:12000, ceLtp:32.8,  ceOI:1840000, ceOIc:+142000,ceVol:62400, peLtp:142.6,peOI:620000,  peOIc:-18000, peVol:12400}
+      ],
+      dayHigh:11882, dayLow:11808, vwap:11840
+    },
+    SENSEX:{
+      ltp:79420.10, prevClose:79102.50,
+      chain:[
+        {strike:78500, ceLtp:612.0, ceOI:320000,  ceOIc:+12000, ceVol:6400,  peLtp:6.2,  peOI:180000,  peOIc:+6000,  peVol:2400},
+        {strike:79000, ceLtp:388.4, ceOI:540000,  ceOIc:+28000, ceVol:12400, peLtp:22.4, peOI:320000,  peOIc:+14000, peVol:6400},
+        {strike:79500, ceLtp:198.6, ceOI:840000,  ceOIc:+62000, ceVol:22400, peLtp:84.2, peOI:620000,  peOIc:+42000, peVol:12400},
+        {strike:80000, ceLtp:82.4,  ceOI:1240000, ceOIc:+118000,ceVol:38400, peLtp:218.6,peOI:480000,  peOIc:-22000, peVol:9800}
+      ],
+      dayHigh:79520, dayLow:79180, vwap:79410
+    }
+  }
+};
+
+/* =========================================================================
+   S8 DATA — AI LIVE COMMENTARY SIGNALS
+   Replace / push to this array from your live API feed
+   ========================================================================= */
+const LIVE_SIGNALS = [
+  {
+    bias:"BEARISH", icon:"⚠",
+    name:"PE Premium Surge at 23950",
+    body:"23950 PE: Volume/OI ratio 18.5x with fresh OI (+48.9K). Aggressive put buying — smart money expecting downmove. PE premium: 98.7.",
+    entry:"Buy 23950 PE at 98.7 or next bounce",
+    target:"138.2–177.7",
+    sl:"Premium below 69.1",
+    conv:80,
+    aiNote:"PE premium surge, aggressive put buying."
+  },
+  {
+    bias:"BULLISH", icon:"⚠",
+    name:"Gamma Squeeze Building at 24000",
+    body:"ATM strike 24000 has volume/OI ratio of 15.3x. Aggressive repositioning happening — big move incoming.",
+    entry:null, target:null, sl:null,
+    conv:60,
+    aiNote:"Gamma squeeze building, but no clear direction."
+  },
+  {
+    bias:"BEARISH", icon:"⚡",
+    name:"CE Premium Collapsing at 24000",
+    body:"24000 CE: OI down 21% (36.3K unwound). Call buyers exiting — bullish bets failing. Premium: 164.6.",
+    entry:"Buy 23900 PE on confirmation",
+    target:"Support at 24000",
+    sl:"Spot above 24030",
+    conv:55,
+    aiNote:"CE OI unwinding rapidly — bearish confirmation signal."
+  },
+  {
+    bias:"BULLISH", icon:"⚡",
+    name:"Massive Put Writing Below Spot",
+    body:"2.48 L put OI added across 4 strikes below spot (23850, 23900, 23950, 24000). Strong bullish support building.",
+    entry:null, target:null, sl:null,
+    conv:40,
+    aiNote:"Put writing below spot, but no clear bullish signal."
+  },
+  {
+    bias:"NEUTRAL", icon:"ℹ",
+    name:"IV Compression — Big Move Loading",
+    body:"ATM IV at just 11.2% — extremely compressed. Straddle/strangle opportunity. Vol expansion will spike premiums in either direction.",
+    entry:"Buy 24000 straddle at combined premium 281.9",
+    target:"Move of 480+ points either side",
+    sl:"Exit if no move in 2 hours",
+    conv:40,
+    aiNote:"IV compression, but no clear direction."
+  },
+  {
+    bias:"BEARISH", icon:"⚠",
+    name:"Call Writing Cluster at 24200",
+    body:"24200 CE has seen 3.12 L fresh OI added in last 45 minutes. Institutions placing heavy resistance — ceiling forming at 24200.",
+    entry:"Sell 24200 CE or buy 24100 PE",
+    target:"24050–23980",
+    sl:"Spot closes above 24220",
+    conv:75,
+    aiNote:"Strong institutional call writing — overhead supply confirmed."
+  },
+  {
+    bias:"BULLISH", icon:"ℹ",
+    name:"BankNifty OI Surge at 52800",
+    body:"52800 PE saw 1.84 L OI addition in last 30 min. Put writers defending this level — strong support floor forming for BankNifty.",
+    entry:"Buy 52800 CE on break above 52840",
+    target:"53100–53400",
+    sl:"Spot below 52680",
+    conv:70,
+    aiNote:"Put writing at key level — bullish support confirmed."
+  }
+];
+
+/* =========================================================================
+   AI COMPUTE LAYER
+   ========================================================================= */
+function detectBuildup(prevLtp,ltp,oiChange){
+  const priceUp=ltp>=prevLtp, oiUp=oiChange>0;
+  if(priceUp&&oiUp)   return{type:"LONG BUILDUP",   cls:"bu-long",  bias:"bull"};
+  if(!priceUp&&oiUp)  return{type:"SHORT BUILDUP",  cls:"bu-short", bias:"bear"};
+  if(priceUp&&!oiUp)  return{type:"SHORT COVERING", cls:"bu-scov",  bias:"bull"};
+  return{type:"LONG UNWINDING",cls:"bu-lunw",bias:"bear"};
+}
+function analyzeIndex(name,idx){
+  const chain=idx.chain;
+  let totCE_OI=0,totPE_OI=0,totCE_OIc=0,totPE_OIc=0;
+  let maxCEOI={strike:0,oi:0},maxPEOI={strike:0,oi:0};
+  let maxCEOIc={strike:0,v:0},maxPEOIc={strike:0,v:0};
+  let pain=Infinity,maxPainStrike=0;
+  chain.forEach(r=>{
+    totCE_OI+=r.ceOI;totPE_OI+=r.peOI;totCE_OIc+=r.ceOIc;totPE_OIc+=r.peOIc;
+    if(r.ceOI>maxCEOI.oi)maxCEOI={strike:r.strike,oi:r.ceOI};
+    if(r.peOI>maxPEOI.oi)maxPEOI={strike:r.strike,oi:r.peOI};
+    if(r.ceOIc>maxCEOIc.v)maxCEOIc={strike:r.strike,v:r.ceOIc};
+    if(r.peOIc>maxPEOIc.v)maxPEOIc={strike:r.strike,v:r.peOIc};
+  });
+  const pcr=+(totPE_OI/totCE_OI).toFixed(2);
+  const netWriting=totPE_OIc-totCE_OIc;
+  const putWriting=netWriting>0,callWriting=netWriting<0;
+  chain.forEach(s=>{
+    let cost=0;
+    chain.forEach(t=>{
+      if(t.strike<s.strike)cost+=(s.strike-t.strike)*t.ceOI;
+      if(t.strike>s.strike)cost+=(t.strike-s.strike)*t.peOI;
+    });
+    if(cost<pain){pain=cost;maxPainStrike=s.strike;}
+  });
+  let revProb=0;
+  if(pcr>1.3&&idx.ltp<=maxCEOI.strike)revProb=Math.min(80,Math.round((pcr-1)*60));
+  if(pcr<0.7&&idx.ltp>=maxPEOI.strike)revProb=Math.min(80,Math.round((1-pcr)*70));
+  let score=50;
+  score+=(pcr-1)*22;
+  score+=netWriting/(totCE_OIc+1)*4;
+  score+=(idx.ltp>idx.vwap?3:-3);
+  score=Math.max(2,Math.min(98,Math.round(score)));
+  return{name,idx,totCE_OI,totPE_OI,totCE_OIc,totPE_OIc,
+    maxCEOI,maxPEOI,maxCEOIc,maxPEOIc,pcr,netWriting,putWriting,callWriting,
+    maxPainStrike,revProb,score,
+    atm:chain.reduce((a,b)=>Math.abs(b.strike-idx.ltp)<Math.abs(a.strike-idx.ltp)?b:a)};
+}
+function topShifts(chain,side){
+  const maxVol=Math.max(...chain.map(r=>side==='ce'?r.ceVol:r.peVol||1));
+  return chain.map(r=>{
+    const oi=side==='ce'?r.ceOI:r.peOI;
+    const oic=side==='ce'?r.ceOIc:r.peOIc;
+    const vol=side==='ce'?r.ceVol:r.peVol;
+    const shift=Math.abs(oic)+(vol/maxVol)*120000;
+    return{strike:r.strike,oi,oic,vol,shift};
+  }).sort((a,b)=>b.shift-a.shift);
+}
+function pivots(prevClose,high,low){
+  const P=(high+low+prevClose)/3;
+  return{R3:P+2*(high-low),R2:P+(high-low),R1:2*P-low,P,S1:2*P-high,S2:P-(high-low),S3:P-2*(high-low)};
+}
+function oiWalls(chain,ltp){
+  const ceW=[...chain].filter(r=>r.strike>ltp).sort((a,b)=>b.ceOI-a.ceOI).slice(0,3).sort((a,b)=>a.strike-b.strike);
+  const peW=[...chain].filter(r=>r.strike<ltp).sort((a,b)=>b.peOI-a.peOI).slice(0,3).sort((a,b)=>b.strike-a.strike).reverse();
+  return{resistances:ceW,supports:peW};
+}
+function buildSignal(name,A){
+  const dir=A.score>=55?"BUY CE / SELL PE":A.score<=45?"BUY PE / SELL CE":"WAIT";
+  const ltp=A.idx.ltp;
+  let sl,t1,t2,conf=A.score;
+  if(dir.includes("BUY CE")){sl=+(ltp*.992).toFixed(2);t1=+(ltp*1.006).toFixed(2);t2=+(ltp*1.012).toFixed(2);}
+  else if(dir.includes("BUY PE")){sl=+(ltp*1.008).toFixed(2);t1=+(ltp*.994).toFixed(2);t2=+(ltp*.988).toFixed(2);}
+  else{sl=ltp;t1=ltp;t2=ltp;}
+  const type=conf>=72?"VERY STRONG":conf>=58?"STRONG":conf>=45?"WEAK":"RISKY";
+  const rr=dir==="WAIT"?"—":((Math.abs(t1-ltp))/(Math.abs(ltp-sl))).toFixed(2);
+  return{name,dir,entry:A.atm.strike,sl,t1,t2,type,conf,strike:A.atm.strike,rr};
+}
+function nearestStrikes(chain,ltp,offset){
+  const target=ltp+offset;
+  return chain.reduce((a,b)=>Math.abs(b.strike-target)<Math.abs(a.strike-target)?b:a).strike;
+}
+function buyerPlan(name,idx,A){
+  const ltp=idx.ltp,maxCE=A.maxCEOI.strike,maxPE=A.maxPEOI.strike;
+  const span=Math.max(50,Math.round((maxCE-maxPE)/4));
+  const res2=nearestStrikes(idx.chain,ltp,span*1.6);
+  const sup2=nearestStrikes(idx.chain,ltp,-span*1.6);
+  const bull=A.score>=55,bear=A.score<=45;
+  let dir,dirCls,dirWhy;
+  if(bull){dir="LONG (Buy CE / Sell PE)";dirCls="up";dirWhy=`Bias ${A.score}/100 · PCR ${A.pcr} (>1 = put writing) · price above VWAP ${idx.vwap}. Momentum favors upside break.`;}
+  else if(bear){dir="SHORT (Buy PE / Sell CE)";dirCls="down";dirWhy=`Bias ${A.score}/100 · PCR ${A.pcr} (<1 = call writing) · price below VWAP ${idx.vwap}. Downside pressure dominant.`;}
+  else{dir="WAIT / RANGE";dirCls="flat";dirWhy=`Bias ${A.score}/100 — neutral. No edge for directional buyers. Wait for ${maxCE} break (up) or ${maxPE} break (down).`;}
+  return{name,idx,A,ltp,sup1:maxPE,res1:maxCE,sup2,res2,dir,dirCls,dirWhy,bull,bear,neutral:!bull&&!bear,span};
+}
+function sellerPlan(name,idx,A){
+  const vix=DATA.vix.value,range=A.maxCEOI.strike-A.maxPEOI.strike,rangePct=+(range/idx.ltp*100).toFixed(2);
+  const atm=A.atm.strike,bull=A.score>=55,bear=A.score<=45;
+  let strat,legs,note;
+  if(vix>=16){
+    strat="IRON CONDOR (Sell)";
+    legs=`Sell ${A.maxCEOI.strike} CE · Sell ${A.maxPEOI.strike} PE<br>Buy ${nearestStrikes(idx.chain,idx.ltp,range+Math.round(idx.ltp*.01))} CE · Buy ${nearestStrikes(idx.chain,idx.ltp,-(range+Math.round(idx.ltp*.01)))} PE`;
+    note=`VIX <b>${vix}</b> = elevated. Premiums rich → <b>defined-risk premium capture</b>. Iron Condor between OI walls ${A.maxPEOI.strike}–${A.maxCEOI.strike}.`;
+  }else if(vix<=11){
+    strat="LONG STRADDLE / BUTTERFLY";
+    legs=`Buy ${atm} CE · Buy ${atm} PE<br>(bet on volatility expansion, not direction)`;
+    note=`VIX <b>${vix}</b> = very low. Premium too thin to sell safely. <b>Buy volatility</b> (straddle) or butterfly.`;
+  }else if(bull){
+    strat="BULL PUT SPREAD";
+    legs=`Sell ${A.maxPEOI.strike} PE · Buy ${nearestStrikes(idx.chain,idx.ltp,-range)} PE`;
+    note=`Bias bullish, VIX ${vix} normal. Sell support PE (${A.maxPEOI.strike}) where OI heavy. Profits if ${name} holds above ${A.maxPEOI.strike}.`;
+  }else if(bear){
+    strat="BEAR CALL SPREAD";
+    legs=`Sell ${A.maxCEOI.strike} CE · Buy ${nearestStrikes(idx.chain,idx.ltp,range)} CE`;
+    note=`Bias bearish, VIX ${vix} normal. Sell resistance CE (${A.maxCEOI.strike}) where call OI heavy. Profits if ${name} stays below ${A.maxCEOI.strike}.`;
+  }else{
+    strat="SHORT STRANGLE";
+    legs=`Sell ${A.maxCEOI.strike} CE · Sell ${A.maxPEOI.strike} PE`;
+    note=`Neutral bias, VIX ${vix} acceptable. Range <b>${range} pts (${rangePct}%)</b>. Sell both OI walls.`;
+  }
+  return{name,idx,A,vix,range,rangePct,atm,strat,legs,note,bull,bear};
+}
+function marketScore(){
+  const{adv,dec}=DATA.breadth;const ad=adv/(adv+dec);
+  let s=50;
+  s+=(ad-.5)*70;
+  s+=(DATA.vix.value>16?-8:DATA.vix.value<12?6:0);
+  const sec=DATA.sectors;const upSec=sec.filter(x=>x.ch>0).length/sec.length;
+  s+=(upSec-.5)*30;
+  const indices=Object.values(DATA.indices);const upIdx=indices.filter(i=>i.ltp>i.prevClose).length/indices.length;
+  s+=(upIdx-.5)*20;
+  return Math.max(2,Math.min(98,Math.round(s)));
+}
+
+/* =========================================================================
+   RENDER LAYER
+   ========================================================================= */
+const $=s=>document.querySelector(s);
+const fmt=n=>n.toLocaleString('en-IN');
+const sign=n=>(n>=0?"+":"")+n;
+
+function tick(){
+  const d=new Date();
+  $('#clock').textContent=d.toLocaleTimeString('en-GB');
+  const m=d.getDay();const mins=d.getHours()*60+d.getMinutes();
+  const open=m>=1&&m<=5&&mins>=915&&mins<=1530;
+  $('#mktDot').classList.toggle('off',!open);
+  $('#mktStatus').textContent=open?"Market Open":"Market Closed";
+}
+setInterval(tick,1000);tick();
+$('#expiry').textContent=DATA.expiry;
+
+function renderOverview(){
+  const score=marketScore();
+  $('#gScore').textContent=score;
+  const dash=298-(score/100)*298;
+  $('#gArc').style.transition="stroke-dashoffset 1.2s ease";$('#gArc').style.strokeDashoffset=dash;
+  let tag,note;
+  if(score>=72){tag=`<span class="tag bull">STRONG BULLISH</span>`;note=`Market structure is <b>decisively bullish</b>. Breadth is supportive, sectors rotating upward, options flow confirms put writing. <b>Dip-buying favored</b> while ${DATA.vix.value>16?"volatility stays elevated":"VIX stays cool"}.`;}
+  else if(score>=58){tag=`<span class="tag bull">BULLISH</span>`;note=`Bias is <b>bullish but not euphoric</b>. Buyers in control; manage risk on momentum. Watch leader sectors for continuation.`;}
+  else if(score>=45){tag=`<span class="tag neu">NEUTRAL / RANGE</span>`;note=`Market is <b>balanced/indecisive</b>. Mixed breadth + competing option flows = range-bound. Prefer <b>non-directional</b> strategies (iron condor / spreads) until breakout.`;}
+  else if(score>=30){tag=`<span class="tag bear">BEARISH</span>`;note=`Bias <b>bearish</b>. Call writing dominates, breadth negative. Sell-on-rise favored; protect longs.`;}
+  else{tag=`<span class="tag bear">STRONG BEARISH</span>`;note=`<b>Strong bearish</b> structure. Broad selling, risk-off rotation and call writing. Aggressive shorts only with strict stops.`;}
+  $('#gTag').innerHTML=tag;
+  $('#biasNote').innerHTML=note;
+  const{adv,dec}=DATA.breadth;
+  $('#adv').textContent=fmt(adv);$('#dec').textContent=fmt(dec);
+  const adr=(adv/dec).toFixed(2);$('#adr').textContent=adr;
+  $('#adBar').style.width=(adv/(adv+dec)*100)+"%";
+  $('#mTrend').textContent=score>=55?"UP":score<=45?"DOWN":"SIDE";
+  $('#mTrend').className="v "+(score>=55?"up":score<=45?"down":"flat");
+  $('#mMood').innerHTML=score>=70?`<span class="up">GREED</span>`:score>=55?`<span class="up">OPTIMISM</span>`:score>=45?`<span class="flat">NEUTRAL</span>`:score>=30?`<span class="down">FEAR</span>`:`<span class="down">PANIC</span>`;
+  $('#mBreadth').innerHTML=adr>=1.3?`<span class="up">STRONG</span>`:adr>=1?`<span class="up">POS</span>`:adr>=.8?`<span class="down">NEG</span>`:`<span class="down">WEAK</span>`;
+  $('#mFlow').innerHTML=adr>=1.1?`<span class="up">INFLOW</span>`:`<span class="down">OUTFLOW</span>`;
+  $('#mVol').innerHTML=DATA.vix.value>=16?`<span class="down">HIGH</span>`:DATA.vix.value>=12?`<span class="flat">MID</span>`:`<span class="up">LOW</span>`;
+  const v=DATA.vix,vc=v.value-v.prevClose;
+  $('#vixVal').textContent=v.value.toFixed(2);
+  const ve=$('#vixChg');ve.textContent=sign(+vc.toFixed(2))+" ("+sign((+((vc/v.prevClose)*100).toFixed(2)))+"%)"
+  ve.className="mono "+(vc>=0?"down":"up");
+  const pct=Math.min(100,(v.value/25)*100);$('#vixBar').style.width=pct+"%";
+  const zone=v.value>=16?"HIGH - Caution / Hedged":v.value>=12?"NORMAL":v.value>=10?"LOW - Complacency":"VERY LOW";
+  $('#vixZone').textContent="Volatility Regime: "+zone;
+  let vn;
+  if(v.value>16&&vc>0)vn=`VIX surging (<b>${v.value}</b>) — fear rising. Premiums inflated; <b>option sellers beware</b>.`;
+  else if(v.value>16&&vc<0)vn=`VIX elevated (<b>${v.value}</b>) but cooling — volatility crush coming. <b>Favor net-sellers</b>.`;
+  else if(v.value<12)vn=`VIX low (<b>${v.value}</b>) — complacency. <b>Option premium thin</b>, ready for expansion. Cheap to buy protection.`;
+  else vn=`VIX in healthy zone (<b>${v.value}</b>) — balanced premium. Trend-following and defined-risk strategies both viable.`;
+  $('#vixNote').innerHTML=vn;
+  $('#sectorGrid').innerHTML=DATA.sectors.map(s=>{
+    const up=s.ch>=0;const w=Math.min(100,Math.abs(s.ch)*40);
+    return`<div class="sector"><div class="nm">${s.name}</div><div class="ch ${up?'up':'down'}">${sign(+s.ch.toFixed(2))}%</div><div class="bar-mini" style="width:${w}%;background:${up?'var(--bull)':'var(--bear)'}"></div></div>`;
+  }).join("");
+}
+function renderIndexSentiment(){
+  const html=Object.entries(DATA.indices).map(([name,idx])=>{
+    const A=analyzeIndex(name,idx);
+    const chg=idx.ltp-idx.prevClose;const pct=(chg/idx.prevClose*100);const up=chg>=0;
+    const pcrPos=Math.min(96,Math.max(4,(A.pcr/2)*100));
+    const putShare=Math.round(A.totPE_OIc/(A.totPE_OIc+A.totCE_OIc+1)*100);
+    let sent=A.score>=58?"bull":A.score<=42?"bear":"neu";
+    let sLabel=A.score>=58?"BULLISH":A.score<=42?"BEARISH":"NEUTRAL";
+    const revTag=A.revProb>30?`<span class="tag bear">⚠ Reversal ${A.revProb}%</span>`:`<span class="tag neu">No reversal signal</span>`;
+    return`<div class="card">
+      <div class="idx-head">
+        <div class="idx-name">${name} ${sent==='bull'?'🟢':sent==='bear'?'🔴':'🟡'}</div>
+        <div style="text-align:right"><div class="idx-ltp mono">${idx.ltp.toLocaleString('en-IN',{maximumFractionDigits:2})}</div>
+          <div class="mono ${up?'up':'down'}" style="font-size:11px">${sign(+chg.toFixed(2))} (${sign(+pct.toFixed(2))}%)</div></div>
+      </div>
+      <div style="font-size:10.5px;color:var(--txt3);display:flex;justify-content:space-between">
+        <span>PCR <b class="mono" style="color:var(--info)">${A.pcr}</b></span>
+        <span>Max Pain <b class="mono">${A.maxPainStrike}</b></span>
+        <span>ATM <b class="mono">${A.atm.strike}</b></span>
+      </div>
+      <div class="pcr-meter">
+        <div class="pcr-scale"><div class="pcr-needle" style="left:${pcrPos}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--txt3);margin-top:3px">
+          <span>Call-heavy (&lt;0.7)</span><span>1.0</span><span>Put-heavy (&gt;1.3)</span></div>
+      </div>
+      <div class="cp-bar"><div class="c" style="width:${100-putShare}%"></div><div class="p" style="width:${putShare}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-top:4px">
+        <span class="down">Call Writing ${100-putShare}%</span><span class="up">Put Writing ${putShare}%</span></div>
+      <div class="mini-row"><span class="k">Max CE OI (Resistance)</span><b class="mono down">${A.maxCEOI.strike} · ${fmt(A.maxCEOI.oi)}</b></div>
+      <div class="mini-row"><span class="k">Max PE OI (Support)</span><b class="mono up">${A.maxPEOI.strike} · ${fmt(A.maxPEOI.oi)}</b></div>
+      <div class="mini-row"><span class="k">Top Call Writing</span><b class="mono">${A.maxCEOIc.strike} (+${fmt(A.maxCEOIc.v)})</b></div>
+      <div class="mini-row"><span class="k">Top Put Writing</span><b class="mono">${A.maxPEOIc.strike} (+${fmt(A.maxPEOIc.v)})</b></div>
+      <div style="margin-top:9px;display:flex;gap:6px;align-items:center;justify-content:space-between">
+        <span class="tag ${sent}">${sLabel} · ${A.score}/100</span>${revTag}</div>
+    </div>`;
+  }).join("");
+  $('#idxGrid').innerHTML=html;
+}
+function renderCommentary(){
+  const targets=["NIFTY","BANKNIFTY"];
+  const html=targets.map(name=>{
+    const idx=DATA.indices[name];const A=analyzeIndex(name,idx);
+    const ceShift=topShifts(idx.chain,'ce').slice(0,4);
+    const peShift=topShifts(idx.chain,'pe').slice(0,4);
+    const maxShift=Math.max(...[...ceShift,...peShift].map(s=>s.shift))||1;
+    const rows=idx.chain.filter(r=>Math.abs(r.ceOIc)>30000||Math.abs(r.peOIc)>30000).map(r=>{
+      const ceB=detectBuildup(idx.vwap,idx.ltp,r.ceOIc);
+      const peB=detectBuildup(idx.vwap,idx.ltp,r.peOIc);
+      return{strike:r.strike,ceB,peB};
+    });
+    const note=A.score>=55
+      ?`<b>${name}</b> shows <b class="up">bullish option activity</b>. Strongest OI + volume shift at <b>CE ${ceShift[0].strike}</b> & <b>PE ${peShift[0].strike}</b>. Put writing at <b>${A.maxPEOIc.strike}</b> acts as support; upside breakout above <b>${A.maxCEOI.strike}</b> opens momentum.`
+      :A.score<=45
+      ?`<b>${name}</b> shows <b class="down">bearish option activity</b>. Call writing heavy at <b>${A.maxCEOIc.strike}</b>. Breakdown below <b>${A.maxPEOI.strike}</b> can accelerate down-move.`
+      :`<b>${name}</b> is in a <b class="flat">balance zone</b> between <b>${A.maxPEOI.strike}</b> (support) and <b>${A.maxCEOI.strike}</b> (resistance). Wait for confirmation.`;
+    return`<div class="card">
+      <div class="ttl"><span class="ic">🧠</span> ${name} AI Commentary</div>
+      <table>
+        <thead><tr><th>Strike</th><th>CE Shift</th><th>PE Shift</th><th>CE Buildup</th><th>PE Buildup</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td class="mono"><b>${r.strike}</b>${r.strike===A.atm.strike?' <span class="tag info" style="padding:1px 5px">ATM</span>':''}</td>
+          <td class="num"><span class="heat"><i style="width:${Math.random()*70+30}%;background:var(--info)"></i></span></td>
+          <td class="num"><span class="heat"><i style="width:${Math.random()*70+30}%;background:var(--purple)"></i></span></td>
+          <td><span class="bu ${r.ceB.cls}">${r.ceB.type}</span></td>
+          <td><span class="bu ${r.peB.cls}">${r.peB.type}</span></td>
+        </tr>`).join("")}</tbody>
+      </table>
+      <div style="margin-top:10px;font-size:11px;color:var(--txt3)">
+        <b>Top CE shift:</b> ${ceShift.map(s=>`${s.strike} (${fmt(s.oic)})`).join(', ')} &nbsp;|&nbsp;
+        <b>Top PE shift:</b> ${peShift.map(s=>`${s.strike} (${fmt(s.oic)})`).join(', ')}
+      </div>
+      <div class="ai-note">${note}</div>
+    </div>`;
+  }).join("");
+  $('#commentaryGrid').innerHTML=html;
+}
+function renderSignals(){
+  const html=Object.entries(DATA.indices).map(([name,idx])=>{
+    const A=analyzeIndex(name,idx); const sig=buildSignal(name,A);
+    const cls=sig.type==="VERY STRONG"?"st-vs":sig.type==="STRONG"?"st-s":sig.type==="WEAK"?"st-w":"st-r";
+    const confW=Math.max(5,sig.conf);
+    return `<div class="card sig-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-size:15px;font-weight:800">${name}</div>
+          <div style="font-size:11px;color:var(--txt3)">Strike <b class="mono">${sig.strike}</b> · ${sig.dir}</div></div>
+        <span class="sig-type ${cls}">${sig.type}</span>
+      </div>
+      <div class="bar" style="margin:11px 0 4px"><i style="width:${confW}%;background:linear-gradient(90deg,var(--bear),var(--warn),var(--bull))"></i></div>
+      <div style="font-size:10px;color:var(--txt3);display:flex;justify-content:space-between"><span>Confidence</span><b class="mono">${sig.conf}/100</b></div>
+      <div class="lvl-grid">
+        <div class="lvl"><div class="lk">Entry</div><div class="lv mono">${sig.entry}</div></div>
+        <div class="lvl" style="border-color:rgba(255,93,115,.3)"><div class="lk">Stop Loss</div><div class="lv mono down">${sig.sl}</div></div>
+        <div class="lvl"><div class="lk">Target 1</div><div class="lv mono up">${sig.t1}</div></div>
+      </div>
+      <div class="lvl-grid" style="grid-template-columns:1fr 1fr">
+        <div class="lvl"><div class="lk">Target 2</div><div class="lv mono up">${sig.t2}</div></div>
+        <div class="lvl"><div class="lk">Risk:Reward</div><div class="lv mono" style="color:var(--purple)">${sig.rr}</div></div>
+      </div>
+      <div class="rr">🛡 Position size for <b>2% account risk</b> only. SL is structural, not arbitrary.</div>
+    </div>`;
+  }).join("");
+  $('#signalGrid').innerHTML=html;
+}
+
+function renderSR(){
+  const html=Object.entries(DATA.indices).map(([name,idx])=>{
+    const A=analyzeIndex(name,idx);
+    const pv=pivots(idx.prevClose, idx.dayHigh, idx.dayLow);
+    const w=oiWalls(idx.chain, idx.ltp);
+    return `<div class="card">
+      <div class="ttl"><span class="ic">📐</span> ${name} · S/R <span class="mono" style="color:var(--info);margin-left:auto">${idx.ltp.toLocaleString('en-IN',{maximumFractionDigits:2})}</span></div>
+      <div class="sr-cols">
+        <div>
+          <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📊 Pivot-Based</div>
+          <div class="sr-stack">
+            <div class="sr-row sr-r"><span class="sr-tag">R3</span><b class="mono">${pv.R3.toFixed(2)}</b></div>
+            <div class="sr-row sr-r"><span class="sr-tag">R2</span><b class="mono">${pv.R2.toFixed(2)}</b></div>
+            <div class="sr-row sr-r"><span class="sr-tag">R1</span><b class="mono">${pv.R1.toFixed(2)}</b></div>
+            <div class="sr-row sr-p"><span class="sr-tag">P (Pivot)</span><b class="mono">${pv.P.toFixed(2)}</b></div>
+            <div class="sr-row sr-s"><span class="sr-tag">S1</span><b class="mono">${pv.S1.toFixed(2)}</b></div>
+            <div class="sr-row sr-s"><span class="sr-tag">S2</span><b class="mono">${pv.S2.toFixed(2)}</b></div>
+            <div class="sr-row sr-s"><span class="sr-tag">S3</span><b class="mono">${pv.S3.toFixed(2)}</b></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🧱 OI-Based (Smart Money Walls)</div>
+          <div class="sr-stack">
+            ${w.resistances.map((r,i)=>`<div class="sr-row sr-r"><span class="sr-tag">R${i+1} · CE ${fmt(r.ceOI)}</span><b class="mono">${r.strike}</b></div>`).join('')}
+            <div class="sr-row sr-p"><span class="sr-tag">SPOT</span><b class="mono">${idx.ltp.toFixed(2)}</b></div>
+            ${w.supports.map((r,i)=>`<div class="sr-row sr-s"><span class="sr-tag">S${i+1} · PE ${fmt(r.peOI)}</span><b class="mono">${r.strike}</b></div>`).join('')}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  $('#srGrid').innerHTML=html;
+}
+
+function renderSmart(){
+  const html = Object.entries(DATA.indices).map(([name,idx])=>{
+    const A = analyzeIndex(name,idx);
+    const inst = A.putWriting ? "PUT WRITERS (Bullish)" : "CALL WRITERS (Bearish)";
+    const instCls = A.putWriting ? "up" : "down";
+    const w = oiWalls(idx.chain, idx.ltp);
+    return `<div class="card">
+      <div class="ttl"><span class="ic">🦈</span> ${name} · Smart Money</div>
+      <div class="kv"><span class="k">Institutional Bias</span><span class="v ${instCls} font-bold">${inst}</span></div>
+      <div class="kv"><span class="k">Max Pain Strike</span><span class="v mono">${A.maxPainStrike}</span></div>
+      <div class="kv"><span class="k">PE Wall (Support)</span><span class="v mono up">${w.supports[0]?.strike || 'N/A'}</span></div>
+      <div class="kv"><span class="k">CE Wall (Resistance)</span><span class="v mono down">${w.resistances[0]?.strike || 'N/A'}</span></div>
+      <div class="ai-note" style="font-size:11.5px; margin-top:8px">
+        Max Pain sits at <b>${A.maxPainStrike}</b>. Options writing indicates a trading range between <b>${w.supports[0]?.strike || 'N/A'}</b> and <b>${w.resistances[0]?.strike || 'N/A'}</b>.
+      </div>
+    </div>`;
+  }).join("");
+  $('#smartGrid').innerHTML = html;
+}
+
+function renderBS(){
+  const targets = ["NIFTY", "BANKNIFTY"];
+  const buyerCards = targets.map(name => {
+    const idx = DATA.indices[name];
+    const A = analyzeIndex(name, idx);
+    const B = buyerPlan(name, idx, A);
+    
+    return `
+      <div class="idx-card">
+        <div class="ic-head">
+          <span class="ic-name">${B.name} (SPOT: ${B.ltp.toFixed(2)})</span>
+          <span class="tag ${B.dirCls}">${B.dirCls.toUpperCase()} BIAS</span>
+        </div>
+        <div class="scenario">
+          <div class="scn scn-up">
+            <div class="scn-ttl">Bullish Breakout</div>
+            <div class="scn-lvl">Above <b>${B.res1}</b></div>
+            <div class="scn-act up">Target: ${B.res2} CE | Stop: ${nearestStrikes(idx.chain, B.ltp, -B.span)}</div>
+          </div>
+          <div class="scn scn-dn">
+            <div class="scn-ttl">Bearish Breakdown</div>
+            <div class="scn-lvl">Below <b>${B.sup1}</b></div>
+            <div class="scn-act down">Target: ${B.sup2} PE | Stop: ${nearestStrikes(idx.chain, B.ltp, B.span)}</div>
+          </div>
+        </div>
+        <div class="ai-note" style="font-size:11px; margin-top:8px; padding:6px 10px">${B.dirWhy}</div>
+      </div>
+    `;
+  }).join("");
+
+  const sellerCards = targets.map(name => {
+    const idx = DATA.indices[name];
+    const A = analyzeIndex(name, idx);
+    const S = sellerPlan(name, idx, A);
+    
+    return `
+      <div class="idx-card">
+        <div class="ic-head">
+          <span class="ic-name">${S.name} Premium Plan</span>
+          <span class="tag info">${S.strat}</span>
+        </div>
+        <div class="strat-box">
+          <div class="strat-name">${S.strat}</div>
+          <div class="strat-legs">${S.legs}</div>
+          <div class="strat-note">${S.note}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const buyerHTML = `
+    <div class="card bs-panel bs-buy">
+      <div class="pttl">
+        <div class="picon">🚀</div>
+        <div>
+          <h3>Option Buyer's Action Plan</h3>
+          <p>Momentum setups, breakout levels & target ranges</p>
+        </div>
+      </div>
+      ${buyerCards}
+    </div>
+  `;
+
+  const sellerHTML = `
+    <div class="card bs-panel bs-sell">
+      <div class="pttl">
+        <div class="picon">🛡</div>
+        <div>
+          <h3>Option Seller's Action Plan</h3>
+          <p>Range play, theta decay & premium harvesting</p>
+        </div>
+      </div>
+      ${sellerCards}
+    </div>
+  `;
+
+  $('#bsGrid').innerHTML = buyerHTML + sellerHTML;
+}
+
+function generateDynamicSignals() {
+  const dynamic = [];
+  
+  // VIX Alert
+  const vix = DATA.vix.value;
+  if (vix > 15) {
+    dynamic.push({
+      bias: "NEUTRAL", icon: "⚡",
+      name: `VIX Elevated at ${vix.toFixed(2)}`,
+      body: `India VIX is elevated at ${vix.toFixed(2)}. Option premiums are inflated. Net-sellers should deploy defined-risk strategies (Iron Condor/Spreads).`,
+      entry: null, target: null, sl: null,
+      conv: 75,
+      aiNote: "Elevated VIX regimes favor defined-risk net-sellers."
+    });
+  } else {
+    dynamic.push({
+      bias: "BULLISH", icon: "ℹ",
+      name: `VIX Subdued at ${vix.toFixed(2)}`,
+      body: `India VIX is trading low at ${vix.toFixed(2)}. Favorable for net-buyers as option pricing is relatively cheap. Watch for breakout expansion.`,
+      entry: null, target: null, sl: null,
+      conv: 65,
+      aiNote: "Low VIX regimes favor option buyers and butterfly setups."
+    });
+  }
+
+  // Nifty Dynamic Alerts
+  const nifty = DATA.indices.NIFTY;
+  if (nifty && nifty.chain && nifty.chain.length > 0) {
+    const A = analyzeIndex("NIFTY", nifty);
+    dynamic.push({
+      bias: "BULLISH", icon: "⚠",
+      name: `Nifty Put Writing at ${A.maxPEOIc.strike}`,
+      body: `Institutions are writing heavy puts at ${A.maxPEOIc.strike} strike (+${fmt(A.maxPEOIc.v)} contracts). This forms a solid floor for Nifty Spot (LTP: ${nifty.ltp.toFixed(2)}).`,
+      entry: `Buy ${A.maxPEOIc.strike + 100} CE above ${nifty.ltp.toFixed(0)}`,
+      target: `${A.maxCEOI.strike}`,
+      sl: `Spot below ${A.maxPEOIc.strike}`,
+      conv: A.score >= 55 ? A.score : 60,
+      aiNote: "Put writing indicates smart money support."
+    });
+
+    dynamic.push({
+      bias: "BEARISH", icon: "⚡",
+      name: `Nifty Call supply at ${A.maxCEOIc.strike}`,
+      body: `Strong call writing observed at ${A.maxCEOIc.strike} strike (+${fmt(A.maxCEOIc.v)} contracts). Sellers are defending this strike, building overhead resistance.`,
+      entry: `Buy PE on rejection from ${A.maxCEOIc.strike}`,
+      target: `${A.maxPEOI.strike}`,
+      sl: `Spot above ${A.maxCEOIc.strike + 20}`,
+      conv: A.score <= 45 ? (100 - A.score) : 60,
+      aiNote: "Call writing creates supply zone."
+    });
+  }
+
+  // BankNifty Dynamic Alerts
+  const bank = DATA.indices.BANKNIFTY;
+  if (bank && bank.chain && bank.chain.length > 0) {
+    const A = analyzeIndex("BANKNIFTY", bank);
+    dynamic.push({
+      bias: A.score >= 55 ? "BULLISH" : A.score <= 45 ? "BEARISH" : "NEUTRAL",
+      icon: "ℹ",
+      name: `BankNifty Max Pain at ${A.maxPainStrike}`,
+      body: `BankNifty Option Pain point is centered around ${A.maxPainStrike}. Underlying Spot is trading at ${bank.ltp.toFixed(2)}. Expect gravity pull towards Max Pain near expiry.`,
+      entry: null, target: null, sl: null,
+      conv: 65,
+      aiNote: "Max Pain shows expiry magnet pull."
+    });
+  }
+
+  return [...dynamic, ...LIVE_SIGNALS];
+}
+
+let activeFilter = 'ALL';
+function renderLiveCommentary(filteredSignals){
+  const signalsToRender = filteredSignals || generateDynamicSignals();
+  $('#s8Count').textContent = signalsToRender.length;
+  
+  if(signalsToRender.length === 0){
+    $('#s8List').innerHTML = `<div class="s8-empty">No matching commentary signals found.</div>`;
+    return;
+  }
+  
+  const html = signalsToRender.map(sig => {
+    const biasClass = sig.bias === 'BULLISH' ? 'lsig-bull' : sig.bias === 'BEARISH' ? 'lsig-bear' : 'lsig-neu';
+    const icoClass = sig.icon === '⚠' ? 'ico-warn' : sig.icon === '⚡' ? 'ico-bolt' : 'ico-info';
+    const colorClass = sig.bias === 'BULLISH' ? 'bull' : sig.bias === 'BEARISH' ? 'bear' : 'neu';
+    
+    const tradeSetup = sig.entry ? `
+      <div class="lsig-etsl">
+        <span class="lsig-entry">ENTRY: ${sig.entry}</span>
+        <span style="color:var(--txt3)">·</span>
+        <span class="lsig-target">TARGET: ${sig.target}</span>
+        <span style="color:var(--txt3)">·</span>
+        <span class="lsig-sl">SL: ${sig.sl}</span>
+      </div>
+    ` : '';
+    
+    return `
+      <div class="lsig ${biasClass}">
+        <div class="lsig-top">
+          <div class="lsig-ico ${icoClass}">${sig.icon}</div>
+          <div>
+            <div class="lsig-name">
+              ${sig.name}
+              <span class="tag ${colorClass}" style="padding: 1px 6px; font-size: 9.5px">${sig.bias}</span>
+            </div>
+            <div class="lsig-meta">
+              <span class="lsig-date">AI SIGNAL</span>
+              <span class="lsig-time">${DATA.lastUpdate.split(" ")[1]}</span>
+            </div>
+          </div>
+        </div>
+        <div class="lsig-body">${sig.body}</div>
+        ${tradeSetup}
+        <div class="lsig-div"></div>
+        <div class="conv-wrap">
+          <span class="conv-lbl">Signal Conviction</span>
+          <div class="conv-track">
+            <div class="conv-fill" style="width: ${sig.conv}%; background: ${sig.bias === 'BULLISH' ? 'var(--bull)' : sig.bias === 'BEARISH' ? 'var(--bear)' : 'var(--warn)'}"></div>
+          </div>
+          <span class="conv-pct">${sig.conv}%</span>
+        </div>
+        <div class="lsig-ai">AI Insights: ${sig.aiNote}</div>
+      </div>
+    `;
+  }).join("");
+  
+  $('#s8List').innerHTML = html;
+}
+
+function s8Filter(bias, btn){
+  activeFilter = bias;
+  document.querySelectorAll('.s8-filt').forEach(el => {
+    el.className = 's8-filt';
+  });
+  
+  if(bias === 'ALL') btn.className = 's8-filt fa';
+  else if(bias === 'BULLISH') btn.className = 's8-filt fb';
+  else if(bias === 'BEARISH') btn.className = 's8-filt fc';
+  else if(bias === 'NEUTRAL') btn.className = 's8-filt fd';
+  else if(bias === 'HIGH') btn.className = 's8-filt fe';
+  
+  applyCurrentFilter();
+}
+
+function applyCurrentFilter() {
+  const all = generateDynamicSignals();
+  let filtered = all;
+  if(activeFilter === 'HIGH') {
+    filtered = all.filter(sig => sig.conv >= 70);
+  } else if(activeFilter !== 'ALL') {
+    filtered = all.filter(sig => sig.bias === activeFilter);
+  }
+  renderLiveCommentary(filtered);
+}
+
+// Receive live data from parent React window
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'UPDATE_DATA') {
+    const raw = event.data.data;
+    if (raw.expiry) {
+      DATA.expiry = raw.expiry;
+      $('#expiry').textContent = raw.expiry;
+    }
+    if (raw.lastUpdate) DATA.lastUpdate = raw.lastUpdate;
+    if (raw.breadth) DATA.breadth = raw.breadth;
+    if (raw.vix) DATA.vix = raw.vix;
+    if (raw.sectors) DATA.sectors = raw.sectors;
+    
+    if (raw.indices) {
+      Object.keys(raw.indices).forEach(key => {
+        if (DATA.indices[key]) {
+          DATA.indices[key].ltp = raw.indices[key].ltp;
+          DATA.indices[key].prevClose = raw.indices[key].prevClose;
+          DATA.indices[key].dayHigh = raw.indices[key].dayHigh;
+          DATA.indices[key].dayLow = raw.indices[key].dayLow;
+          DATA.indices[key].vwap = raw.indices[key].vwap;
+          if (raw.indices[key].chain) {
+            DATA.indices[key].chain = raw.indices[key].chain;
+          }
+        }
+      });
+    }
+    
+    // Refresh calculations and UI
+    marketScore();
+    renderOverview();
+    renderIndexSentiment();
+    renderCommentary();
+    renderSignals();
+    renderSR();
+    renderSmart();
+    renderBS();
+    applyCurrentFilter();
+  }
+});
+
+function init() {
+  marketScore();
+  renderOverview();
+  renderIndexSentiment();
+  renderCommentary();
+  renderSignals();
+  renderSR();
+  renderSmart();
+  renderBS();
+  applyCurrentFilter();
+}
+window.onload = init;
+</script>
+</body>
+</html>

@@ -323,6 +323,14 @@ export const getOptionChain = createServerFn({ method: "GET" })
     });
   });
 
+export const getCachedOptionChain = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), expiry: z.string().optional() }))
+  .handler(async ({ data }) => {
+    const cacheKey = `option_chain_${data.symbol}_${data.expiry || "default"}`;
+    const cachedVal = await getEodData(cacheKey);
+    return cachedVal || null;
+  });
+
 // ============ F&O STOCKS w/ BUILDUP ============
 
 export type FnoStock = {
@@ -628,5 +636,72 @@ async function fetchFnoScreener(): Promise<ScreenerResponse> {
 export const getFnoScreener = createServerFn({ method: "GET" }).handler(async () =>
   cached("fno-screener", fetchFnoScreener),
 );
+
+import fs from "node:fs/promises";
+import path from "node:path";
+
+export const saveIntradaySnapshot = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ date: z.string(), timestamp: z.string(), data: z.any() }))
+  .handler(async ({ data }) => {
+    try {
+      const dir = path.join(process.cwd(), "eod_cache", "intraday");
+      await fs.mkdir(dir, { recursive: true });
+      const filePath = path.join(dir, `${data.date}.json`);
+      
+      let history: any[] = [];
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
+        history = JSON.parse(content);
+      } catch {
+        // File does not exist yet
+      }
+      
+      // Deduplicate ticks to save space if no change
+      const isDuplicate = history.length > 0 && 
+        JSON.stringify(history[history.length - 1].data.breadth) === JSON.stringify(data.data.breadth) &&
+        JSON.stringify(history[history.length - 1].data.vix) === JSON.stringify(data.data.vix) &&
+        history[history.length - 1].data.indices?.NIFTY?.ltp === data.data.indices?.NIFTY?.ltp;
+
+      if (!isDuplicate) {
+        history.push({
+          timestamp: data.timestamp,
+          data: data.data
+        });
+        await fs.writeFile(filePath, JSON.stringify(history, null, 2), "utf-8");
+      }
+      return { success: true, count: history.length };
+    } catch (err) {
+      console.error("Failed to save intraday snapshot:", err);
+      return { success: false, error: String(err) };
+    }
+  });
+
+export const listIntradayDates = createServerFn({ method: "GET" })
+  .handler(async () => {
+    try {
+      const dir = path.join(process.cwd(), "eod_cache", "intraday");
+      await fs.mkdir(dir, { recursive: true });
+      const files = await fs.readdir(dir);
+      return files
+        .filter(f => f.endsWith(".json"))
+        .map(f => f.replace(".json", ""))
+        .sort();
+    } catch {
+      return [];
+    }
+  });
+
+export const getIntradayHistory = createServerFn({ method: "GET" })
+  .inputValidator(z.object({ date: z.string() }))
+  .handler(async ({ data }) => {
+    try {
+      const filePath = path.join(process.cwd(), "eod_cache", "intraday", `${data.date}.json`);
+      const content = await fs.readFile(filePath, "utf-8");
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
+  });
+
 
 

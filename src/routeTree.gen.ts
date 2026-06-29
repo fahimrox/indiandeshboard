@@ -21,8 +21,17 @@ import { Route as FutureDashboardRouteImport } from './routes/future-dashboard'
 import { Route as FnoboardRouteImport } from './routes/fnoboard'
 import { Route as FnoRouteImport } from './routes/fno'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
+import { Route as AiAnalysisRouteImport } from './routes/ai-analysis'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
+import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
+import { Route as ApiOiHistoryRouteImport } from './routes/api/oi-history'
+import { Route as ApiMarketHistoryRouteImport } from './routes/api/market-history'
+import { Route as ApiHistoryRouteImport } from './routes/api/history'
+import { Route as ApiExportRouteImport } from './routes/api/export'
+import { Route as ApiBreadthHistoryRouteImport } from './routes/api/breadth-history'
+import { Route as ApiHistorySymbolRouteImport } from './routes/api/history.$symbol'
+import { Route as ApiCandlesSymbolRouteImport } from './routes/api/candles.$symbol'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -84,6 +93,11 @@ const BankniftyRoute = BankniftyRouteImport.update({
   path: '/banknifty',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AiAnalysisRoute = AiAnalysisRouteImport.update({
+  id: '/ai-analysis',
+  path: '/ai-analysis',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -94,9 +108,50 @@ const SectorKeyRoute = SectorKeyRouteImport.update({
   path: '/sector/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOptionHistoryRoute = ApiOptionHistoryRouteImport.update({
+  id: '/api/option-history',
+  path: '/api/option-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOiHistoryRoute = ApiOiHistoryRouteImport.update({
+  id: '/api/oi-history',
+  path: '/api/oi-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMarketHistoryRoute = ApiMarketHistoryRouteImport.update({
+  id: '/api/market-history',
+  path: '/api/market-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHistoryRoute = ApiHistoryRouteImport.update({
+  id: '/api/history',
+  path: '/api/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExportRoute = ApiExportRouteImport.update({
+  id: '/api/export',
+  path: '/api/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBreadthHistoryRoute = ApiBreadthHistoryRouteImport.update({
+  id: '/api/breadth-history',
+  path: '/api/breadth-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHistorySymbolRoute = ApiHistorySymbolRouteImport.update({
+  id: '/$symbol',
+  path: '/$symbol',
+  getParentRoute: () => ApiHistoryRoute,
+} as any)
+const ApiCandlesSymbolRoute = ApiCandlesSymbolRouteImport.update({
+  id: '/api/candles/$symbol',
+  path: '/api/candles/$symbol',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
@@ -109,10 +164,19 @@ export interface FileRoutesByFullPath {
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/breadth-history': typeof ApiBreadthHistoryRoute
+  '/api/export': typeof ApiExportRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
+  '/api/market-history': typeof ApiMarketHistoryRoute
+  '/api/oi-history': typeof ApiOiHistoryRoute
+  '/api/option-history': typeof ApiOptionHistoryRoute
   '/sector/$key': typeof SectorKeyRoute
+  '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
+  '/api/history/$symbol': typeof ApiHistorySymbolRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
@@ -125,11 +189,20 @@ export interface FileRoutesByTo {
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/breadth-history': typeof ApiBreadthHistoryRoute
+  '/api/export': typeof ApiExportRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
+  '/api/market-history': typeof ApiMarketHistoryRoute
+  '/api/oi-history': typeof ApiOiHistoryRoute
+  '/api/option-history': typeof ApiOptionHistoryRoute
   '/sector/$key': typeof SectorKeyRoute
+  '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
+  '/api/history/$symbol': typeof ApiHistorySymbolRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
@@ -142,12 +215,21 @@ export interface FileRoutesById {
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/breadth-history': typeof ApiBreadthHistoryRoute
+  '/api/export': typeof ApiExportRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
+  '/api/market-history': typeof ApiMarketHistoryRoute
+  '/api/oi-history': typeof ApiOiHistoryRoute
+  '/api/option-history': typeof ApiOptionHistoryRoute
   '/sector/$key': typeof SectorKeyRoute
+  '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
+  '/api/history/$symbol': typeof ApiHistorySymbolRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
@@ -160,10 +242,19 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sensex'
     | '/sitemap.xml'
+    | '/api/breadth-history'
+    | '/api/export'
+    | '/api/history'
+    | '/api/market-history'
+    | '/api/oi-history'
+    | '/api/option-history'
     | '/sector/$key'
+    | '/api/candles/$symbol'
+    | '/api/history/$symbol'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
@@ -176,10 +267,19 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sensex'
     | '/sitemap.xml'
+    | '/api/breadth-history'
+    | '/api/export'
+    | '/api/history'
+    | '/api/market-history'
+    | '/api/oi-history'
+    | '/api/option-history'
     | '/sector/$key'
+    | '/api/candles/$symbol'
+    | '/api/history/$symbol'
   id:
     | '__root__'
     | '/'
+    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
@@ -192,11 +292,20 @@ export interface FileRouteTypes {
     | '/screener'
     | '/sensex'
     | '/sitemap.xml'
+    | '/api/breadth-history'
+    | '/api/export'
+    | '/api/history'
+    | '/api/market-history'
+    | '/api/oi-history'
+    | '/api/option-history'
     | '/sector/$key'
+    | '/api/candles/$symbol'
+    | '/api/history/$symbol'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiAnalysisRoute: typeof AiAnalysisRoute
   BankniftyRoute: typeof BankniftyRoute
   FnoRoute: typeof FnoRoute
   FnoboardRoute: typeof FnoboardRoute
@@ -209,7 +318,14 @@ export interface RootRouteChildren {
   ScreenerRoute: typeof ScreenerRoute
   SensexRoute: typeof SensexRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiBreadthHistoryRoute: typeof ApiBreadthHistoryRoute
+  ApiExportRoute: typeof ApiExportRoute
+  ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
+  ApiMarketHistoryRoute: typeof ApiMarketHistoryRoute
+  ApiOiHistoryRoute: typeof ApiOiHistoryRoute
+  ApiOptionHistoryRoute: typeof ApiOptionHistoryRoute
   SectorKeyRoute: typeof SectorKeyRoute
+  ApiCandlesSymbolRoute: typeof ApiCandlesSymbolRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -298,6 +414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BankniftyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai-analysis': {
+      id: '/ai-analysis'
+      path: '/ai-analysis'
+      fullPath: '/ai-analysis'
+      preLoaderRoute: typeof AiAnalysisRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -312,11 +435,80 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SectorKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/option-history': {
+      id: '/api/option-history'
+      path: '/api/option-history'
+      fullPath: '/api/option-history'
+      preLoaderRoute: typeof ApiOptionHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/oi-history': {
+      id: '/api/oi-history'
+      path: '/api/oi-history'
+      fullPath: '/api/oi-history'
+      preLoaderRoute: typeof ApiOiHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/market-history': {
+      id: '/api/market-history'
+      path: '/api/market-history'
+      fullPath: '/api/market-history'
+      preLoaderRoute: typeof ApiMarketHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/history': {
+      id: '/api/history'
+      path: '/api/history'
+      fullPath: '/api/history'
+      preLoaderRoute: typeof ApiHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/export': {
+      id: '/api/export'
+      path: '/api/export'
+      fullPath: '/api/export'
+      preLoaderRoute: typeof ApiExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/breadth-history': {
+      id: '/api/breadth-history'
+      path: '/api/breadth-history'
+      fullPath: '/api/breadth-history'
+      preLoaderRoute: typeof ApiBreadthHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/history/$symbol': {
+      id: '/api/history/$symbol'
+      path: '/$symbol'
+      fullPath: '/api/history/$symbol'
+      preLoaderRoute: typeof ApiHistorySymbolRouteImport
+      parentRoute: typeof ApiHistoryRoute
+    }
+    '/api/candles/$symbol': {
+      id: '/api/candles/$symbol'
+      path: '/api/candles/$symbol'
+      fullPath: '/api/candles/$symbol'
+      preLoaderRoute: typeof ApiCandlesSymbolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface ApiHistoryRouteChildren {
+  ApiHistorySymbolRoute: typeof ApiHistorySymbolRoute
+}
+
+const ApiHistoryRouteChildren: ApiHistoryRouteChildren = {
+  ApiHistorySymbolRoute: ApiHistorySymbolRoute,
+}
+
+const ApiHistoryRouteWithChildren = ApiHistoryRoute._addFileChildren(
+  ApiHistoryRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiAnalysisRoute: AiAnalysisRoute,
   BankniftyRoute: BankniftyRoute,
   FnoRoute: FnoRoute,
   FnoboardRoute: FnoboardRoute,
@@ -329,7 +521,14 @@ const rootRouteChildren: RootRouteChildren = {
   ScreenerRoute: ScreenerRoute,
   SensexRoute: SensexRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiBreadthHistoryRoute: ApiBreadthHistoryRoute,
+  ApiExportRoute: ApiExportRoute,
+  ApiHistoryRoute: ApiHistoryRouteWithChildren,
+  ApiMarketHistoryRoute: ApiMarketHistoryRoute,
+  ApiOiHistoryRoute: ApiOiHistoryRoute,
+  ApiOptionHistoryRoute: ApiOptionHistoryRoute,
   SectorKeyRoute: SectorKeyRoute,
+  ApiCandlesSymbolRoute: ApiCandlesSymbolRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

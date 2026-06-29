@@ -93,7 +93,13 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Flame,
     items: [{ to: "/heatmap", label: "Sector Heatmap" }],
   },
-  { label: "AI Lab", icon: Sparkles, items: [], comingSoon: true },
+  {
+    label: "AI Lab",
+    icon: Sparkles,
+    items: [
+      { to: "/ai-analysis", label: "AI Analysis" },
+    ],
+  },
   { label: "Global Lab", icon: Globe, items: [], comingSoon: true },
   { label: "Chart Lab", icon: BarChart3, items: [], comingSoon: true },
   { label: "Tool Lab", icon: Wrench, items: [], comingSoon: true },

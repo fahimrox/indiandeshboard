@@ -45,3 +45,11 @@ upstox_instruments.json
 eod_cache/
 test_*.ts
 
+# SQLite Database, WAL Journals & Backups
+*.db
+*.db-wal
+*.db-shm
+backend/database/backups/
+*.parquet
+
+

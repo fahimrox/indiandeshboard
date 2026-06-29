@@ -1,14 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardShell } from "@/components/DashboardShell";
-import { OIAnalysisDashboard } from "@/components/OIAnalysis/OIAnalysisDashboard";
+import OIAnalysisPage from "@/features/oi-analysis/OIAnalysisPage";
 
 function Page() {
   return (
-    <DashboardShell
-      title="OI Analysis"
-      subtitle="Professional Open Interest Analysis Dashboard"
-    >
-      <OIAnalysisDashboard />
+    <DashboardShell>
+      <OIAnalysisPage brokerOnline={false} />
     </DashboardShell>
   );
 }

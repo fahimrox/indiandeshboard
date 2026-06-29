@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail } from "./market.functions";
-import { getFnoStocks, getOptionChain, getFnoScreener } from "./nse.functions";
+import { getFnoStocks, getOptionChain, getCachedOptionChain, getFnoScreener } from "./nse.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
 const liveInterval = (msOpen: number, msClosed = 60_000) => () =>
@@ -65,4 +65,13 @@ export const optionChainQuery = (symbol: string, spot?: number, expiry?: string)
     queryFn: () => getOptionChain({ data: { symbol, spot, expiry } }),
     refetchInterval: liveInterval(10_000),
     staleTime: 5_000,
+  });
+
+export const cachedOptionChainQuery = (symbol: string, expiry?: string) =>
+  queryOptions({
+    queryKey: ["cached-option-chain", symbol, expiry ?? ""],
+    queryFn: () => getCachedOptionChain({ data: { symbol, expiry } }),
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
   });
