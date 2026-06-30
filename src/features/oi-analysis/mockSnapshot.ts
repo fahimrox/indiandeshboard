@@ -36,6 +36,15 @@ const EXPIRIES: Record<IndexSymbol, string[]> = {
   SENSEX: ["26-Jun-2026", "03-Jul-2026", "10-Jul-2026"],
 };
 
+// Stable mock timestamp — one per symbol, never calls new Date() on render.
+// Format: a fixed market-hours timestamp (10:00 AM IST on a deterministic day) seeded from symbol.
+const MOCK_TIMESTAMPS: Record<IndexSymbol, string> = {
+  NIFTY:      "2026-06-30T04:30:00.000Z", // 10:00 IST
+  BANKNIFTY:  "2026-06-30T04:35:00.000Z",
+  MIDCPNIFTY: "2026-06-30T04:40:00.000Z",
+  SENSEX:     "2026-06-30T04:45:00.000Z",
+};
+
 export function generateMockSnapshot(
   symbol: IndexSymbol = "NIFTY"
 ): OISnapshot {
@@ -105,7 +114,9 @@ export function generateMockSnapshot(
     totalCallOIChange,
     totalPutOIChange,
     strikes,
-    lastUpdated: new Date().toISOString(),
+    // Use a stable deterministic timestamp — never call new Date() here.
+    // Calling new Date() would produce a new string every render → breaks useMemo stability.
+    lastUpdated: MOCK_TIMESTAMPS[symbol],
   };
 }
 

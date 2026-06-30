@@ -51,14 +51,12 @@ export const fnoStocksQuery = queryOptions({
   refetchInterval: liveInterval(15_000),
   staleTime: 8_000,
 });
-
 export const fnoScreenerQuery = queryOptions({
   queryKey: ["fno-screener"],
   queryFn: () => getFnoScreener(),
   refetchInterval: liveInterval(15_000),
   staleTime: 8_000,
 });
-
 export const optionChainQuery = (symbol: string, spot?: number, expiry?: string) =>
   queryOptions({
     queryKey: ["option-chain", symbol, spot ?? 0, expiry ?? ""],

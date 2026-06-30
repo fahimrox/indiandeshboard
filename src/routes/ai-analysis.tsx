@@ -1,9 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardShell } from "@/components/DashboardShell";
 import { dashboardQuery, optionChainQuery } from "@/lib/dashboard-query";
 import { saveIntradaySnapshot, listIntradayDates, getIntradayHistory } from "@/lib/nse.functions";
+
+// Helper: transform option chain data rows
+const transformChain = (oc: any) => {
+  if (!oc || !oc.rows) return [];
+  return oc.rows.map((r: any) => ({
+    strike: r.strike,
+    ceLtp: r.ce?.ltp ?? 0,
+    ceOI: r.ce?.oi ?? 0,
+    ceOIc: r.ce?.oiChg ?? 0,
+    ceVol: r.ce?.volume ?? 0,
+    peLtp: r.pe?.ltp ?? 0,
+    peOI: r.pe?.oi ?? 0,
+    peOIc: r.pe?.oiChg ?? 0,
+    peVol: r.pe?.volume ?? 0,
+  }));
+};
 
 function Page() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -20,24 +36,29 @@ function Page() {
   const { data: dashData } = useQuery({
     ...dashboardQuery,
     enabled: mode === "LIVE",
+    placeholderData: (prev) => prev,
   });
 
   // Fetch option chains (only in live mode)
   const { data: niftyChain } = useQuery({
     ...optionChainQuery("NIFTY"),
     enabled: mode === "LIVE",
+    placeholderData: (prev) => prev,
   });
   const { data: bankniftyChain } = useQuery({
     ...optionChainQuery("BANKNIFTY"),
     enabled: mode === "LIVE",
+    placeholderData: (prev) => prev,
   });
   const { data: sensexChain } = useQuery({
     ...optionChainQuery("SENSEX"),
     enabled: mode === "LIVE",
+    placeholderData: (prev) => prev,
   });
   const { data: midcapChain } = useQuery({
     ...optionChainQuery("MIDCAPNIFTY"),
     enabled: mode === "LIVE",
+    placeholderData: (prev) => prev,
   });
 
   // Fetch available dates when switching to replay mode
@@ -88,21 +109,24 @@ function Page() {
     };
   }, [isPlaying, historyTicks]);
 
-  // Helper: transform option chain data rows
-  const transformChain = (oc: any) => {
-    if (!oc || !oc.rows) return [];
-    return oc.rows.map((r: any) => ({
-      strike: r.strike,
-      ceLtp: r.ce?.ltp ?? 0,
-      ceOI: r.ce?.oi ?? 0,
-      ceOIc: r.ce?.oiChg ?? 0,
-      ceVol: r.ce?.volume ?? 0,
-      peLtp: r.pe?.ltp ?? 0,
-      peOI: r.pe?.oi ?? 0,
-      peOIc: r.pe?.oiChg ?? 0,
-      peVol: r.pe?.volume ?? 0,
-    }));
-  };
+  // Keep refs up-to-date for stable iframe onload handler
+  const dashDataRef = useRef(dashData);
+  const niftyChainRef = useRef(niftyChain);
+  const bankniftyChainRef = useRef(bankniftyChain);
+  const sensexChainRef = useRef(sensexChain);
+  const midcapChainRef = useRef(midcapChain);
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    dashDataRef.current = dashData;
+    niftyChainRef.current = niftyChain;
+    bankniftyChainRef.current = bankniftyChain;
+    sensexChainRef.current = sensexChain;
+    midcapChainRef.current = midcapChain;
+    modeRef.current = mode;
+  }, [dashData, niftyChain, bankniftyChain, sensexChain, midcapChain, mode]);
+
+  const lastSentDataRef = useRef<string>("");
 
   // 1. Send live updates to iframe (LIVE mode)
   useEffect(() => {
@@ -112,7 +136,7 @@ function Page() {
       type: "UPDATE_DATA",
       data: {
         lastUpdate: new Date().toLocaleTimeString("en-IN"),
-        expiry: niftyChain?.expiry || dashData.expiry || "--",
+        expiry: niftyChain?.expiry || (dashData as any).expiry || "--",
         breadth: {
           adv: dashData.advance ?? 0,
           dec: dashData.decline ?? 0,
@@ -165,6 +189,11 @@ function Page() {
       },
     };
 
+    // Deduplicate postMessage payload
+    const dataString = JSON.stringify(formattedData.data);
+    if (dataString === lastSentDataRef.current) return;
+    lastSentDataRef.current = dataString;
+
     // Post to iframe
     iframeRef.current.contentWindow?.postMessage(formattedData, "*");
 
@@ -194,6 +223,77 @@ function Page() {
       }
     }
   }, [mode, historyTicks, currentTickIndex]);
+
+  const handleIframeLoad = useCallback(() => {
+    if (modeRef.current !== "LIVE" || !iframeRef.current || !dashDataRef.current) return;
+    const formattedData = {
+      type: "UPDATE_DATA",
+      data: {
+        lastUpdate: new Date().toLocaleTimeString("en-IN"),
+        expiry: niftyChainRef.current?.expiry || (dashDataRef.current as any).expiry || "--",
+        breadth: {
+          adv: dashDataRef.current.advance ?? 0,
+          dec: dashDataRef.current.decline ?? 0,
+          unchanged: dashDataRef.current.unchanged ?? 0,
+        },
+        vix: {
+          value: dashDataRef.current.vix?.price ?? 13.42,
+          prevClose: dashDataRef.current.vix?.prevClose ?? 12.85,
+          high: dashDataRef.current.vix?.dayHigh ?? 14.6,
+          low: dashDataRef.current.vix?.dayLow ?? 11.2,
+        },
+        sectors: (dashDataRef.current.sectors ?? []).map((s: any) => ({
+          name: s.label ?? s.symbol,
+          ch: s.changePct ?? 0,
+        })),
+        indices: {
+          NIFTY: {
+            ltp: dashDataRef.current.nifty?.price ?? niftyChainRef.current?.spot ?? 0,
+            prevClose: dashDataRef.current.nifty?.prevClose ?? 0,
+            dayHigh: dashDataRef.current.nifty?.dayHigh ?? 0,
+            dayLow: dashDataRef.current.nifty?.dayLow ?? 0,
+            vwap: dashDataRef.current.nifty?.price ?? 0,
+            chain: transformChain(niftyChainRef.current),
+          },
+          BANKNIFTY: {
+            ltp: dashDataRef.current.bankNifty?.price ?? bankniftyChainRef.current?.spot ?? 0,
+            prevClose: dashDataRef.current.bankNifty?.prevClose ?? 0,
+            dayHigh: dashDataRef.current.bankNifty?.dayHigh ?? 0,
+            dayLow: dashDataRef.current.bankNifty?.dayLow ?? 0,
+            vwap: dashDataRef.current.bankNifty?.price ?? 0,
+            chain: transformChain(bankniftyChainRef.current),
+          },
+          MIDCAPNIFTY: {
+            ltp: midcapChainRef.current?.spot ?? 0,
+            prevClose: midcapChainRef.current?.spot ?? 0,
+            dayHigh: midcapChainRef.current?.spot ?? 0,
+            dayLow: midcapChainRef.current?.spot ?? 0,
+            vwap: midcapChainRef.current?.spot ?? 0,
+            chain: transformChain(midcapChainRef.current),
+          },
+          SENSEX: {
+            ltp: dashDataRef.current.sensex?.price ?? sensexChainRef.current?.spot ?? 0,
+            prevClose: dashDataRef.current.sensex?.prevClose ?? 0,
+            dayHigh: dashDataRef.current.sensex?.dayHigh ?? 0,
+            dayLow: dashDataRef.current.sensex?.dayLow ?? 0,
+            vwap: dashDataRef.current.sensex?.price ?? 0,
+            chain: transformChain(sensexChainRef.current),
+          },
+        },
+      },
+    };
+    iframeRef.current.contentWindow?.postMessage(formattedData, "*");
+  }, []);
+
+  const iframeElement = useMemo(() => (
+    <iframe
+      ref={iframeRef}
+      src="/ai-analysis.html"
+      className="w-full h-full border-none"
+      title="AI Analysis"
+      onLoad={handleIframeLoad}
+    />
+  ), [handleIframeLoad]);
 
   return (
     <DashboardShell>
@@ -307,74 +407,7 @@ function Page() {
 
         {/* Dashboard iFrame */}
         <div className="w-full h-[calc(100vh-190px)] min-h-[500px] overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
-          <iframe
-            ref={iframeRef}
-            src="/ai-analysis.html"
-            className="w-full h-full border-none"
-            title="AI Analysis"
-            onLoad={() => {
-              // Trigger initial render if live data exists
-              if (mode === "LIVE" && iframeRef.current && dashData) {
-                const formattedData = {
-                  type: "UPDATE_DATA",
-                  data: {
-                    lastUpdate: new Date().toLocaleTimeString("en-IN"),
-                    expiry: niftyChain?.expiry || dashData.expiry || "--",
-                    breadth: {
-                      adv: dashData.advance ?? 0,
-                      dec: dashData.decline ?? 0,
-                      unchanged: dashData.unchanged ?? 0,
-                    },
-                    vix: {
-                      value: dashData.vix?.price ?? 13.42,
-                      prevClose: dashData.vix?.prevClose ?? 12.85,
-                      high: dashData.vix?.dayHigh ?? 14.6,
-                      low: dashData.vix?.dayLow ?? 11.2,
-                    },
-                    sectors: (dashData.sectors ?? []).map((s: any) => ({
-                      name: s.label ?? s.symbol,
-                      ch: s.changePct ?? 0,
-                    })),
-                    indices: {
-                      NIFTY: {
-                        ltp: dashData.nifty?.price ?? niftyChain?.spot ?? 0,
-                        prevClose: dashData.nifty?.prevClose ?? 0,
-                        dayHigh: dashData.nifty?.dayHigh ?? 0,
-                        dayLow: dashData.nifty?.dayLow ?? 0,
-                        vwap: dashData.nifty?.price ?? 0,
-                        chain: transformChain(niftyChain),
-                      },
-                      BANKNIFTY: {
-                        ltp: dashData.bankNifty?.price ?? bankniftyChain?.spot ?? 0,
-                        prevClose: dashData.bankNifty?.prevClose ?? 0,
-                        dayHigh: dashData.bankNifty?.dayHigh ?? 0,
-                        dayLow: dashData.bankNifty?.dayLow ?? 0,
-                        vwap: dashData.bankNifty?.price ?? 0,
-                        chain: transformChain(bankniftyChain),
-                      },
-                      MIDCAPNIFTY: {
-                        ltp: midcapChain?.spot ?? 0,
-                        prevClose: midcapChain?.spot ?? 0,
-                        dayHigh: midcapChain?.spot ?? 0,
-                        dayLow: midcapChain?.spot ?? 0,
-                        vwap: midcapChain?.spot ?? 0,
-                        chain: transformChain(midcapChain),
-                      },
-                      SENSEX: {
-                        ltp: dashData.sensex?.price ?? sensexChain?.spot ?? 0,
-                        prevClose: dashData.sensex?.prevClose ?? 0,
-                        dayHigh: dashData.sensex?.dayHigh ?? 0,
-                        dayLow: dashData.sensex?.dayLow ?? 0,
-                        vwap: dashData.sensex?.price ?? 0,
-                        chain: transformChain(sensexChain),
-                      },
-                    },
-                  },
-                };
-                iframeRef.current.contentWindow?.postMessage(formattedData, "*");
-              }
-            }}
-          />
+          {iframeElement}
         </div>
       </div>
     </DashboardShell>

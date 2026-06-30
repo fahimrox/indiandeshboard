@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useCallback, useRef, useState } from "react";
 import type { ChartMode, OISnapshot, StrikeOI } from "../types";
 import { CALL_COLOR, PUT_COLOR, formatIN } from "../utils";
 
@@ -132,7 +132,8 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
 
-  const padding = { top: 24, right: 24, bottom: 40, left: 56 };
+  // Memoize padding so downstream memos don't re-run on every render
+  const padding = useMemo(() => ({ top: 24, right: 24, bottom: 40, left: 56 }), []);
   const isChangeMode = mode === "OI_CHANGE";
   const innerW = Math.max(strikes.length * 64, 640);
   const chartHeight = height - padding.top - padding.bottom;
@@ -141,6 +142,14 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
   const halfH = chartHeight / 2;
   const groupW = innerW / Math.max(strikes.length, 1);
   const barW = Math.min(groupW * 0.34, 22);
+
+  // Stable function — only recreated when layout params change.
+  // Memoized so spotX/maxPainX memos can correctly declare it as a dependency
+  // without risking stale closures.
+  const xOf = useCallback(
+    (i: number) => padding.left + i * groupW + groupW / 2,
+    [padding.left, groupW]
+  );
 
   const maxValue = useMemo(() => {
     let m = 0;
@@ -159,7 +168,6 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
     return Array.from({ length: ticks + 1 }, (_, i) => (maxValue / ticks) * i);
   }, [maxValue]);
 
-  const xOf = (i: number) => padding.left + i * groupW + groupW / 2;
 
   const spotX = useMemo(() => {
     const sorted = strikes;
@@ -172,12 +180,12 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
       }
     }
     return null;
-  }, [strikes, snapshot.spot]);
+  }, [strikes, snapshot.spot, xOf, groupW]);
 
   const maxPainX = useMemo(() => {
     const i = strikes.findIndex((s) => s.strike === snapshot.maxPain);
     return i >= 0 ? xOf(i) : null;
-  }, [strikes, snapshot.maxPain]);
+  }, [strikes, snapshot.maxPain, xOf]);
 
   const totalW = padding.left + innerW + padding.right;
 

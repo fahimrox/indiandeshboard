@@ -166,7 +166,7 @@ tbody tr:hover{background:rgba(93,185,255,.04)}
 .strat-note{font-size:10.5px;color:var(--txt2);margin-top:6px;line-height:1.55}
 .foot{margin-top:34px;text-align:center;font-size:11px;color:var(--txt3);line-height:1.7}
 .foot .dis{margin-top:8px;color:#5a6a8a}
-.card,section.block{animation:fade .5s ease both}
+section.block{animation:fade .5s ease both}
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ===================== S8: AI LIVE COMMENTARY ===================== */
@@ -467,7 +467,6 @@ const DATA = {
 
 /* =========================================================================
    S8 DATA — AI LIVE COMMENTARY SIGNALS
-   Replace / push to this array from your live API feed
    ========================================================================= */
 const LIVE_SIGNALS = [
   {
@@ -549,7 +548,17 @@ function detectBuildup(prevLtp,ltp,oiChange){
   return{type:"LONG UNWINDING",cls:"bu-lunw",bias:"bear"};
 }
 function analyzeIndex(name,idx){
-  const chain=idx.chain;
+  const chain=idx.chain || [];
+  if (chain.length === 0) {
+    return {
+      name, idx, totCE_OI: 0, totPE_OI: 0, totCE_OIc: 0, totPE_OIc: 0,
+      maxCEOI: {strike:0,oi:0}, maxPEOI: {strike:0,oi:0},
+      maxCEOIc: {strike:0,v:0}, maxPEOIc: {strike:0,v:0},
+      pcr: 1.0, netWriting: 0, putWriting: false, callWriting: false,
+      maxPainStrike: idx.ltp || 0, revProb: 0, score: 50,
+      atm: { strike: idx.ltp || 0 }
+    };
+  }
   let totCE_OI=0,totPE_OI=0,totCE_OIc=0,totPE_OIc=0;
   let maxCEOI={strike:0,oi:0},maxPEOI={strike:0,oi:0};
   let maxCEOIc={strike:0,v:0},maxPEOIc={strike:0,v:0};
@@ -561,7 +570,7 @@ function analyzeIndex(name,idx){
     if(r.ceOIc>maxCEOIc.v)maxCEOIc={strike:r.strike,v:r.ceOIc};
     if(r.peOIc>maxPEOIc.v)maxPEOIc={strike:r.strike,v:r.peOIc};
   });
-  const pcr=+(totPE_OI/totCE_OI).toFixed(2);
+  const pcr=+(totPE_OI/(totCE_OI || 1)).toFixed(2);
   const netWriting=totPE_OIc-totCE_OIc;
   const putWriting=netWriting>0,callWriting=netWriting<0;
   chain.forEach(s=>{
@@ -586,8 +595,12 @@ function analyzeIndex(name,idx){
     atm:chain.reduce((a,b)=>Math.abs(b.strike-idx.ltp)<Math.abs(a.strike-idx.ltp)?b:a)};
 }
 function topShifts(chain,side){
-  const maxVol=Math.max(...chain.map(r=>side==='ce'?r.ceVol:r.peVol||1));
-  return chain.map(r=>{
+  const safeChain = chain || [];
+  if (safeChain.length === 0) {
+    return [{ strike: 0, oi: 0, oic: 0, vol: 0, shift: 0 }];
+  }
+  const maxVol=Math.max(...safeChain.map(r=>side==='ce'?r.ceVol:r.peVol||1));
+  return safeChain.map(r=>{
     const oi=side==='ce'?r.ceOI:r.peOI;
     const oic=side==='ce'?r.ceOIc:r.peOIc;
     const vol=side==='ce'?r.ceVol:r.peVol;
@@ -600,8 +613,11 @@ function pivots(prevClose,high,low){
   return{R3:P+2*(high-low),R2:P+(high-low),R1:2*P-low,P,S1:2*P-high,S2:P-(high-low),S3:P-2*(high-low)};
 }
 function oiWalls(chain,ltp){
-  const ceW=[...chain].filter(r=>r.strike>ltp).sort((a,b)=>b.ceOI-a.ceOI).slice(0,3).sort((a,b)=>a.strike-b.strike);
-  const peW=[...chain].filter(r=>r.strike<ltp).sort((a,b)=>b.peOI-a.peOI).slice(0,3).sort((a,b)=>b.strike-a.strike).reverse();
+  const safeChain = chain || [];
+  const ceW=[...safeChain].filter(r=>r.strike>ltp).sort((a,b)=>b.ceOI-a.ceOI).slice(0,3).sort((a,b)=>a.strike-b.strike);
+  const peW=[...safeChain].filter(r=>r.strike<ltp).sort((a,b)=>b.peOI-a.peOI).slice(0,3).sort((a,b)=>b.strike-a.strike).reverse();
+  while(ceW.length < 3) ceW.push({ strike: ltp, ceOI: 0 });
+  while(peW.length < 3) peW.push({ strike: ltp, peOI: 0 });
   return{resistances:ceW,supports:peW};
 }
 function buildSignal(name,A){
@@ -612,12 +628,14 @@ function buildSignal(name,A){
   else if(dir.includes("BUY PE")){sl=+(ltp*1.008).toFixed(2);t1=+(ltp*.994).toFixed(2);t2=+(ltp*.988).toFixed(2);}
   else{sl=ltp;t1=ltp;t2=ltp;}
   const type=conf>=72?"VERY STRONG":conf>=58?"STRONG":conf>=45?"WEAK":"RISKY";
-  const rr=dir==="WAIT"?"—":((Math.abs(t1-ltp))/(Math.abs(ltp-sl))).toFixed(2);
+  const rr=dir==="WAIT"?"—":((Math.abs(t1-ltp))/(Math.abs(ltp-sl || 1))).toFixed(2);
   return{name,dir,entry:A.atm.strike,sl,t1,t2,type,conf,strike:A.atm.strike,rr};
 }
 function nearestStrikes(chain,ltp,offset){
+  const safeChain = chain || [];
+  if (safeChain.length === 0) return ltp + offset;
   const target=ltp+offset;
-  return chain.reduce((a,b)=>Math.abs(b.strike-target)<Math.abs(a.strike-target)?b:a).strike;
+  return safeChain.reduce((a,b)=>Math.abs(b.strike-target)<Math.abs(a.strike-target)?b:a).strike;
 }
 function buyerPlan(name,idx,A){
   const ltp=idx.ltp,maxCE=A.maxCEOI.strike,maxPE=A.maxPEOI.strike;
@@ -724,252 +742,498 @@ function renderOverview(){
   else if(v.value<12)vn=`VIX low (<b>${v.value}</b>) — complacency. <b>Option premium thin</b>, ready for expansion. Cheap to buy protection.`;
   else vn=`VIX in healthy zone (<b>${v.value}</b>) — balanced premium. Trend-following and defined-risk strategies both viable.`;
   $('#vixNote').innerHTML=vn;
-  $('#sectorGrid').innerHTML=DATA.sectors.map(s=>{
-    const up=s.ch>=0;const w=Math.min(100,Math.abs(s.ch)*40);
-    return`<div class="sector"><div class="nm">${s.name}</div><div class="ch ${up?'up':'down'}">${sign(+s.ch.toFixed(2))}%</div><div class="bar-mini" style="width:${w}%;background:${up?'var(--bull)':'var(--bear)'}"></div></div>`;
-  }).join("");
+
+  const sectorGrid = $('#sectorGrid');
+  if (!sectorGrid.children.length) {
+    sectorGrid.innerHTML = DATA.sectors.map(s => {
+      return `<div class="sector" data-sector="${s.name}"><div class="nm">${s.name}</div><div class="ch">--</div><div class="bar-mini" style="width:0%"></div></div>`;
+    }).join("");
+  }
+  DATA.sectors.forEach(s => {
+    const el = sectorGrid.querySelector(`[data-sector="${s.name}"]`);
+    if (el) {
+      const up = s.ch >= 0;
+      const w = Math.min(100, Math.abs(s.ch) * 40);
+      const chEl = el.querySelector('.ch');
+      chEl.textContent = sign(+s.ch.toFixed(2)) + "%";
+      chEl.className = `ch ${up ? 'up' : 'down'}`;
+      const barEl = el.querySelector('.bar-mini');
+      barEl.style.width = w + "%";
+      barEl.style.background = up ? 'var(--bull)' : 'var(--bear)';
+    }
+  });
 }
-function renderIndexSentiment(){
-  const html=Object.entries(DATA.indices).map(([name,idx])=>{
-    const A=analyzeIndex(name,idx);
-    const chg=idx.ltp-idx.prevClose;const pct=(chg/idx.prevClose*100);const up=chg>=0;
-    const pcrPos=Math.min(96,Math.max(4,(A.pcr/2)*100));
-    const putShare=Math.round(A.totPE_OIc/(A.totPE_OIc+A.totCE_OIc+1)*100);
-    let sent=A.score>=58?"bull":A.score<=42?"bear":"neu";
-    let sLabel=A.score>=58?"BULLISH":A.score<=42?"BEARISH":"NEUTRAL";
-    const revTag=A.revProb>30?`<span class="tag bear">⚠ Reversal ${A.revProb}%</span>`:`<span class="tag neu">No reversal signal</span>`;
-    return`<div class="card">
-      <div class="idx-head">
-        <div class="idx-name">${name} ${sent==='bull'?'🟢':sent==='bear'?'🔴':'🟡'}</div>
-        <div style="text-align:right"><div class="idx-ltp mono">${idx.ltp.toLocaleString('en-IN',{maximumFractionDigits:2})}</div>
-          <div class="mono ${up?'up':'down'}" style="font-size:11px">${sign(+chg.toFixed(2))} (${sign(+pct.toFixed(2))}%)</div></div>
-      </div>
-      <div style="font-size:10.5px;color:var(--txt3);display:flex;justify-content:space-between">
-        <span>PCR <b class="mono" style="color:var(--info)">${A.pcr}</b></span>
-        <span>Max Pain <b class="mono">${A.maxPainStrike}</b></span>
-        <span>ATM <b class="mono">${A.atm.strike}</b></span>
-      </div>
-      <div class="pcr-meter">
-        <div class="pcr-scale"><div class="pcr-needle" style="left:${pcrPos}%"></div></div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--txt3);margin-top:3px">
-          <span>Call-heavy (&lt;0.7)</span><span>1.0</span><span>Put-heavy (&gt;1.3)</span></div>
-      </div>
-      <div class="cp-bar"><div class="c" style="width:${100-putShare}%"></div><div class="p" style="width:${putShare}%"></div></div>
-      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-top:4px">
-        <span class="down">Call Writing ${100-putShare}%</span><span class="up">Put Writing ${putShare}%</span></div>
-      <div class="mini-row"><span class="k">Max CE OI (Resistance)</span><b class="mono down">${A.maxCEOI.strike} · ${fmt(A.maxCEOI.oi)}</b></div>
-      <div class="mini-row"><span class="k">Max PE OI (Support)</span><b class="mono up">${A.maxPEOI.strike} · ${fmt(A.maxPEOI.oi)}</b></div>
-      <div class="mini-row"><span class="k">Top Call Writing</span><b class="mono">${A.maxCEOIc.strike} (+${fmt(A.maxCEOIc.v)})</b></div>
-      <div class="mini-row"><span class="k">Top Put Writing</span><b class="mono">${A.maxPEOIc.strike} (+${fmt(A.maxPEOIc.v)})</b></div>
-      <div style="margin-top:9px;display:flex;gap:6px;align-items:center;justify-content:space-between">
-        <span class="tag ${sent}">${sLabel} · ${A.score}/100</span>${revTag}</div>
-    </div>`;
-  }).join("");
-  $('#idxGrid').innerHTML=html;
+
+function renderIndexSentiment() {
+  const grid = $('#idxGrid');
+  
+  if (!grid.children.length) {
+    const html = Object.keys(DATA.indices).map(name => {
+      return `<div class="card" data-index="${name}">
+        <div class="idx-head">
+          <div class="idx-name">${name} --</div>
+          <div style="text-align:right">
+            <div class="idx-ltp mono">--</div>
+            <div class="idx-change mono" style="font-size:11px">--</div>
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--txt3);display:flex;justify-content:space-between">
+          <span>PCR <b class="pcr-val mono" style="color:var(--info)">--</b></span>
+          <span>Max Pain <b class="pain-val mono">--</b></span>
+          <span>ATM <b class="atm-val mono">--</b></span>
+        </div>
+        <div class="pcr-meter">
+          <div class="pcr-scale"><div class="pcr-needle" style="left:50%"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--txt3);margin-top:3px">
+            <span>Call-heavy (&lt;0.7)</span><span>1.0</span><span>Put-heavy (&gt;1.3)</span>
+          </div>
+        </div>
+        <div class="cp-bar"><div class="c" style="width:50%"></div><div class="p" style="width:50%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt3);margin-top:4px">
+          <span class="c-write-label down">Call Writing --</span>
+          <span class="p-write-label up">Put Writing --</span>
+        </div>
+        <div class="mini-row"><span class="k">Max CE OI (Resistance)</span><b class="max-ce mono down">--</b></div>
+        <div class="mini-row"><span class="k">Max PE OI (Support)</span><b class="max-pe mono up">--</b></div>
+        <div class="mini-row"><span class="k">Top Call Writing</span><b class="top-ce mono">--</b></div>
+        <div class="mini-row"><span class="k">Top Put Writing</span><b class="top-pe mono">--</b></div>
+        <div style="margin-top:9px;display:flex;gap:6px;align-items:center;justify-content:space-between">
+          <span class="tag sent-badge">--</span>
+          <span class="tag rev-badge neu">No reversal signal</span>
+        </div>
+      </div>`;
+    }).join("");
+    grid.innerHTML = html;
+  }
+
+  Object.entries(DATA.indices).forEach(([name, idx]) => {
+    const card = grid.querySelector(`[data-index="${name}"]`);
+    if (!card) return;
+
+    const A = analyzeIndex(name, idx);
+    const chg = idx.ltp - idx.prevClose;
+    const pct = (chg / idx.prevClose * 100);
+    const up = chg >= 0;
+    const pcrPos = Math.min(96, Math.max(4, (A.pcr / 2) * 100));
+    const putShare = Math.round(A.totPE_OIc / (A.totPE_OIc + A.totCE_OIc + 1) * 100);
+    let sent = A.score >= 58 ? "bull" : A.score <= 42 ? "bear" : "neu";
+    let sLabel = A.score >= 58 ? "BULLISH" : A.score <= 42 ? "BEARISH" : "NEUTRAL";
+
+    card.querySelector('.idx-name').innerHTML = `${name} ${sent === 'bull' ? '🟢' : sent === 'bear' ? '🔴' : '🟡'}`;
+    card.querySelector('.idx-ltp').textContent = idx.ltp.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    
+    const changeEl = card.querySelector('.idx-change');
+    changeEl.textContent = `${sign(+chg.toFixed(2))} (${sign(+pct.toFixed(2))}%)`;
+    changeEl.className = `idx-change mono ${up ? 'up' : 'down'}`;
+
+    card.querySelector('.pcr-val').textContent = A.pcr;
+    card.querySelector('.pain-val').textContent = A.maxPainStrike;
+    card.querySelector('.atm-val').textContent = A.atm.strike;
+
+    card.querySelector('.pcr-needle').style.left = `${pcrPos}%`;
+
+    card.querySelector('.cp-bar .c').style.width = `${100 - putShare}%`;
+    card.querySelector('.cp-bar .p').style.width = `${putShare}%`;
+
+    card.querySelector('.c-write-label').textContent = `Call Writing ${100 - putShare}%`;
+    card.querySelector('.p-write-label').textContent = `Put Writing ${putShare}%`;
+
+    card.querySelector('.max-ce').textContent = `${A.maxCEOI.strike} · ${fmt(A.maxCEOI.oi)}`;
+    card.querySelector('.max-pe').textContent = `${A.maxPEOI.strike} · ${fmt(A.maxPEOI.oi)}`;
+    
+    card.querySelector('.top-ce').textContent = `${A.maxCEOIc.strike} (+${fmt(A.maxCEOIc.v)})`;
+    card.querySelector('.top-pe').textContent = `${A.maxPEOIc.strike} (+${fmt(A.maxPEOIc.v)})`;
+
+    const badgeEl = card.querySelector('.sent-badge');
+    badgeEl.className = `tag sent-badge ${sent}`;
+    badgeEl.textContent = `${sLabel} · ${A.score}/100`;
+
+    const revEl = card.querySelector('.rev-badge');
+    if (A.revProb > 30) {
+      revEl.className = "tag rev-badge bear";
+      revEl.textContent = `⚠ Reversal ${A.revProb}%`;
+    } else {
+      revEl.className = "tag rev-badge neu";
+      revEl.textContent = "No reversal signal";
+    }
+  });
 }
-function renderCommentary(){
-  const targets=["NIFTY","BANKNIFTY"];
-  const html=targets.map(name=>{
-    const idx=DATA.indices[name];const A=analyzeIndex(name,idx);
-    const ceShift=topShifts(idx.chain,'ce').slice(0,4);
-    const peShift=topShifts(idx.chain,'pe').slice(0,4);
-    const maxShift=Math.max(...[...ceShift,...peShift].map(s=>s.shift))||1;
-    const rows=idx.chain.filter(r=>Math.abs(r.ceOIc)>30000||Math.abs(r.peOIc)>30000).map(r=>{
-      const ceB=detectBuildup(idx.vwap,idx.ltp,r.ceOIc);
-      const peB=detectBuildup(idx.vwap,idx.ltp,r.peOIc);
-      return{strike:r.strike,ceB,peB};
+
+function renderCommentary() {
+  const grid = $('#commentaryGrid');
+  const targets = ["NIFTY", "BANKNIFTY"];
+
+  if (!grid.children.length) {
+    grid.innerHTML = targets.map(name => {
+      return `<div class="card" data-commentary="${name}">
+        <div class="ttl"><span class="ic">🧠</span> ${name} AI Commentary</div>
+        <table>
+          <thead>
+            <tr><th>Strike</th><th>CE Shift</th><th>PE Shift</th><th>CE Buildup</th><th>PE Buildup</th></tr>
+          </thead>
+          <tbody class="tbody-rows"></tbody>
+        </table>
+        <div class="commentary-meta" style="margin-top:10px;font-size:11px;color:var(--txt3)"></div>
+        <div class="ai-note"></div>
+      </div>`;
+    }).join("");
+  }
+
+  targets.forEach(name => {
+    const card = grid.querySelector(`[data-commentary="${name}"]`);
+    if (!card) return;
+
+    const idx = DATA.indices[name];
+    const A = analyzeIndex(name, idx);
+    const ceShift = topShifts(idx.chain, 'ce').slice(0, 4);
+    const peShift = topShifts(idx.chain, 'pe').slice(0, 4);
+    const maxShift = Math.max(...[...ceShift, ...peShift].map(s => s.shift)) || 1;
+    
+    const rows = idx.chain.filter(r => Math.abs(r.ceOIc) > 30000 || Math.abs(r.peOIc) > 30000).map(r => {
+      const ceB = detectBuildup(idx.vwap, idx.ltp, r.ceOIc);
+      const peB = detectBuildup(idx.vwap, idx.ltp, r.peOIc);
+      
+      const ceVolMax = Math.max(...idx.chain.map(x => x.ceVol || 1));
+      const peVolMax = Math.max(...idx.chain.map(x => x.peVol || 1));
+      const ceShiftVal = Math.abs(r.ceOIc) + ((r.ceVol || 0) / ceVolMax) * 120000;
+      const peShiftVal = Math.abs(r.peOIc) + ((r.peVol || 0) / peVolMax) * 120000;
+      
+      const cePct = Math.min(100, Math.max(10, Math.round((ceShiftVal / maxShift) * 100)));
+      const pePct = Math.min(100, Math.max(10, Math.round((peShiftVal / maxShift) * 100)));
+
+      return { strike: r.strike, ceB, peB, cePct, pePct };
     });
-    const note=A.score>=55
-      ?`<b>${name}</b> shows <b class="up">bullish option activity</b>. Strongest OI + volume shift at <b>CE ${ceShift[0].strike}</b> & <b>PE ${peShift[0].strike}</b>. Put writing at <b>${A.maxPEOIc.strike}</b> acts as support; upside breakout above <b>${A.maxCEOI.strike}</b> opens momentum.`
-      :A.score<=45
-      ?`<b>${name}</b> shows <b class="down">bearish option activity</b>. Call writing heavy at <b>${A.maxCEOIc.strike}</b>. Breakdown below <b>${A.maxPEOI.strike}</b> can accelerate down-move.`
-      :`<b>${name}</b> is in a <b class="flat">balance zone</b> between <b>${A.maxPEOI.strike}</b> (support) and <b>${A.maxCEOI.strike}</b> (resistance). Wait for confirmation.`;
-    return`<div class="card">
-      <div class="ttl"><span class="ic">🧠</span> ${name} AI Commentary</div>
-      <table>
-        <thead><tr><th>Strike</th><th>CE Shift</th><th>PE Shift</th><th>CE Buildup</th><th>PE Buildup</th></tr></thead>
-        <tbody>${rows.map(r=>`<tr>
-          <td class="mono"><b>${r.strike}</b>${r.strike===A.atm.strike?' <span class="tag info" style="padding:1px 5px">ATM</span>':''}</td>
-          <td class="num"><span class="heat"><i style="width:${Math.random()*70+30}%;background:var(--info)"></i></span></td>
-          <td class="num"><span class="heat"><i style="width:${Math.random()*70+30}%;background:var(--purple)"></i></span></td>
-          <td><span class="bu ${r.ceB.cls}">${r.ceB.type}</span></td>
-          <td><span class="bu ${r.peB.cls}">${r.peB.type}</span></td>
-        </tr>`).join("")}</tbody>
-      </table>
-      <div style="margin-top:10px;font-size:11px;color:var(--txt3)">
-        <b>Top CE shift:</b> ${ceShift.map(s=>`${s.strike} (${fmt(s.oic)})`).join(', ')} &nbsp;|&nbsp;
-        <b>Top PE shift:</b> ${peShift.map(s=>`${s.strike} (${fmt(s.oic)})`).join(', ')}
-      </div>
-      <div class="ai-note">${note}</div>
-    </div>`;
-  }).join("");
-  $('#commentaryGrid').innerHTML=html;
-}
-function renderSignals(){
-  const html=Object.entries(DATA.indices).map(([name,idx])=>{
-    const A=analyzeIndex(name,idx); const sig=buildSignal(name,A);
-    const cls=sig.type==="VERY STRONG"?"st-vs":sig.type==="STRONG"?"st-s":sig.type==="WEAK"?"st-w":"st-r";
-    const confW=Math.max(5,sig.conf);
-    return `<div class="card sig-card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><div style="font-size:15px;font-weight:800">${name}</div>
-          <div style="font-size:11px;color:var(--txt3)">Strike <b class="mono">${sig.strike}</b> · ${sig.dir}</div></div>
-        <span class="sig-type ${cls}">${sig.type}</span>
-      </div>
-      <div class="bar" style="margin:11px 0 4px"><i style="width:${confW}%;background:linear-gradient(90deg,var(--bear),var(--warn),var(--bull))"></i></div>
-      <div style="font-size:10px;color:var(--txt3);display:flex;justify-content:space-between"><span>Confidence</span><b class="mono">${sig.conf}/100</b></div>
-      <div class="lvl-grid">
-        <div class="lvl"><div class="lk">Entry</div><div class="lv mono">${sig.entry}</div></div>
-        <div class="lvl" style="border-color:rgba(255,93,115,.3)"><div class="lk">Stop Loss</div><div class="lv mono down">${sig.sl}</div></div>
-        <div class="lvl"><div class="lk">Target 1</div><div class="lv mono up">${sig.t1}</div></div>
-      </div>
-      <div class="lvl-grid" style="grid-template-columns:1fr 1fr">
-        <div class="lvl"><div class="lk">Target 2</div><div class="lv mono up">${sig.t2}</div></div>
-        <div class="lvl"><div class="lk">Risk:Reward</div><div class="lv mono" style="color:var(--purple)">${sig.rr}</div></div>
-      </div>
-      <div class="rr">🛡 Position size for <b>2% account risk</b> only. SL is structural, not arbitrary.</div>
-    </div>`;
-  }).join("");
-  $('#signalGrid').innerHTML=html;
+
+    const tbody = card.querySelector('.tbody-rows');
+    if (tbody.children.length !== rows.length) {
+      tbody.innerHTML = rows.map(r => {
+        return `<tr data-strike="${r.strike}">
+          <td class="mono strike-cell"><b>${r.strike}</b></td>
+          <td class="num"><span class="heat"><i class="ce-bar" style="width:${r.cePct}%;background:var(--info)"></i></span></td>
+          <td class="num"><span class="heat"><i class="pe-bar" style="width:${r.pePct}%;background:var(--purple)"></i></span></td>
+          <td><span class="bu ce-buildup ${r.ceB.cls}">${r.ceB.type}</span></td>
+          <td><span class="bu pe-buildup ${r.peB.cls}">${r.peB.type}</span></td>
+        </tr>`;
+      }).join("");
+    } else {
+      rows.forEach((r, idxRow) => {
+        const tr = tbody.children[idxRow];
+        tr.setAttribute('data-strike', r.strike);
+        
+        const strikeCell = tr.querySelector('.strike-cell');
+        strikeCell.innerHTML = `<b>${r.strike}</b>${r.strike === A.atm.strike ? ' <span class="tag info" style="padding:1px 5px">ATM</span>' : ''}`;
+        
+        tr.querySelector('.ce-bar').style.width = `${r.cePct}%`;
+        tr.querySelector('.pe-bar').style.width = `${r.pePct}%`;
+        
+        const ceBu = tr.querySelector('.ce-buildup');
+        ceBu.textContent = r.ceB.type;
+        ceBu.className = `bu ce-buildup ${r.ceB.cls}`;
+        
+        const peBu = tr.querySelector('.pe-buildup');
+        peBu.textContent = r.peB.type;
+        peBu.className = `bu pe-buildup ${r.peB.cls}`;
+      });
+    }
+
+    card.querySelector('.commentary-meta').innerHTML = `
+      <b>Top CE shift:</b> ${ceShift.map(s => `${s.strike} (${fmt(s.oic)})`).join(', ')} &nbsp;|&nbsp;
+      <b>Top PE shift:</b> ${peShift.map(s => `${s.strike} (${fmt(s.oic)})`).join(', ')}
+    `;
+
+    const note = A.score >= 55
+      ? `<b>${name}</b> shows <b class="up">bullish option activity</b>. Strongest OI + volume shift at <b>CE ${ceShift[0].strike}</b> & <b>PE ${peShift[0].strike}</b>. Put writing at <b>${A.maxPEOIc.strike}</b> acts as support; upside breakout above <b>${A.maxCEOI.strike}</b> opens momentum.`
+      : A.score <= 45
+      ? `<b>${name}</b> shows <b class="down">bearish option activity</b>. Call writing heavy at <b>${A.maxCEOIc.strike}</b>. Breakdown below <b>${A.maxPEOI.strike}</b> can accelerate down-move.`
+      : `<b>${name}</b> is in a <b class="flat">balance zone</b> between <b>${A.maxPEOI.strike}</b> (support) and <b>${A.maxCEOI.strike}</b> (resistance). Wait for confirmation.`;
+    card.querySelector('.ai-note').innerHTML = note;
+  });
 }
 
-function renderSR(){
-  const html=Object.entries(DATA.indices).map(([name,idx])=>{
-    const A=analyzeIndex(name,idx);
-    const pv=pivots(idx.prevClose, idx.dayHigh, idx.dayLow);
-    const w=oiWalls(idx.chain, idx.ltp);
-    return `<div class="card">
-      <div class="ttl"><span class="ic">📐</span> ${name} · S/R <span class="mono" style="color:var(--info);margin-left:auto">${idx.ltp.toLocaleString('en-IN',{maximumFractionDigits:2})}</span></div>
-      <div class="sr-cols">
-        <div>
-          <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📊 Pivot-Based</div>
-          <div class="sr-stack">
-            <div class="sr-row sr-r"><span class="sr-tag">R3</span><b class="mono">${pv.R3.toFixed(2)}</b></div>
-            <div class="sr-row sr-r"><span class="sr-tag">R2</span><b class="mono">${pv.R2.toFixed(2)}</b></div>
-            <div class="sr-row sr-r"><span class="sr-tag">R1</span><b class="mono">${pv.R1.toFixed(2)}</b></div>
-            <div class="sr-row sr-p"><span class="sr-tag">P (Pivot)</span><b class="mono">${pv.P.toFixed(2)}</b></div>
-            <div class="sr-row sr-s"><span class="sr-tag">S1</span><b class="mono">${pv.S1.toFixed(2)}</b></div>
-            <div class="sr-row sr-s"><span class="sr-tag">S2</span><b class="mono">${pv.S2.toFixed(2)}</b></div>
-            <div class="sr-row sr-s"><span class="sr-tag">S3</span><b class="mono">${pv.S3.toFixed(2)}</b></div>
+function renderSignals() {
+  const grid = $('#signalGrid');
+  
+  if (!grid.children.length) {
+    grid.innerHTML = Object.keys(DATA.indices).map(name => {
+      return `<div class="card sig-card" data-signal="${name}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="sig-name" style="font-size:15px;font-weight:800">${name}</div>
+            <div class="sig-sub" style="font-size:11px;color:var(--txt3)">Strike <b class="mono strike-val">--</b> · <span class="dir-val">--</span></div>
           </div>
+          <span class="sig-type">--</span>
         </div>
-        <div>
-          <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🧱 OI-Based (Smart Money Walls)</div>
-          <div class="sr-stack">
-            ${w.resistances.map((r,i)=>`<div class="sr-row sr-r"><span class="sr-tag">R${i+1} · CE ${fmt(r.ceOI)}</span><b class="mono">${r.strike}</b></div>`).join('')}
-            <div class="sr-row sr-p"><span class="sr-tag">SPOT</span><b class="mono">${idx.ltp.toFixed(2)}</b></div>
-            ${w.supports.map((r,i)=>`<div class="sr-row sr-s"><span class="sr-tag">S${i+1} · PE ${fmt(r.peOI)}</span><b class="mono">${r.strike}</b></div>`).join('')}
-          </div>
+        <div class="bar" style="margin:11px 0 4px"><i class="conf-bar" style="width:0%;background:linear-gradient(90deg,var(--bear),var(--warn),var(--bull))"></i></div>
+        <div style="font-size:10px;color:var(--txt3);display:flex;justify-content:space-between"><span>Confidence</span><b class="mono conf-text">--/100</b></div>
+        <div class="lvl-grid">
+          <div class="lvl"><div class="lk">Entry</div><div class="lv mono entry-val">--</div></div>
+          <div class="lvl" style="border-color:rgba(255,93,115,.3)"><div class="lk">Stop Loss</div><div class="lv mono down sl-val">--</div></div>
+          <div class="lvl"><div class="lk">Target 1</div><div class="lv mono up t1-val">--</div></div>
         </div>
-      </div>
-    </div>`;
-  }).join("");
-  $('#srGrid').innerHTML=html;
+        <div class="lvl-grid" style="grid-template-columns:1fr 1fr">
+          <div class="lvl"><div class="lk">Target 2</div><div class="lv mono up t2-val">--</div></div>
+          <div class="lvl"><div class="lk">Risk:Reward</div><div class="lv mono rr-val" style="color:var(--purple)">--</div></div>
+        </div>
+        <div class="rr">🛡 Position size for <b>2% account risk</b> only. SL is structural, not arbitrary.</div>
+      </div>`;
+    }).join("");
+  }
+
+  Object.entries(DATA.indices).forEach(([name, idx]) => {
+    const card = grid.querySelector(`[data-signal="${name}"]`);
+    if (!card) return;
+
+    const A = analyzeIndex(name, idx); 
+    const sig = buildSignal(name, A);
+    const cls = sig.type === "VERY STRONG" ? "st-vs" : sig.type === "STRONG" ? "st-s" : sig.type === "WEAK" ? "st-w" : "st-r";
+    const confW = Math.max(5, sig.conf);
+
+    card.querySelector('.strike-val').textContent = sig.strike;
+    card.querySelector('.dir-val').textContent = sig.dir;
+    
+    const sigTypeEl = card.querySelector('.sig-type');
+    sigTypeEl.textContent = sig.type;
+    sigTypeEl.className = `sig-type ${cls}`;
+    
+    card.querySelector('.conf-bar').style.width = `${confW}%`;
+    card.querySelector('.conf-text').textContent = `${sig.conf}/100`;
+
+    card.querySelector('.entry-val').textContent = sig.entry;
+    card.querySelector('.sl-val').textContent = sig.sl;
+    card.querySelector('.t1-val').textContent = sig.t1;
+    card.querySelector('.t2-val').textContent = sig.t2;
+    card.querySelector('.rr-val').textContent = sig.rr;
+  });
 }
 
-function renderSmart(){
-  const html = Object.entries(DATA.indices).map(([name,idx])=>{
-    const A = analyzeIndex(name,idx);
+function renderSR() {
+  const grid = $('#srGrid');
+  
+  if (!grid.children.length) {
+    grid.innerHTML = Object.keys(DATA.indices).map(name => {
+      return `<div class="card" data-sr="${name}">
+        <div class="ttl"><span class="ic">📐</span> ${name} · S/R <span class="ltp-val mono" style="color:var(--info);margin-left:auto">--</span></div>
+        <div class="sr-cols">
+          <div>
+            <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">📊 Pivot-Based</div>
+            <div class="sr-stack pivot-stack"></div>
+          </div>
+          <div>
+            <div style="font-size:10.5px;color:var(--txt3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px">🧱 OI-Based (Smart Money Walls)</div>
+            <div class="sr-stack oi-stack"></div>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  Object.entries(DATA.indices).forEach(([name, idx]) => {
+    const card = grid.querySelector(`[data-sr="${name}"]`);
+    if (!card) return;
+
+    const A = analyzeIndex(name, idx);
+    const pv = pivots(idx.prevClose, idx.dayHigh, idx.dayLow);
+    const w = oiWalls(idx.chain, idx.ltp);
+
+    card.querySelector('.ltp-val').textContent = idx.ltp.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+
+    const pStack = card.querySelector('.pivot-stack');
+    if (!pStack.children.length) {
+      pStack.innerHTML = `
+        <div class="sr-row sr-r" data-pivot="R3"><span class="sr-tag">R3</span><b class="mono">--</b></div>
+        <div class="sr-row sr-r" data-pivot="R2"><span class="sr-tag">R2</span><b class="mono">--</b></div>
+        <div class="sr-row sr-r" data-pivot="R1"><span class="sr-tag">R1</span><b class="mono">--</b></div>
+        <div class="sr-row sr-p" data-pivot="P"><span class="sr-tag">P (Pivot)</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-pivot="S1"><span class="sr-tag">S1</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-pivot="S2"><span class="sr-tag">S2</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-pivot="S3"><span class="sr-tag">S3</span><b class="mono">--</b></div>
+      `;
+    }
+    pStack.querySelector('[data-pivot="R3"] b').textContent = pv.R3.toFixed(2);
+    pStack.querySelector('[data-pivot="R2"] b').textContent = pv.R2.toFixed(2);
+    pStack.querySelector('[data-pivot="R1"] b').textContent = pv.R1.toFixed(2);
+    pStack.querySelector('[data-pivot="P"] b').textContent = pv.P.toFixed(2);
+    pStack.querySelector('[data-pivot="S1"] b').textContent = pv.S1.toFixed(2);
+    pStack.querySelector('[data-pivot="S2"] b').textContent = pv.S2.toFixed(2);
+    pStack.querySelector('[data-pivot="S3"] b').textContent = pv.S3.toFixed(2);
+
+    const oStack = card.querySelector('.oi-stack');
+    if (!oStack.children.length) {
+      oStack.innerHTML = `
+        <div class="sr-row sr-r" data-oi="R1"><span class="sr-tag">R1</span><b class="mono">--</b></div>
+        <div class="sr-row sr-r" data-oi="R2"><span class="sr-tag">R2</span><b class="mono">--</b></div>
+        <div class="sr-row sr-r" data-oi="R3"><span class="sr-tag">R3</span><b class="mono">--</b></div>
+        <div class="sr-row sr-p" data-oi="SPOT"><span class="sr-tag">SPOT</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-oi="S1"><span class="sr-tag">S1</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-oi="S2"><span class="sr-tag">S2</span><b class="mono">--</b></div>
+        <div class="sr-row sr-s" data-oi="S3"><span class="sr-tag">S3</span><b class="mono">--</b></div>
+      `;
+    }
+    w.resistances.forEach((r, idxRes) => {
+      const el = oStack.querySelector(`[data-oi="R${idxRes + 1}"]`);
+      if (el) {
+        el.querySelector('.sr-tag').textContent = `R${idxRes + 1} · CE ${fmt(r.ceOI)}`;
+        el.querySelector('b').textContent = r.strike;
+      }
+    });
+    oStack.querySelector('[data-oi="SPOT"] b').textContent = idx.ltp.toFixed(2);
+    w.supports.forEach((r, idxSup) => {
+      const el = oStack.querySelector(`[data-oi="S${idxSup + 1}"]`);
+      if (el) {
+        el.querySelector('.sr-tag').textContent = `S${idxSup + 1} · PE ${fmt(r.peOI)}`;
+        el.querySelector('b').textContent = r.strike;
+      }
+    });
+  });
+}
+
+function renderSmart() {
+  const grid = $('#smartGrid');
+  
+  if (!grid.children.length) {
+    grid.innerHTML = Object.keys(DATA.indices).map(name => {
+      return `<div class="card" data-smart="${name}">
+        <div class="ttl"><span class="ic">🦈</span> ${name} · Smart Money</div>
+        <div class="kv"><span class="k">Institutional Bias</span><span class="v inst-val font-bold">--</span></div>
+        <div class="kv"><span class="k">Max Pain Strike</span><span class="v max-pain-val mono">--</span></div>
+        <div class="kv"><span class="k">PE Wall (Support)</span><span class="v pe-wall-val mono up">--</span></div>
+        <div class="kv"><span class="k">CE Wall (Resistance)</span><span class="v ce-wall-val mono down">--</span></div>
+        <div class="ai-note note-val" style="font-size:11.5px; margin-top:8px"></div>
+      </div>`;
+    }).join("");
+  }
+
+  Object.entries(DATA.indices).forEach(([name, idx]) => {
+    const card = grid.querySelector(`[data-smart="${name}"]`);
+    if (!card) return;
+
+    const A = analyzeIndex(name, idx);
     const inst = A.putWriting ? "PUT WRITERS (Bullish)" : "CALL WRITERS (Bearish)";
     const instCls = A.putWriting ? "up" : "down";
     const w = oiWalls(idx.chain, idx.ltp);
-    return `<div class="card">
-      <div class="ttl"><span class="ic">🦈</span> ${name} · Smart Money</div>
-      <div class="kv"><span class="k">Institutional Bias</span><span class="v ${instCls} font-bold">${inst}</span></div>
-      <div class="kv"><span class="k">Max Pain Strike</span><span class="v mono">${A.maxPainStrike}</span></div>
-      <div class="kv"><span class="k">PE Wall (Support)</span><span class="v mono up">${w.supports[0]?.strike || 'N/A'}</span></div>
-      <div class="kv"><span class="k">CE Wall (Resistance)</span><span class="v mono down">${w.resistances[0]?.strike || 'N/A'}</span></div>
-      <div class="ai-note" style="font-size:11.5px; margin-top:8px">
-        Max Pain sits at <b>${A.maxPainStrike}</b>. Options writing indicates a trading range between <b>${w.supports[0]?.strike || 'N/A'}</b> and <b>${w.resistances[0]?.strike || 'N/A'}</b>.
-      </div>
-    </div>`;
-  }).join("");
-  $('#smartGrid').innerHTML = html;
+
+    const instEl = card.querySelector('.inst-val');
+    instEl.textContent = inst;
+    instEl.className = `v inst-val font-bold ${instCls}`;
+
+    card.querySelector('.max-pain-val').textContent = A.maxPainStrike;
+    card.querySelector('.pe-wall-val').textContent = w.supports[0]?.strike || 'N/A';
+    card.querySelector('.ce-wall-val').textContent = w.resistances[0]?.strike || 'N/A';
+    
+    card.querySelector('.note-val').innerHTML = `
+      Max Pain sits at <b>${A.maxPainStrike}</b>. Options writing indicates a trading range between <b>${w.supports[0]?.strike || 'N/A'}</b> and <b>${w.resistances[0]?.strike || 'N/A'}</b>.
+    `;
+  });
 }
 
-function renderBS(){
+function renderBS() {
+  const grid = $('#bsGrid');
   const targets = ["NIFTY", "BANKNIFTY"];
-  const buyerCards = targets.map(name => {
-    const idx = DATA.indices[name];
-    const A = analyzeIndex(name, idx);
-    const B = buyerPlan(name, idx, A);
-    
-    return `
-      <div class="idx-card">
+
+  if (!grid.children.length) {
+    const buyerHTML = `
+      <div class="card bs-panel bs-buy">
+        <div class="pttl">
+          <div class="picon">🚀</div>
+          <div>
+            <h3>Option Buyer's Action Plan</h3>
+            <p>Momentum setups, breakout levels & target ranges</p>
+          </div>
+        </div>
+        <div class="buyer-cards-container"></div>
+      </div>
+    `;
+
+    const sellerHTML = `
+      <div class="card bs-panel bs-sell">
+        <div class="pttl">
+          <div class="picon">🛡</div>
+          <div>
+            <h3>Option Seller's Action Plan</h3>
+            <p>Range play, theta decay & premium harvesting</p>
+          </div>
+        </div>
+        <div class="seller-cards-container"></div>
+      </div>
+    `;
+
+    grid.innerHTML = buyerHTML + sellerHTML;
+
+    const bContainer = grid.querySelector('.buyer-cards-container');
+    bContainer.innerHTML = targets.map(name => {
+      return `<div class="idx-card" data-buyer-card="${name}">
         <div class="ic-head">
-          <span class="ic-name">${B.name} (SPOT: ${B.ltp.toFixed(2)})</span>
-          <span class="tag ${B.dirCls}">${B.dirCls.toUpperCase()} BIAS</span>
+          <span class="ic-name">${name} (SPOT: --)</span>
+          <span class="tag dir-badge">--</span>
         </div>
         <div class="scenario">
           <div class="scn scn-up">
             <div class="scn-ttl">Bullish Breakout</div>
-            <div class="scn-lvl">Above <b>${B.res1}</b></div>
-            <div class="scn-act up">Target: ${B.res2} CE | Stop: ${nearestStrikes(idx.chain, B.ltp, -B.span)}</div>
+            <div class="scn-lvl">Above <b class="break-up-lvl">--</b></div>
+            <div class="scn-act up act-up">Target: -- | Stop: --</div>
           </div>
           <div class="scn scn-dn">
             <div class="scn-ttl">Bearish Breakdown</div>
-            <div class="scn-lvl">Below <b>${B.sup1}</b></div>
-            <div class="scn-act down">Target: ${B.sup2} PE | Stop: ${nearestStrikes(idx.chain, B.ltp, B.span)}</div>
+            <div class="scn-lvl">Below <b class="break-dn-lvl">--</b></div>
+            <div class="scn-act down act-dn">Target: -- | Stop: --</div>
           </div>
         </div>
-        <div class="ai-note" style="font-size:11px; margin-top:8px; padding:6px 10px">${B.dirWhy}</div>
-      </div>
-    `;
-  }).join("");
+        <div class="ai-note note-val" style="font-size:11px; margin-top:8px; padding:6px 10px"></div>
+      </div>`;
+    }).join("");
 
-  const sellerCards = targets.map(name => {
-    const idx = DATA.indices[name];
-    const A = analyzeIndex(name, idx);
-    const S = sellerPlan(name, idx, A);
-    
-    return `
-      <div class="idx-card">
+    const sContainer = grid.querySelector('.seller-cards-container');
+    sContainer.innerHTML = targets.map(name => {
+      return `<div class="idx-card" data-seller-card="${name}">
         <div class="ic-head">
-          <span class="ic-name">${S.name} Premium Plan</span>
-          <span class="tag info">${S.strat}</span>
+          <span class="ic-name">${name} Premium Plan</span>
+          <span class="tag info strat-badge">--</span>
         </div>
         <div class="strat-box">
-          <div class="strat-name">${S.strat}</div>
-          <div class="strat-legs">${S.legs}</div>
-          <div class="strat-note">${S.note}</div>
+          <div class="strat-name">--</div>
+          <div class="strat-legs">--</div>
+          <div class="strat-note">--</div>
         </div>
-      </div>
-    `;
-  }).join("");
+      </div>`;
+    }).join("");
+  }
 
-  const buyerHTML = `
-    <div class="card bs-panel bs-buy">
-      <div class="pttl">
-        <div class="picon">🚀</div>
-        <div>
-          <h3>Option Buyer's Action Plan</h3>
-          <p>Momentum setups, breakout levels & target ranges</p>
-        </div>
-      </div>
-      ${buyerCards}
-    </div>
-  `;
+  targets.forEach(name => {
+    const idx = DATA.indices[name];
+    const A = analyzeIndex(name, idx);
+    const B = buyerPlan(name, idx, A);
+    const S = sellerPlan(name, idx, A);
 
-  const sellerHTML = `
-    <div class="card bs-panel bs-sell">
-      <div class="pttl">
-        <div class="picon">🛡</div>
-        <div>
-          <h3>Option Seller's Action Plan</h3>
-          <p>Range play, theta decay & premium harvesting</p>
-        </div>
-      </div>
-      ${sellerCards}
-    </div>
-  `;
+    const bCard = grid.querySelector(`[data-buyer-card="${name}"]`);
+    if (bCard) {
+      bCard.querySelector('.ic-name').textContent = `${B.name} (SPOT: ${B.ltp.toFixed(2)})`;
+      
+      const badge = bCard.querySelector('.dir-badge');
+      badge.textContent = `${B.dirCls.toUpperCase()} BIAS`;
+      badge.className = `tag dir-badge ${B.dirCls}`;
 
-  $('#bsGrid').innerHTML = buyerHTML + sellerHTML;
+      bCard.querySelector('.break-up-lvl').textContent = B.res1;
+      bCard.querySelector('.act-up').textContent = `Target: ${B.res2} CE | Stop: ${nearestStrikes(idx.chain, B.ltp, -B.span)}`;
+
+      bCard.querySelector('.break-dn-lvl').textContent = B.sup1;
+      bCard.querySelector('.act-dn').textContent = `Target: ${B.sup2} PE | Stop: ${nearestStrikes(idx.chain, B.ltp, B.span)}`;
+
+      bCard.querySelector('.note-val').innerHTML = B.dirWhy;
+    }
+
+    const sCard = grid.querySelector(`[data-seller-card="${name}"]`);
+    if (sCard) {
+      sCard.querySelector('.strat-badge').textContent = S.strat;
+      sCard.querySelector('.strat-name').textContent = S.strat;
+      sCard.querySelector('.strat-legs').innerHTML = S.legs;
+      sCard.querySelector('.strat-note').innerHTML = S.note;
+    }
+  });
 }
 
 function generateDynamicSignals() {
   const dynamic = [];
   
-  // VIX Alert
   const vix = DATA.vix.value;
   if (vix > 15) {
     dynamic.push({
@@ -991,7 +1255,6 @@ function generateDynamicSignals() {
     });
   }
 
-  // Nifty Dynamic Alerts
   const nifty = DATA.indices.NIFTY;
   if (nifty && nifty.chain && nifty.chain.length > 0) {
     const A = analyzeIndex("NIFTY", nifty);
@@ -1018,7 +1281,6 @@ function generateDynamicSignals() {
     });
   }
 
-  // BankNifty Dynamic Alerts
   const bank = DATA.indices.BANKNIFTY;
   if (bank && bank.chain && bank.chain.length > 0) {
     const A = analyzeIndex("BANKNIFTY", bank);
@@ -1037,61 +1299,103 @@ function generateDynamicSignals() {
 }
 
 let activeFilter = 'ALL';
-function renderLiveCommentary(filteredSignals){
+function renderLiveCommentary(filteredSignals) {
+  const container = $('#s8List');
   const signalsToRender = filteredSignals || generateDynamicSignals();
   $('#s8Count').textContent = signalsToRender.length;
-  
-  if(signalsToRender.length === 0){
-    $('#s8List').innerHTML = `<div class="s8-empty">No matching commentary signals found.</div>`;
+
+  if (signalsToRender.length === 0) {
+    container.innerHTML = `<div class="s8-empty">No matching commentary signals found.</div>`;
     return;
   }
-  
-  const html = signalsToRender.map(sig => {
-    const biasClass = sig.bias === 'BULLISH' ? 'lsig-bull' : sig.bias === 'BEARISH' ? 'lsig-bear' : 'lsig-neu';
-    const icoClass = sig.icon === '⚠' ? 'ico-warn' : sig.icon === '⚡' ? 'ico-bolt' : 'ico-info';
-    const colorClass = sig.bias === 'BULLISH' ? 'bull' : sig.bias === 'BEARISH' ? 'bear' : 'neu';
-    
-    const tradeSetup = sig.entry ? `
-      <div class="lsig-etsl">
-        <span class="lsig-entry">ENTRY: ${sig.entry}</span>
-        <span style="color:var(--txt3)">·</span>
-        <span class="lsig-target">TARGET: ${sig.target}</span>
-        <span style="color:var(--txt3)">·</span>
-        <span class="lsig-sl">SL: ${sig.sl}</span>
-      </div>
-    ` : '';
-    
-    return `
-      <div class="lsig ${biasClass}">
-        <div class="lsig-top">
-          <div class="lsig-ico ${icoClass}">${sig.icon}</div>
-          <div>
-            <div class="lsig-name">
-              ${sig.name}
-              <span class="tag ${colorClass}" style="padding: 1px 6px; font-size: 9.5px">${sig.bias}</span>
-            </div>
-            <div class="lsig-meta">
-              <span class="lsig-date">AI SIGNAL</span>
-              <span class="lsig-time">${DATA.lastUpdate.split(" ")[1]}</span>
+
+  if (container.children.length !== signalsToRender.length || container.querySelector('.s8-empty')) {
+    const html = signalsToRender.map((sig, i) => {
+      const biasClass = sig.bias === 'BULLISH' ? 'lsig-bull' : sig.bias === 'BEARISH' ? 'lsig-bear' : 'lsig-neu';
+      const icoClass = sig.icon === '⚠' ? 'ico-warn' : sig.icon === '⚡' ? 'ico-bolt' : 'ico-info';
+      const colorClass = sig.bias === 'BULLISH' ? 'bull' : sig.bias === 'BEARISH' ? 'bear' : 'neu';
+      
+      const tradeSetup = sig.entry ? `
+        <div class="lsig-etsl">
+          <span class="lsig-entry">ENTRY: ${sig.entry}</span>
+          <span style="color:var(--txt3)">·</span>
+          <span class="lsig-target">TARGET: ${sig.target}</span>
+          <span style="color:var(--txt3)">·</span>
+          <span class="lsig-sl">SL: ${sig.sl}</span>
+        </div>
+      ` : '<div class="lsig-etsl" style="display:none"></div>';
+
+      return `
+        <div class="lsig ${biasClass}" data-index="${i}">
+          <div class="lsig-top">
+            <div class="lsig-ico ${icoClass}">${sig.icon}</div>
+            <div>
+              <div class="lsig-name">
+                <span class="sig-name-text">${sig.name}</span>
+                <span class="tag bias-tag ${colorClass}" style="padding: 1px 6px; font-size: 9.5px">${sig.bias}</span>
+              </div>
+              <div class="lsig-meta">
+                <span class="lsig-date">AI SIGNAL</span>
+                <span class="lsig-time">${DATA.lastUpdate.split(" ")[1]}</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="lsig-body">${sig.body}</div>
-        ${tradeSetup}
-        <div class="lsig-div"></div>
-        <div class="conv-wrap">
-          <span class="conv-lbl">Signal Conviction</span>
-          <div class="conv-track">
-            <div class="conv-fill" style="width: ${sig.conv}%; background: ${sig.bias === 'BULLISH' ? 'var(--bull)' : sig.bias === 'BEARISH' ? 'var(--bear)' : 'var(--warn)'}"></div>
+          <div class="lsig-body">${sig.body}</div>
+          ${tradeSetup}
+          <div class="lsig-div"></div>
+          <div class="conv-wrap">
+            <span class="conv-lbl">Signal Conviction</span>
+            <div class="conv-track">
+              <div class="conv-fill" style="width: ${sig.conv}%; background: ${sig.bias === 'BULLISH' ? 'var(--bull)' : sig.bias === 'BEARISH' ? 'var(--bear)' : 'var(--warn)'}"></div>
+            </div>
+            <span class="conv-pct">${sig.conv}%</span>
           </div>
-          <span class="conv-pct">${sig.conv}%</span>
+          <div class="lsig-ai">AI Insights: ${sig.aiNote}</div>
         </div>
-        <div class="lsig-ai">AI Insights: ${sig.aiNote}</div>
-      </div>
-    `;
-  }).join("");
-  
-  $('#s8List').innerHTML = html;
+      `;
+    }).join("");
+    container.innerHTML = html;
+  } else {
+    signalsToRender.forEach((sig, i) => {
+      const card = container.children[i];
+      card.className = `lsig ${sig.bias === 'BULLISH' ? 'lsig-bull' : sig.bias === 'BEARISH' ? 'lsig-bear' : 'lsig-neu'}`;
+      
+      const ico = card.querySelector('.lsig-ico');
+      ico.textContent = sig.icon;
+      ico.className = `lsig-ico ${sig.icon === '⚠' ? 'ico-warn' : sig.icon === '⚡' ? 'ico-bolt' : 'ico-info'}`;
+      
+      card.querySelector('.sig-name-text').textContent = sig.name;
+      
+      const biasTag = card.querySelector('.bias-tag');
+      biasTag.textContent = sig.bias;
+      biasTag.className = `tag bias-tag ${sig.bias === 'BULLISH' ? 'bull' : sig.bias === 'BEARISH' ? 'bear' : 'neu'}`;
+      
+      card.querySelector('.lsig-time').textContent = DATA.lastUpdate.split(" ")[1];
+      card.querySelector('.lsig-body').textContent = sig.body;
+      
+      const etsl = card.querySelector('.lsig-etsl');
+      if (sig.entry) {
+        etsl.style.display = 'block';
+        etsl.innerHTML = `
+          <span class="lsig-entry">ENTRY: ${sig.entry}</span>
+          <span style="color:var(--txt3)">·</span>
+          <span class="lsig-target">TARGET: ${sig.target}</span>
+          <span style="color:var(--txt3)">·</span>
+          <span class="lsig-sl">SL: ${sig.sl}</span>
+        `;
+      } else {
+        etsl.style.display = 'none';
+        etsl.innerHTML = '';
+      }
+      
+      const fill = card.querySelector('.conv-fill');
+      fill.style.width = `${sig.conv}%`;
+      fill.style.background = sig.bias === 'BULLISH' ? 'var(--bull)' : sig.bias === 'BEARISH' ? 'var(--bear)' : 'var(--warn)';
+      
+      card.querySelector('.conv-pct').textContent = `${sig.conv}%`;
+      card.querySelector('.lsig-ai').textContent = `AI Insights: ${sig.aiNote}`;
+    });
+  }
 }
 
 function s8Filter(bias, btn){
@@ -1155,15 +1459,18 @@ window.addEventListener('message', (event) => {
     // Debounce the rendering to aggregate rapid consecutive postMessages
     if (updateTimeout) clearTimeout(updateTimeout);
     updateTimeout = setTimeout(() => {
-      marketScore();
-      renderOverview();
-      renderIndexSentiment();
-      renderCommentary();
-      renderSignals();
-      renderSR();
-      renderSmart();
-      renderBS();
-      applyCurrentFilter();
+      // Batch updates using requestAnimationFrame to prevent layout thrashing
+      requestAnimationFrame(() => {
+        marketScore();
+        renderOverview();
+        renderIndexSentiment();
+        renderCommentary();
+        renderSignals();
+        renderSR();
+        renderSmart();
+        renderBS();
+        applyCurrentFilter();
+      });
     }, 50);
   }
 });

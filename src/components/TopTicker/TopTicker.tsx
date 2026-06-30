@@ -124,7 +124,7 @@ function useTickerAnimation(trackRef: React.RefObject<HTMLDivElement | null>, it
     const itemWidth = 160;
     const separatorWidth = 42;
     const totalWidth = itemCount * (itemWidth + separatorWidth);
-    const speedPxPerSec = 150;
+    const speedPxPerSec = 220;
     const durationSec = totalWidth / speedPxPerSec;
 
     el.style.setProperty("--duration", `${durationSec}s`);

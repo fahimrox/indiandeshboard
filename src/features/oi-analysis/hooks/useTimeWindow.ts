@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import type { TimePresetId, TimeWindow } from "../types";
 
 const MIN: Record<Exclude<TimePresetId, "all">, number> = {
@@ -36,13 +36,35 @@ export function useTimeWindow(
   const [endFraction, setEndFraction] = useState(1);
   const [isManual, setIsManual] = useState(false);
 
-  const baseTs = useMemo(
-    () =>
-      mode === "HISTORICAL" && historicalDate
-        ? new Date(`${historicalDate}T15:30:00`).getTime()
-        : Date.now(),
-    [mode, historicalDate]
-  );
+  // In LIVE mode: baseTs must tick with real time so presets like "Last 5m" stay correct.
+  // In HISTORICAL mode: baseTs is fixed at the EOD of the selected historical date.
+  const [liveNow, setLiveNow] = useState(() => Date.now());
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (mode === "LIVE") {
+      // Tick every 60s to keep time-window presets accurate during long live sessions.
+      intervalRef.current = setInterval(() => setLiveNow(Date.now()), 60_000);
+    } else {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [mode]);
+
+  const baseTs = useMemo(() => {
+    if (mode === "HISTORICAL" && historicalDate) {
+      return new Date(`${historicalDate}T15:30:00`).getTime();
+    }
+    return liveNow; // Updates every 60s in LIVE mode
+  }, [mode, historicalDate, liveNow]);
 
   const { dayStart, dayEnd } = useMemo(
     () => tradingDayBoundaries(baseTs),

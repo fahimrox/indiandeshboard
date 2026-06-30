@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useMarketOpen } from "@/hooks/useMarketOpen";
 import { optionChainQuery, cachedOptionChainQuery } from "@/lib/dashboard-query";
@@ -35,14 +35,16 @@ export default function OIAnalysisPage(props: OIAnalysisPageProps) {
   const liveQuery = useQuery({
     ...optionChainQuery(debouncedSymbol, spot, debouncedExpiry),
     enabled: !showEod,
+    placeholderData: keepPreviousData,
   });
   const cacheQuery = useQuery({
     ...cachedOptionChainQuery(debouncedSymbol, debouncedExpiry),
     enabled: showEod,
+    placeholderData: keepPreviousData,
   });
 
   const optionChain = showEod ? cacheQuery.data : liveQuery.data;
-  const isLoading = showEod ? cacheQuery.isLoading : liveQuery.isLoading;
+  const isPending = showEod ? cacheQuery.isPending : liveQuery.isPending;
   const error = showEod ? cacheQuery.error : liveQuery.error;
 
   const [liveExpiries, setLiveExpiries] = useState<string[] | null>(null);
@@ -81,7 +83,7 @@ export default function OIAnalysisPage(props: OIAnalysisPageProps) {
 
   const view = useOIAnalysis({ snapshot });
 
-  if (isLoading && !snapshot) {
+  if (isPending && !snapshot) {
     return (
       <div className="flex h-[70vh] items-center justify-center text-slate-400">
         Loading option chain data&hellip;

@@ -13,6 +13,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as SensexRouteImport } from './routes/sensex'
 import { Route as ScreenerRouteImport } from './routes/screener'
 import { Route as OptionchainRouteImport } from './routes/optionchain'
+import { Route as OiAnalysisProRouteImport } from './routes/oi-analysis-pro'
 import { Route as OiAnalysisRouteImport } from './routes/oi-analysis'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
 import { Route as IndexContributionRouteImport } from './routes/index-contribution'
@@ -51,6 +52,11 @@ const ScreenerRoute = ScreenerRouteImport.update({
 const OptionchainRoute = OptionchainRouteImport.update({
   id: '/optionchain',
   path: '/optionchain',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OiAnalysisProRoute = OiAnalysisProRouteImport.update({
+  id: '/oi-analysis-pro',
+  path: '/oi-analysis-pro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OiAnalysisRoute = OiAnalysisRouteImport.update({
@@ -160,6 +166,7 @@ export interface FileRoutesByFullPath {
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
+  '/oi-analysis-pro': typeof OiAnalysisProRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -185,6 +192,7 @@ export interface FileRoutesByTo {
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
+  '/oi-analysis-pro': typeof OiAnalysisProRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/index-contribution': typeof IndexContributionRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
+  '/oi-analysis-pro': typeof OiAnalysisProRoute
   '/optionchain': typeof OptionchainRoute
   '/screener': typeof ScreenerRoute
   '/sensex': typeof SensexRoute
@@ -238,6 +247,7 @@ export interface FileRouteTypes {
     | '/index-contribution'
     | '/nifty50'
     | '/oi-analysis'
+    | '/oi-analysis-pro'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/index-contribution'
     | '/nifty50'
     | '/oi-analysis'
+    | '/oi-analysis-pro'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/index-contribution'
     | '/nifty50'
     | '/oi-analysis'
+    | '/oi-analysis-pro'
     | '/optionchain'
     | '/screener'
     | '/sensex'
@@ -314,6 +326,7 @@ export interface RootRouteChildren {
   IndexContributionRoute: typeof IndexContributionRoute
   Nifty50Route: typeof Nifty50Route
   OiAnalysisRoute: typeof OiAnalysisRoute
+  OiAnalysisProRoute: typeof OiAnalysisProRoute
   OptionchainRoute: typeof OptionchainRoute
   ScreenerRoute: typeof ScreenerRoute
   SensexRoute: typeof SensexRoute
@@ -356,6 +369,13 @@ declare module '@tanstack/react-router' {
       path: '/optionchain'
       fullPath: '/optionchain'
       preLoaderRoute: typeof OptionchainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oi-analysis-pro': {
+      id: '/oi-analysis-pro'
+      path: '/oi-analysis-pro'
+      fullPath: '/oi-analysis-pro'
+      preLoaderRoute: typeof OiAnalysisProRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/oi-analysis': {
@@ -517,6 +537,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexContributionRoute: IndexContributionRoute,
   Nifty50Route: Nifty50Route,
   OiAnalysisRoute: OiAnalysisRoute,
+  OiAnalysisProRoute: OiAnalysisProRoute,
   OptionchainRoute: OptionchainRoute,
   ScreenerRoute: ScreenerRoute,
   SensexRoute: SensexRoute,

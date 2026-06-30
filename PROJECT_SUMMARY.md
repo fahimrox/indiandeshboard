@@ -1,156 +1,228 @@
-# Project Summary: Indian Stock Market Dashboard
+# Indian Stock Market Dashboard - complete PROJECT SUMMARY
 
-This document provides a comprehensive technical overview of the **Indian Stock Market Dashboard** project. It serves as a standalone reference guide for developers and AI agents to understand the repository structure, data flow, tech stack, and API design without needing to explore the codebase from scratch.
-
----
-
-## 🚀 Tech Stack & Core Libraries
-
-- **Framework**: [TanStack Start](https://tanstack.com/router/latest/docs/start/overview) (Full-stack React framework built on TanStack Router, Vite, and Nitro).
-- **Routing**: [TanStack Router](https://tanstack.com/router) (Typesafe routing with automatic route generation).
-- **Data Fetching**: [TanStack React Query](https://tanstack.com/query) (State management, caching, and auto-refetching).
-- **Styling**: Tailwind CSS v4 (configured via `@tailwindcss/vite` inside `src/styles.css` with a customized dark theme).
-- **UI Components**: Radix UI primitives styled via [Shadcn UI](https://ui.shadcn.com/) located in `src/components/ui`.
-- **Charts & Visualizations**:
-  - [ECharts](https://echarts.apache.org/) (via `echarts-for-react` for advanced rendering, e.g., index contributions).
-  - [Recharts](https://recharts.org/) (for simpler charts).
-- **Form & Validation**: `react-hook-form` + `zod` for typesafe input validation.
-- **Package Manager**: Bun (using `bun.lock` and `bunfig.toml` alongside npm's `package-lock.json`).
+Yeh document is project ki sabhi details ko ekdam simple aur highly detailed breakdown ke sath pesh karta hai. Iska maqsad yeh hai ki koi bhi naya AI agent ya developer is file ko read karke project ka flow, data sources, file structure, routing, server calls, aur configuration ko bina kisi confusion ke samajh sake aur naye features/pages easily add ya remove kar sake.
 
 ---
 
-## 📂 Project Structure & Directory Layout
+## 🚀 1. Project Kya Hai? (Project Overview)
+Yeh ek **Professional Indian Stock Market Trading Dashboard** hai jismein live indices analytics (Nifty 50, Bank Nifty, Midcap Nifty, Sensex), Option Chain, Open Interest (OI) Analysis, Index Contributions (kis stock ne index ko kitne points up/down kiya), sector gainers/losers aur market heatmaps render hote hain. Is dashboard ka design high-end, dark-themed aur Bloomberg/TradingView-style modern aesthetic ke sath interactive animations aur charts (ECharts & Recharts) par chalta hai.
+
+---
+
+## 🛠️ 2. Tech Stack & Core Libraries (Kya-kya use kiya gaya hai)
+*   **Core Framework**: **[TanStack Start](https://tanstack.com/router/latest/docs/start/overview)** (React + Vite + Nitro server-engine). Yeh ek full-stack React framework hai jo file-based routing aur server-side functions natively offer karta hai.
+*   **Routing**: **[TanStack Router](https://tanstack.com/router)** (Strictly type-safe dynamic and static route management).
+*   **State Management & Polling**: **[TanStack React Query](https://tanstack.com/query)** (Live market updates aur background polling management. Har page data ko fetch aur re-query karne ke liye dynamic intervals par queries chalata hai).
+*   **Styling**: **Tailwind CSS v4** (Integrated via `@tailwindcss/vite` in `src/styles.css`). Custom theme tokens (e.g., Bullish/Bearish gradients, HSL colors) direct `@theme` rule mein defined hain.
+*   **UI Components**: **Radix UI** primitives and icons from **Lucide React**, styled with **Shadcn UI** specifications.
+*   **Charts / Graphics**:
+    *   **ECharts (via `echarts-for-react`)**: Real-time complex data structures (e.g., Index Contribution waterfalls).
+    *   **Recharts**: Standard analytical charts.
+*   **Package Manager**: **Bun** & **npm** (Vite builds run natively on Node/Bun environment).
+*   **Database**: **better-sqlite3** (Used for local EOD/historical storage, symbol mapping cache, and persistent tables on the backend).
+
+---
+
+## 📁 3. Project Structure & Directory Layout (Files Kahan-Kahan Hain)
+Niche project ke important components ki complete mapping di gayi hai:
 
 ```
-.
-├── .env / .env.example             # Configuration variables for API credentials
-├── package.json                    # Project dependencies & scripts
-├── vite.config.ts                  # Vite build-system setup
-├── tsconfig.json                   # TypeScript rules and path aliases
-├── fyers_config.enc                # Encrypted FYERS tokens (created at runtime)
-├── angel_one_scrip_master.json     # Filtered local instrument cache for Angel One API
-├── upstox_instruments.json         # Filtered local instrument cache for Upstox API
-├── generate_auth_url.py            # Python helper for FYERS OAuth login URL
-├── generate_token.py               # Python helper for exchanging FYERS auth code for tokens
-├── eod_cache/                      # Local JSON cache for End-of-Day market snapshots
+indiandeshboard/
+├── package.json                    # Project dependencies aur scripts (dev, build, preview)
+├── vite.config.ts                  # Vite, TanStack Router plugin aur Tailwind v4 configuration
+├── tsconfig.json                   # TypeScript config aur path aliases (e.g. "@/*" -> "src/*")
+├── .env / .env.example             # Secrets aur API keys (Upstox, AngelOne, Fyers credentials)
+├── fyers_config.enc                # Encrypted Fyers session file (AES-256-CBC)
+├── angel_one_scrip_master.json     # Filtered Instrument token database (Angel One ke liye)
+├── upstox_instruments.json         # Filtered Instrument token database (Upstox ke liye)
+├── eod_cache/                      # Offline historical/EOD database cache files (.json formats)
+├── docs/                           # Project guides aur tasks logs (PROJECT_MASTER.md, CURRENT_TASK.md)
 └── src/
-    ├── server.ts                   # TanStack Start backend entry point
-    ├── start.ts                    # TanStack Start client entry point
-    ├── router.tsx                  # TanStack Router instance configuration
-    ├── routeTree.gen.ts            # Auto-generated routing table
-    ├── styles.css                  # Tailwind v4 imports and design tokens
-    ├── routes/                     # Pages / Endpoints (TanStack Router file-based routing)
-    ├── components/                 # React components (ui/, layout/, and page-specific)
-    ├── features/                   # Core business features (AI Sentiment, OI Analysis)
-    ├── hooks/                      # Custom React hooks (market-hours, debounce, responsive)
-    └── lib/                        # Services, data layer, and server-side RPC functions
+    ├── server.ts                   # TanStack Start backend server-side entrance
+    ├── start.ts                    # TanStack Start client-side runtime entrance
+    ├── router.tsx                  # Client router component injection
+    ├── routeTree.gen.ts            # Auto-generated routing mapping (TanStack built file, do not edit)
+    ├── styles.css                  # Tailwind CSS imports & Custom Design variables
+    ├── hooks/                      # Custom React Hooks
+    │   ├── useMarketOpen.ts        # Check karta hai market active trading hours mein hai ya nahi
+    │   └── useDebounce.ts          # Input parameters, search filters, aur select dropdowns ko delay dene ke liye
+    ├── lib/                        # Backend connection layers & RPC calls
+    │   ├── services/               # Brokers connect services
+    │   │   ├── marketDataLayer.ts  # Fallback routing orchestrator (Pehle Broker A, fir B, fir Scrapers, fir Cache)
+    │   │   ├── upstoxService.ts    # Upstox API integrations (NSE instrument processing)
+    │   │   ├── angelOneService.ts  # Angel One API credentials, dynamic login aur instrument search
+    │   │   ├── fyersService.ts     # Fyers V3 API integration (Primary option chain feed)
+    │   │   ├── nseFallbackService.ts # Live NSE official website scraper layer (cookie & payload based)
+    │   │   ├── yahooService.ts     # Yahoo Finance API (Fallback ticks and sparklines data)
+    │   │   ├── persistentCache.ts  # Local file storage caching operations
+    │   │   └── database.server.ts  # SQLite query operations (tables structure, historical database)
+    │   ├── market.functions.ts     # Server RPC function (Quotes, index lists, sector gains, index weightage)
+    │   ├── nse.functions.ts        # Server RPC function (Option chain contracts, dynamic scanner signals, PCR)
+    │   └── dashboard-query.ts      # React Query options, cache state limits aur API endpoints query keys definition
+    ├── components/                 # Global UI controls
+    │   ├── DashboardShell.tsx      # Main Layout shell (Sidebar menu, header, dark-mode toggle, responsive drawer)
+    │   ├── TickingNumber.tsx       # Live number updating animation component (Green/Red highlights on price ticks)
+    │   ├── ui/                     # UI components like Card, Dropdown, Table, Input, Slider, Progress (Shadcn UI)
+    │   └── TopTicker/              # Moving quotes ticker at the header
+    └── routes/                     # Front-end pages (TanStack Router automatic mappings)
+        ├── __root.tsx              # Root HTML markup shell (Head tags, global providers setup)
+        ├── index.tsx               # Main Dashboard page (Market summary, market breadth, sector indices, AI sentiment)
+        ├── optionchain.tsx         # Option Chain Dashboard (CE/PE tables, support resistance, strike ranges)
+        ├── index-contribution.tsx  # Index Weightage Contribution Page (Reliance, HDFC Bank index points impact)
+        ├── screener.tsx            # Live F&O Scanner (buildup signals, volume shockers, cap tags, day highs/lows)
+        ├── oi-analysis.tsx         # Open Interest buildup charts, sentiment radial gauges, PCR ratios
+        ├── heatmap.tsx             # Grid layout sector heatmaps
+        └── sector.$key.tsx         # Sector-wise constituents pages (banking, IT, pharma stocks lists)
 ```
 
 ---
 
-## 🔄 Data Architecture & Broker APIs
+## 🔄 4. Live Data Sources & Fallback Architecture
+Dashboard kisi ek broker API ke band hone par fail nahi hota. Isme **Multi-Tier Fallback Mechanism** implementation kiya gaya hai:
 
-The dashboard uses a multi-tier fallback architecture to retrieve real-time quotes, options chain data, and sector performance:
+### Live Quotes Data Flow (Nifty 50, Stocks prices)
+```mermaid
+graph TD
+    A[getQuotes request] --> B{Upstox API Active?}
+    B -- Yes --> C[Return Upstox Live quotes]
+    B -- No --> D{Angel One Active?}
+    D -- Yes --> E[Return Angel One Quotes]
+    D -- No --> F{Yahoo Finance Active?}
+    F -- Yes --> G[Return Yahoo Sparkline/Quotes]
+    F -- No --> H[Fallback: Read SQLite/Local EOD Cache]
+```
 
-- **Quotes Feed**: Tries **Upstox** $\rightarrow$ **Angel One** $\rightarrow$ **Yahoo Finance**.
-- **Option Chains Feed**: Tries **FYERS** $\rightarrow$ **Angel One** $\rightarrow$ **NSE Scraper** $\rightarrow$ **Local EOD cache** $\rightarrow$ **Synthetic mock generator** (to prevent UI crashes).
-
-### 1. **Data Layer Orchestrator** ([marketDataLayer.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/marketDataLayer.ts))
-Determines which broker feeds to fetch from depending on availability:
-- **Quotes**: Tries **Upstox** $\rightarrow$ **Angel One** $\rightarrow$ **Yahoo Finance**.
-- **Option Chains**: Tries **FYERS** $\rightarrow$ **Angel One** $\rightarrow$ **NSE Scraper** $\rightarrow$ **Local EOD cache** $\rightarrow$ **Synthetic mock generator**.
-
-### 2. **Integrations & Services** (`src/lib/services/`)
-- **Upstox Service** ([upstoxService.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/upstoxService.ts)):
-  - Fetches index and equity quotes.
-  - Downloads and decompresses the Upstox NSE instrument list (`NSE.json.gz`) to map trading symbols to their unique `instrument_key` IDs (stored in `upstox_instruments.json`).
-- **Angel One Service** ([angelOneService.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/angelOneService.ts)):
-  - Automated login using `clientCode`, `mpin`, `apiKey`, and generating TOTP tokens.
-  - Fetches option chains by downloading the Angel One OpenAPI master list, filtering indices (`NIFTY`, `BANKNIFTY`, `SENSEX`) and main equities, saving them to `angel_one_scrip_master.json`.
-- **FYERS Service** ([fyersService.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/fyersService.ts)):
-  - Primary source for options chains using the `options-chain-v3` API endpoint.
-- **NSE Fallback Service** ([nseFallbackService.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/nseFallbackService.ts)):
-  - Performs direct scraper fetches from `nseindia.com`. Retrieves cookie values from the homepage first and then requests option chain data by contract or index.
-- **Yahoo Finance Service** ([yahooService.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/yahooService.ts)):
-  - Uses the public `spark` and `chart` REST endpoints. Used for quotes backup and charting historical stock movements.
-
-### 3. **Persistent Cache & Settings**
-- **EOD Cache** ([persistentCache.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/persistentCache.ts)): Saves valid real-time response records on the server's disk inside the `eod_cache/` folder. Acts as a fail-safe backup for when live API data is missing or rate-limited.
-- **Config Storage** ([configStore.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/services/configStore.ts)): Encrypts and decrypts Fyers configurations on disk in `fyers_config.enc` using **AES-256-CBC** encryption.
-
----
-
-## ⚡ Server-Side RPC Functions (`.functions.ts` files)
-
-TanStack Start handles API routes through **Server Functions** that act as remote RPC endpoints:
-
-- **Market Functions** ([market.functions.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/market.functions.ts)):
-  - `getQuotes`: Retrieves prices for an array of ticker symbols.
-  - `getDashboard`: Orchestrates the main landing page data (index values, top sector gains, and top gainers/losers).
-  - `getIndexConstituents`: Fetches components of indices (NIFTY 50, BANK NIFTY, SENSEX).
-  - `getIndexContributions`: Computes weighted points contribution of individual constituent stocks (e.g. Reliance, HDFC Bank) toward index movement.
-- **NSE Functions** ([nse.functions.ts](file:///d:/Lovable%20Deshboard/indiandeshboard/src/lib/nse.functions.ts)):
-  - `getOptionChain`: Pulls live options contracts, calculating Put-Call Ratio (PCR) and Support/Resistance levels (R1, R2, S1, S2).
-  - `getFnoStocks` & `getFnoScreener`: Analyzes open interest buildup flags (Long Buildup, Short Buildup, Short Covering, Long Unwinding, Volume Shockers).
+### Live Option Chain & OI Data Flow
+```mermaid
+graph TD
+    A[getOptionChain request] --> B{Fyers API V3 Active?}
+    B -- Yes --> C[Return Fyers Option Chain]
+    B -- No --> D{Angel One Active?}
+    D -- Yes --> E[Return Angel One Option Chain]
+    D -- No --> F{NSE Scraper Active?}
+    F -- Yes --> G[Scrape from nseindia.com & return]
+    F -- No --> H{EOD Cache available?}
+    H -- Yes --> I[Return cached market EOD snapshots]
+    H -- No --> J[Fallback: Generate synthetic Mock Data]
+```
 
 ---
 
-## 🗺️ Routing & Page Architecture (`src/routes/`)
+## ⚡ 5. Server-Side RPC Functions Explained (`.functions.ts`)
+TanStack Start framework server code aur client components ko split karne ke liye server functions offer karta hai. Yeh files client ke build bundle mein hide rehti hain aur runtime par standard HTTP request ke zariye call hoti hain:
 
-TanStack Router loads layout structures dynamically based on file names:
-
-1. **`__root.tsx`** ([__root.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/__root.tsx))
-   - Root page shell. Defines metadata tags, sets up the stylesheet path, and injects the global `QueryClientProvider` context.
-2. **`index.tsx`** ([index.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/index.tsx))
-   - Home Dashboard. Features index hero cards, market breadth meters (advances vs declines), average change, sector indices, and an **AI Sentiment commentary block**.
-3. **`optionchain.tsx`** ([optionchain.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/optionchain.tsx))
-   - Options analytics dashboard. Renders interactive Call/Put lists, signal indicators (Short Cover, Long Unwind), and 4-tier support and resistance metrics.
-4. **`index-contribution.tsx`** ([index-contribution.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/index-contribution.tsx))
-   - Real-time stock contribution graphs. Renders an interactive waterfall/bar chart using ECharts to visualize stock impact.
-5. **`future-dashboard.tsx`** / `fno.tsx` / `fnoboard.tsx`
-   - Features tracking derivative metrics, contracts, and future rollovers.
-6. **`screener.tsx`** ([screener.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/screener.tsx))
-   - F&O Screener. Filters stocks breaking their Day/Week/Month Highs or Lows, or experiencing volume shocks.
-7. **`oi-analysis.tsx`** ([oi-analysis.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/oi-analysis.tsx))
-   - Detailed open interest buildup charting dashboard.
-8. **`heatmap.tsx`** ([heatmap.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/heatmap.tsx))
-   - Sector Heatmap dashboard visualizing performance across industries.
-9. **`banknifty.tsx`** / `nifty50.tsx` / `sensex.tsx`
-   - Index tracking routes with live quotes and constituents lists.
-10. **`sector.$key.tsx`** ([sector.$key.tsx](file:///d:/Lovable%20Deshboard/indiandeshboard/src/routes/sector.$key.tsx))
-    - Dynamic route showcasing constituent stocks of a chosen sector (IT, Pharma, Banking, etc.).
+1.  **`src/lib/market.functions.ts`**
+    *   `getDashboard()`: Landing page ka bulk data load karta hai. Isme indices, sector indices, top gainers, top losers aur market advance-decline parameters calculate hote hain.
+    *   `getQuotes(symbols[])`: Live LTP (Last Traded Price), net change aur percentage changes fetch karta hai.
+    *   `getIndexConstituents(indexSymbol)`: Chosen index (e.g., NIFTY, BANKNIFTY) ke andar aane wale sub-stocks aur unke weightage list fetch karta hai.
+    *   `getIndexContributions(indexSymbol)`: Sub-stocks ke live weightages aur unke net change percentages ko apply karke index points contribution (kis share ki wajah se index kitne points badha ya gira) return karta hai.
+2.  **`src/lib/nse.functions.ts`**
+    *   `getOptionChain(symbol, spot, expiry)`: Options parameters load karta hai. Spot prices detect karke, ATM (At-The-Money) aur PCR (Put-Call Ratio) calculate karta hai. Sath hi, call/put open interest add karke dynamic support and resistance (S1, S2, R1, R2) compute karta hai.
+    *   `getLiveScannerData()`: F&O Scanner (buildup radar) ka core logic engine hai. Har stock ke live quotes + futures statistics evaluate karke signals generate karta hai:
+        *   *Long Buildup*: Price up, OI up.
+        *   *Short Buildup*: Price down, OI up.
+        *   *Short Covering*: Price up, OI down.
+        *   *Long Unwinding*: Price down, OI down.
+        *   *Volume Shocker*: Volume ratio > 2.0.
+        *   *Score Calculation*: `calcAiScore()` parameters evaluate karke 0 se 100 ke beech AI score assign karta hai.
 
 ---
 
-## 🔒 Configuration & Environment Variables (`.env`)
+## 🗺️ 6. Naya Page Kaise Add Karein? (Step-by-Step AI Guide)
+Naye page ko integrate karne ke liye standard architecture flows follow karein:
 
-To run the application, the backend requires broker API configurations inside `.env`:
+### Step 1: Create the Router Entry in `src/routes/`
+TanStack Router file-based system par kaam karta hai. Naya page design karne ke liye `src/routes/` folder ke andar ek naya `.tsx` file banayein.
+E.g., Agar aapko `/portfolio` link chalana hai, toh `src/routes/portfolio.tsx` file banayein:
 
+```tsx
+// src/routes/portfolio.tsx
+import { createFileRoute } from "@tanstack/react-router";
+import { DashboardShell } from "@/components/DashboardShell";
+
+function PortfolioPage() {
+  return (
+    <DashboardShell>
+      <div className="p-4 text-slate-200">
+        <h1 className="text-xl font-bold">My Stock Portfolio</h1>
+        <p className="text-xs text-slate-400">Welcome to portfolio tracker!</p>
+      </div>
+    </DashboardShell>
+  );
+}
+
+export const Route = createFileRoute("/portfolio")({
+  head: () => ({
+    meta: [
+      { title: "My Portfolio — Indian Stock Market Dashboard" },
+      { name: "description", content: "Track stock portfolios with live feeds." }
+    ],
+  }),
+  component: PortfolioPage,
+});
+```
+
+*Note: File-route create hone ke baad build system background compiler command ke through routing definitions `src/routeTree.gen.ts` file mein automatically register kar dega.*
+
+### Step 2: Add Page Components inside `src/features/`
+Agar page complex analytics carry karta hai toh business logic ko `src/features/` folder mein divide karein:
+*   Create directory: `src/features/portfolio/`
+*   Add sub-components (e.g. `PortfolioTable.tsx`, `PortfolioChart.tsx`).
+*   Inhe main page file `src/routes/portfolio.tsx` ke andar render karein.
+
+### Step 3: Link Page in Sidebar Menu
+Sidebar configuration **`src/components/DashboardShell.tsx`** file mein hardcoded structure array me hoti hai.
+Wahan search karein links array aur usme apna naya route add karein:
+```typescript
+{
+  name: "Portfolio",
+  href: "/portfolio",
+  icon: BriefcaseIcon,
+}
+```
+
+---
+
+## 🔒 7. Page Remove/Modify Kaise Karein?
+1.  **Remove Page**: Route file delete karein (e.g. `src/routes/portfolio.tsx`). Dev server running rakhein taaki `routeTree.gen.ts` file clean ho jaye.
+2.  **Clean up Links**: `src/components/DashboardShell.tsx` ke navigation items array se link ko delete karein.
+3.  **Clean up Features**: Feature specific component directories (`src/features/portfolio/`) ko manually delete karein agar unka koi dependency baaki modules mein na ho.
+
+---
+
+## ⚡ 8. Important Rules for Code Modification & Performance
+AI agent ko coding ke dauran niche diye gaye guidelines ko must follow karna chahiye:
+
+### 1. Vite Client/Server Compilation Boundary
+Server-side operations (like database connections, file systems access, decrypted tokens, API credentials) ko hamesha server function files (`*.functions.ts` or inside `createServerFn`) ke andar hi declare karein. Client pages (`src/routes/*.tsx` or `src/features/**/*.tsx`) par kabhi bhi directly node modules import na karein warna client-side bundler compiler crashes trigger karega.
+
+### 2. TanStack Query Background Updates (Prevent layout shifting / jump)
+React Query background polling refresh har page par data updates inject karta hai. Layout jump aur flickers ko control karne ke liye:
+*   Queries declare karte waqt `placeholderData: keepPreviousData` ka use must karein:
+    ```typescript
+    const query = useQuery({
+      ...optionChainQuery(symbol),
+      placeholderData: keepPreviousData, // background poll hotey waqt previous data screen par hold rahega
+    });
+    ```
+*   First load checker ke liye `isLoading` ki jagah `isPending` query variables state check karein, taaki background sync checks full screen spinner generate na kar sake.
+
+### 3. Memoization Strategy
+Live updating tables aur graph metrics render karte waqt:
+*   Bars, Tooltips, Radial indicators, and Table lines components ko React wrapper components mein memoize karein:
+    ```tsx
+    import { memo } from "react";
+    export const MyComponent = memo(MyComponentBase);
+    ```
+*   `useMemo` aur `useCallback` dependency parameters arrays ko completely fill karein taaki unstable reference changes and unnecessary repaints avoid ho sakein.
+
+### 4. Build Validation
+Kisi bhi change/checkpoint ko push karne se pehle frontend aur backend integration tests validation check karne ke liye production build command run karein:
 ```bash
-# UPSTOX (Primary Quotes feed)
-UPSTOX_ACCESS_TOKEN=your_upstox_access_token_here
-
-# ANGEL ONE (Backup feed & Options)
-ANGEL_ONE_CLIENT_ID=your_client_id
-ANGEL_ONE_MPIN=your_login_mpin
-ANGEL_ONE_API_KEY=your_developer_key
-ANGEL_ONE_TOTP_SECRET=your_totp_secret_key
-
-# FYERS (Primary Options feed)
-FYERS_CLIENT_ID=your_fyers_app_id
-FYERS_SECRET_KEY=your_fyers_secret_key
-
-# SECURITY
-ENCRYPTION_KEY=lovable-indian-dashboard-salt-12345
+npm run build
 ```
+Compile warning or static assets error code check pass hona chahiye.
 
 ---
 
-## 📝 Guidelines for Future Code Writing
-
-When implementing features or bug fixes in the future, adhere to the following conventions:
-
-1. **Vite bundling boundaries**: Always write server-only imports (e.g. `fs`, `path`, `crypto`, broker APIs) within files marked as `.server.ts` or inside server functions (`.functions.ts` / `createServerFn`). This prevents Vite from compiling Node libraries into client-side JS.
-2. **Typesafety**: Always update input validation validators (`zod` schemas) in `market.functions.ts` and `nse.functions.ts` when introducing new parameters.
-3. **Graceful Fallbacks**: Ensure any data fetch wrapper is integrated inside `marketDataLayer.ts` to fallback to backups (Angel One/Yahoo/NSE/Synthetic) automatically if the primary feed fails. Never let a single service downtime crash the dashboard pages.
-4. **Tailwind CSS versioning**: The application uses **Tailwind CSS v4**. Custom design tokens (bull/bear colors, neon variables, card backgrounds) must be defined inside `@theme inline` in [src/styles.css](file:///d:/Lovable%20Deshboard/indiandeshboard/src/styles.css) rather than tailwind configurations.
+Yahi is Indian Stock Market Dashboard project ki blueprint summary hai. Naye integrations add karte waqt existing services (`src/lib/services/marketDataLayer.ts`) aur fallbacks system ka leverage karein.

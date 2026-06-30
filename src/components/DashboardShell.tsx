@@ -81,6 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/optionchain", label: "Option Chain" },
       { to: "/oi-analysis", label: "OI Analysis" },
+      { to: "/oi-analysis-pro", label: "OI Analysis Pro" },
     ],
   },
   {
