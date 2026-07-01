@@ -118,14 +118,21 @@ export const marketDataLayer = {
     // 3. Try Yahoo Finance (Backup quotes)
     if (isBrokerAvailable("yahoo")) {
       try {
-        // Resolve symbols for Yahoo
+        // Resolve symbols for Yahoo and track mapping back to original queried symbols
+        const symbolMap = new Map<string, string>();
         const yahooSymbols = symbols.map((s) => {
-          if (INDEX_SYMBOL_MAP[s]) return INDEX_SYMBOL_MAP[s];
-          try {
-            return resolveSymbol(s as StandardSymbol, "yahoo");
-          } catch {
-            return s;
+          let resolved = s;
+          if (INDEX_SYMBOL_MAP[s]) {
+            resolved = INDEX_SYMBOL_MAP[s];
+          } else {
+            try {
+              resolved = resolveSymbol(s as StandardSymbol, "yahoo");
+            } catch {
+              resolved = s;
+            }
           }
+          symbolMap.set(resolved, s);
+          return resolved;
         });
 
         const quotes = await yahooService.getQuotes(yahooSymbols);
@@ -133,8 +140,7 @@ export const marketDataLayer = {
           recordSuccess("yahoo");
           // Map back to original queried symbols
           const mappedQuotes = quotes.map((q) => {
-            const originalSymbol =
-              Object.keys(INDEX_SYMBOL_MAP).find((k) => INDEX_SYMBOL_MAP[k] === q.symbol) || q.symbol;
+            const originalSymbol = symbolMap.get(q.symbol) || q.symbol;
             return { ...q, symbol: originalSymbol };
           });
           const sanitized = sanitizeQuotes(mappedQuotes);
