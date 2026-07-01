@@ -5,7 +5,6 @@ export interface DataLineage {
   latencyMs?: number;
 }
 
-export interface EnvelopedResponse<T> {
-  data: T;
+export type EnvelopedResponse<T> = T & {
   _metadata: DataLineage;
-}
+};
