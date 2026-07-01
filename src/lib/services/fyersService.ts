@@ -88,7 +88,10 @@ export const fyersService = {
       const json = await res.json();
       if (json.s === "error" || json.code === 401) {
         const msg = json.message || "Token error";
-        await markFyersExpired(msg);
+        const isAuth = json.code === 401 || /token|session|auth|unauthorized|expire|login/i.test(msg);
+        if (isAuth) {
+          await markFyersExpired(msg);
+        }
         throw new Error(`FYERS API error: ${msg}`);
       }
       return json;

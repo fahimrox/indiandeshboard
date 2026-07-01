@@ -86,55 +86,68 @@ const ANGEL_INDEX_MAP: Record<string, { token: string; symbol: string; exchange:
   "MIDCPNIFTY": { token: "99926074", symbol: "Nifty Midcap Select", exchange: "NSE" },
 };
 
+let loginPromise: Promise<AngelSession> | null = null;
+
 export const angelOneService = {
   async login(): Promise<AngelSession> {
     if (session && session.expiresAt > Date.now()) {
       return session;
     }
-
-    const clientCode = process.env.ANGEL_ONE_CLIENT_ID;
-    const mpin = process.env.ANGEL_ONE_MPIN;
-    const apiKey = process.env.ANGEL_ONE_API_KEY;
-    const totpSecret = process.env.ANGEL_ONE_TOTP_SECRET;
-
-    if (!clientCode || !mpin || !apiKey || !totpSecret) {
-      throw new Error("Angel One credentials are not fully configured in environment.");
+    if (loginPromise) {
+      return loginPromise;
     }
 
-    const totp = generateTOTP(totpSecret);
+    loginPromise = (async () => {
+      try {
+        const clientCode = process.env.ANGEL_ONE_CLIENT_ID;
+        const mpin = process.env.ANGEL_ONE_MPIN;
+        const apiKey = process.env.ANGEL_ONE_API_KEY;
+        const totpSecret = process.env.ANGEL_ONE_TOTP_SECRET;
 
-    const res = await fetch("https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "X-UserType": "USER",
-        "X-SourceID": "WEB",
-        "X-ClientLocalIP": "127.0.0.1",
-        "X-ClientPublicIP": "127.0.0.1",
-        "X-MACAddress": "00:00:00:00:00:00",
-        "X-PrivateKey": apiKey,
-      },
-      body: JSON.stringify({ clientcode: clientCode, password: mpin, totp }),
-    });
+        if (!clientCode || !mpin || !apiKey || !totpSecret) {
+          throw new Error("Angel One credentials are not fully configured in environment.");
+        }
 
-    if (!res.ok) {
-      throw new Error(`Angel One login failed: status ${res.status}`);
-    }
+        const totp = generateTOTP(totpSecret);
 
-    const json = await res.json();
-    if (!json.status || !json.data) {
-      throw new Error(`Angel One auth error: ${json.message || "Unknown error"}`);
-    }
+        const res = await fetch("https://apiconnect.angelone.in/rest/auth/angelbroking/user/v1/loginByPassword", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-UserType": "USER",
+            "X-SourceID": "WEB",
+            "X-ClientLocalIP": "127.0.0.1",
+            "X-ClientPublicIP": "127.0.0.1",
+            "X-MACAddress": "00:00:00:00:00:00",
+            "X-PrivateKey": apiKey,
+          },
+          body: JSON.stringify({ clientcode: clientCode, password: mpin, totp }),
+        });
 
-    session = {
-      jwtToken: json.data.jwtToken,
-      feedToken: json.data.feedToken,
-      expiresAt: Date.now() + 18 * 60 * 60 * 1000, // JWT valid for 18 hours
-    };
+        if (!res.ok) {
+          throw new Error(`Angel One login failed: status ${res.status}`);
+        }
 
-    console.log("Angel One auto-logged in successfully.");
-    return session;
+        const json = await res.json();
+        if (!json.status || !json.data) {
+          throw new Error(`Angel One auth error: ${json.message || "Unknown error"}`);
+        }
+
+        session = {
+          jwtToken: json.data.jwtToken,
+          feedToken: json.data.feedToken,
+          expiresAt: Date.now() + 18 * 60 * 60 * 1000, // JWT valid for 18 hours
+        };
+
+        console.log("Angel One auto-logged in successfully.");
+        return session;
+      } finally {
+        loginPromise = null;
+      }
+    })();
+
+    return loginPromise;
   },
 
   async loadScripMaster(): Promise<void> {
@@ -233,7 +246,7 @@ export const angelOneService = {
       for (let i = 0; i < tokens.length; i += 50) {
         const chunk = tokens.slice(i, i + 50);
 
-        const res = await fetch("https://apiconnect.angelbroking.com/rest/secure/angelbroking/market/v1/marketData", {
+        const res = await fetch("https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${sess.jwtToken}`,
@@ -392,7 +405,7 @@ export const angelOneService = {
 
     // Query Angel One Market Data FULL mode
     const exchange = symbol === "SENSEX" ? "BSE" : "NSE";
-    const res = await fetch("https://apiconnect.angelbroking.com/rest/secure/angelbroking/market/v1/marketData", {
+    const res = await fetch("https://apiconnect.angelone.in/rest/secure/angelbroking/market/v1/quote", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${sess.jwtToken}`,
