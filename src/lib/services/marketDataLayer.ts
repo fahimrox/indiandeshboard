@@ -25,6 +25,17 @@ export const routingConfig: Record<FeatureCategory, BrokerName[]> = {
   optionChain: ["fyers", "angelone", "nse"],
 };
 
+function getQuotesCacheKey(symbols: string[]): string {
+  const sorted = [...symbols].sort().join(",");
+  let hash = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const char = sorted.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash |= 0;
+  }
+  return `quotes_snapshot_${Math.abs(hash)}`;
+}
+
 // In-memory cache of last known prices for quotes sanity check
 const lastKnownPrices = new Map<string, number>();
 
@@ -74,11 +85,12 @@ function sanitizeQuotes(quotes: Quote[]): Quote[] {
 export const marketDataLayer = {
   async getQuotes(symbols: string[]): Promise<EnvelopedResponse<Quote[]>> {
     const start = Date.now();
+    const cacheKey = getQuotesCacheKey(symbols);
 
     // 1. Check if Market is open (if closed, we can immediately serve from cache if available)
     const marketOpen = isMarketOpen();
     if (!marketOpen) {
-      const cached = await getEodData("quotes_snapshot");
+      const cached = await getEodData(cacheKey);
       if (cached) {
         const res = cached.quotes as EnvelopedResponse<Quote[]>;
         res._metadata = {
@@ -105,7 +117,7 @@ export const marketDataLayer = {
             latencyMs: Date.now() - start,
           };
           // Save snapshot for EOD cache
-          await saveEodData("quotes_snapshot", { quotes: sanitized, updatedAt: Date.now() });
+          await saveEodData(cacheKey, { quotes: sanitized, updatedAt: Date.now() });
           return res;
         }
         console.warn("Upstox returned empty quotes.");
@@ -151,6 +163,8 @@ export const marketDataLayer = {
             timestamp: Date.now(),
             latencyMs: Date.now() - start,
           };
+          // Save snapshot for EOD cache
+          await saveEodData(cacheKey, { quotes: sanitized, updatedAt: Date.now() });
           return res;
         }
       } catch (err: any) {
@@ -160,7 +174,7 @@ export const marketDataLayer = {
     }
 
     // 4. Try EOD cache as final resort
-    const cached = await getEodData("quotes_snapshot");
+    const cached = await getEodData(cacheKey);
     if (cached) {
       const res = cached.quotes as EnvelopedResponse<Quote[]>;
       res._metadata = {
