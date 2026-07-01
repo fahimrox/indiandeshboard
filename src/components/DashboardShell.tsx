@@ -451,6 +451,53 @@ export function DashboardShell({
                     ) : null}
                   </div>
 
+                  {/* Feature Routing Table */}
+                  {status && status.activeRoutes && (
+                    <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3">
+                      <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        Feature Routing (Active Feeds)
+                      </div>
+                      <div className="space-y-2.5">
+                        {/* Quotes Routing */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-xs">Cash Quotes</span>
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-muted-foreground">Upstox ➔ Yahoo</span>
+                            <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-bold uppercase text-[10px] text-emerald-300 border border-emerald-500/20 capitalize">
+                              {status.activeRoutes.quotes}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Futures/OI Routing */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-xs">Futures & OI</span>
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-muted-foreground">Angel ➔ NSE</span>
+                            <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-bold uppercase text-[10px] text-emerald-300 border border-emerald-500/20 capitalize">
+                              {status.activeRoutes.futuresOI}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Options Routing */}
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-xs">Option Chain</span>
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-muted-foreground">Fyers ➔ Angel ➔ NSE</span>
+                            <span className={`rounded px-1.5 py-0.5 font-bold uppercase text-[10px] border capitalize ${
+                              status.activeRoutes.optionChain === "fyers"
+                                ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                                : "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                            }`}>
+                              {status.activeRoutes.optionChain}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Fyers Token Form */}
                   <form onSubmit={handleSaveFyers} className="space-y-3">
                     <div className="space-y-1.5">

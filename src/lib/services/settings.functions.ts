@@ -4,11 +4,17 @@ import { getFyersConfig, saveFyersToken } from "./configStore";
 import { angelOneService } from "./angelOneService";
 import { upstoxService } from "./upstoxService";
 import { fyersService } from "./fyersService";
+import { isBrokerAvailable } from "./circuitBreaker";
 
 export interface SettingsStatus {
-  upstox: { configured: boolean; ok: boolean; error?: string };
-  angelOne: { configured: boolean; ok: boolean; error?: string };
-  fyers: { configured: boolean; ok: boolean; isExpired: boolean; error?: string; maskedToken?: string };
+  upstox: { configured: boolean; ok: boolean; available: boolean; error?: string };
+  angelOne: { configured: boolean; ok: boolean; available: boolean; error?: string };
+  fyers: { configured: boolean; ok: boolean; available: boolean; isExpired: boolean; error?: string; maskedToken?: string };
+  activeRoutes: {
+    quotes: string;
+    futuresOI: string;
+    optionChain: string;
+  };
 }
 
 export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
@@ -69,23 +75,39 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
       return `${token.substring(0, 6)}...${token.substring(token.length - 6)}`;
     };
 
+    const upstoxAvail = isBrokerAvailable("upstox");
+    const angelAvail = isBrokerAvailable("angelone");
+    const fyersAvail = isBrokerAvailable("fyers");
+
+    const activeQuotes = (!!upstoxToken && upstoxOk && upstoxAvail) ? "upstox" : "yahoo";
+    const activeFuturesOI = (angelConfigured && angelOk && angelAvail) ? "angelone" : "nse";
+    const activeOptionChain = (fyersConfigured && fyersOk && fyersAvail) ? "fyers" : ((angelConfigured && angelOk && angelAvail) ? "angelone" : "nse");
+
     return {
       upstox: {
         configured: !!upstoxToken,
         ok: upstoxOk,
+        available: upstoxAvail,
         error: upstoxErr || undefined,
       },
       angelOne: {
         configured: angelConfigured,
         ok: angelOk,
+        available: angelAvail,
         error: angelErr || undefined,
       },
       fyers: {
         configured: fyersConfigured,
         ok: fyersOk,
+        available: fyersAvail,
         isExpired: fyersConf.isExpired,
         error: fyersErr || undefined,
         maskedToken: maskToken(fyersConf.accessToken),
+      },
+      activeRoutes: {
+        quotes: activeQuotes,
+        futuresOI: activeFuturesOI,
+        optionChain: activeOptionChain,
       },
     };
   }

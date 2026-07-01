@@ -17,6 +17,14 @@ const INDEX_SYMBOL_MAP: Record<string, string> = {
   SENSEX: "^BSESN",
 };
 
+export type FeatureCategory = "quotes" | "futuresOI" | "optionChain";
+
+export const routingConfig: Record<FeatureCategory, BrokerName[]> = {
+  quotes: ["upstox", "yahoo"],
+  futuresOI: ["angelone", "nse"],
+  optionChain: ["fyers", "angelone", "nse"],
+};
+
 // In-memory cache of last known prices for quotes sanity check
 const lastKnownPrices = new Map<string, number>();
 
