@@ -719,11 +719,19 @@ function renderOverview(){
   $('#mBreadth').innerHTML=adr>=1.3?`<span class="up">STRONG</span>`:adr>=1?`<span class="up">POS</span>`:adr>=.8?`<span class="down">NEG</span>`:`<span class="down">WEAK</span>`;
   $('#mFlow').innerHTML=adr>=1.1?`<span class="up">INFLOW</span>`:`<span class="down">OUTFLOW</span>`;
   $('#mVol').innerHTML=DATA.vix.value>=16?`<span class="down">HIGH</span>`:DATA.vix.value>=12?`<span class="flat">MID</span>`:`<span class="up">LOW</span>`;
-  const v=DATA.vix,vc=v.prevClose ? (v.value-v.prevClose) : 0;
-  $('#vixVal').textContent=v.value.toFixed(2);
-  const vixPct = v.prevClose ? ((vc / v.prevClose) * 100) : 0;
-  const ve=$('#vixChg');ve.textContent=sign(+vc.toFixed(2))+" ("+sign(+vixPct.toFixed(2))+"%)"
-  ve.className="mono "+(vc>=0?"down":"up");
+  const v=DATA.vix;
+  $('#vixVal').textContent=v.value > 0 ? v.value.toFixed(2) : "Data Pending";
+  const ve=$('#vixChg');
+  let vc = 0;
+  if (!v.prevClose || v.prevClose === 0) {
+    ve.textContent="Data Pending";
+    ve.className="mono text-zinc-500";
+  } else {
+    vc=v.value-v.prevClose;
+    const vixPct = ((vc / v.prevClose) * 100);
+    ve.textContent=sign(+vc.toFixed(2))+" ("+sign(+vixPct.toFixed(2))+"%)";
+    ve.className="mono "+(vc>=0?"down":"up");
+  }
   const pct=Math.min(100,(v.value/25)*100);$('#vixBar').style.width=pct+"%";
   const zone=v.value>=16?"HIGH - Caution / Hedged":v.value>=12?"NORMAL":v.value>=10?"LOW - Complacency":"VERY LOW";
   $('#vixZone').textContent="Volatility Regime: "+zone;
@@ -802,20 +810,26 @@ function renderIndexSentiment() {
     if (!card) return;
 
     const A = analyzeIndex(name, idx);
-    const chg = idx.prevClose ? (idx.ltp - idx.prevClose) : 0;
-    const pct = idx.prevClose ? (chg / idx.prevClose * 100) : 0;
-    const up = chg >= 0;
+    const hasBaseline = idx.prevClose && idx.prevClose > 0;
+    const chg = hasBaseline ? (idx.ltp - idx.prevClose) : null;
+    const pct = hasBaseline && chg !== null ? (chg / idx.prevClose * 100) : null;
+    const up = chg !== null ? chg >= 0 : false;
     const pcrPos = Math.min(96, Math.max(4, (A.pcr / 2) * 100));
     const putShare = Math.round(A.totPE_OIc / (A.totPE_OIc + A.totCE_OIc + 1) * 100);
     let sent = A.score >= 58 ? "bull" : A.score <= 42 ? "bear" : "neu";
     let sLabel = A.score >= 58 ? "BULLISH" : A.score <= 42 ? "BEARISH" : "NEUTRAL";
 
     card.querySelector('.idx-name').innerHTML = `${name} ${sent === 'bull' ? '🟢' : sent === 'bear' ? '🔴' : '🟡'}`;
-    card.querySelector('.idx-ltp').textContent = idx.ltp.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    card.querySelector('.idx-ltp').textContent = idx.ltp > 0 ? idx.ltp.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : "Data Pending";
     
     const changeEl = card.querySelector('.idx-change');
-    changeEl.textContent = `${sign(+chg.toFixed(2))} (${sign(+pct.toFixed(2))}%)`;
-    changeEl.className = `idx-change mono ${up ? 'up' : 'down'}`;
+    if (chg === null || pct === null) {
+      changeEl.textContent = "Data Pending";
+      changeEl.className = "idx-change mono text-zinc-500";
+    } else {
+      changeEl.textContent = `${sign(+chg.toFixed(2))} (${sign(+pct.toFixed(2))}%)`;
+      changeEl.className = `idx-change mono ${up ? 'up' : 'down'}`;
+    }
 
     card.querySelector('.pcr-val').textContent = A.pcr;
     card.querySelector('.pain-val').textContent = A.maxPainStrike;

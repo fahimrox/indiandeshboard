@@ -149,7 +149,7 @@ function Page() {
         indices: {
           NIFTY: {
             ltp: dashData.nifty?.price ?? niftyChain?.spot ?? 0,
-            prevClose: dashData.nifty?.prevClose ?? niftyChain?.spot ?? 0,
+            prevClose: dashData.nifty?.prevClose ?? 0,
             dayHigh: dashData.nifty?.dayHigh ?? niftyChain?.spot ?? 0,
             dayLow: dashData.nifty?.dayLow ?? niftyChain?.spot ?? 0,
             vwap: dashData.nifty?.price ?? niftyChain?.spot ?? 0,
@@ -157,7 +157,7 @@ function Page() {
           },
           BANKNIFTY: {
             ltp: dashData.bankNifty?.price ?? bankniftyChain?.spot ?? 0,
-            prevClose: dashData.bankNifty?.prevClose ?? bankniftyChain?.spot ?? 0,
+            prevClose: dashData.bankNifty?.prevClose ?? 0,
             dayHigh: dashData.bankNifty?.dayHigh ?? bankniftyChain?.spot ?? 0,
             dayLow: dashData.bankNifty?.dayLow ?? bankniftyChain?.spot ?? 0,
             vwap: dashData.bankNifty?.price ?? bankniftyChain?.spot ?? 0,
@@ -165,7 +165,7 @@ function Page() {
           },
           SENSEX: {
             ltp: dashData.sensex?.price ?? sensexChain?.spot ?? 0,
-            prevClose: dashData.sensex?.prevClose ?? sensexChain?.spot ?? 0,
+            prevClose: dashData.sensex?.prevClose ?? 0,
             dayHigh: dashData.sensex?.dayHigh ?? sensexChain?.spot ?? 0,
             dayLow: dashData.sensex?.dayLow ?? sensexChain?.spot ?? 0,
             vwap: dashData.sensex?.price ?? sensexChain?.spot ?? 0,
