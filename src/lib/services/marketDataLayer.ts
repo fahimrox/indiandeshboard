@@ -309,9 +309,10 @@ export const marketDataLayer = {
     // 5. Fallback to pure synthetic so the dashboard never crashes
     const synthChain = synthOptionChain(symbol, finalSpot, expiry);
     const res = { ...synthChain, fyersTokenStatus } as EnvelopedResponse<any>;
+    res.source = "synthetic";
     res._metadata = {
       source: "synthetic",
-      status: "synthetic" as any,
+      status: "fallback",
       timestamp: Date.now(),
     };
     return res;

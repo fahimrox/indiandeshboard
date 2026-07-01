@@ -488,6 +488,8 @@ export function DashboardShell({
                             <span className={`rounded px-1.5 py-0.5 font-bold uppercase text-[10px] border capitalize ${
                               status.activeRoutes.optionChain === "fyers"
                                 ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
+                                : status.activeRoutes.optionChain === "synthetic"
+                                ? "bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse"
                                 : "bg-amber-500/10 text-amber-300 border-amber-500/20"
                             }`}>
                               {status.activeRoutes.optionChain}

@@ -132,15 +132,19 @@ function Page() {
         {oc._metadata && (
           <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
             <span className="text-muted-foreground uppercase tracking-wider text-[9px]">Source:</span>
-            <span className="font-mono text-emerald-400 capitalize">{oc._metadata.source}</span>
+            <span className={`font-mono capitalize ${oc._metadata.source === 'synthetic' ? 'text-rose-400 font-bold' : 'text-emerald-400'}`}>
+              {oc._metadata.source}
+            </span>
             <span className={`rounded-full px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider ${
-              oc._metadata.status === 'live'
+              oc._metadata.source === 'synthetic'
+                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                : oc._metadata.status === 'live'
                 ? 'bg-emerald-500/10 text-emerald-300'
                 : oc._metadata.status === 'fallback'
                 ? 'bg-amber-500/10 text-amber-300'
                 : 'bg-slate-500/10 text-slate-300'
             }`}>
-              {oc._metadata.status}
+              {oc._metadata.source === 'synthetic' ? 'Estimated (Mock)' : oc._metadata.status}
             </span>
             {oc._metadata.latencyMs !== undefined && (
               <span className="text-muted-foreground font-mono">({oc._metadata.latencyMs}ms)</span>

@@ -1213,16 +1213,18 @@ function Page() {
               <div className="flex items-center gap-1">
                 <Database className="w-2.5 h-2.5 text-zinc-600 shrink-0" />
                 <span className="truncate flex items-center gap-1">
-                  <span className="capitalize">{oc?._metadata?.source || oc?.source || "Disconnect"}</span>
+                  <span className={`capitalize ${oc?._metadata?.source === 'synthetic' ? 'text-rose-400 font-bold font-mono' : ''}`}>{oc?._metadata?.source || oc?.source || "Disconnect"}</span>
                   {oc?._metadata && (
                     <span className={`px-1 py-0.2 text-[8px] font-extrabold uppercase rounded ${
-                      oc._metadata.status === 'live'
+                      oc._metadata.source === 'synthetic'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse'
+                        : oc._metadata.status === 'live'
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : oc._metadata.status === 'fallback'
                         ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                         : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
                     }`}>
-                      {oc._metadata.status}
+                      {oc._metadata.source === 'synthetic' ? 'Estimated' : oc._metadata.status}
                     </span>
                   )}
                 </span>
