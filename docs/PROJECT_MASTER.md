@@ -144,4 +144,10 @@ A task is considered complete only when
 
 ========================================================
 
+COMPLETED MILESTONES
+
+- **July 2026**: Distributed Market Data Architecture (Phases 1-4). Integrated SENSEX mapping, session concurrency protection, WAF Quote endpoint bypasses, multi-broker fallback routing config, circuit breakers, bad-tick quotes sanity check, lineage indicators in UI charts, and isolated persistent caching snapshots.
+
+========================================================
+
 END OF FILE

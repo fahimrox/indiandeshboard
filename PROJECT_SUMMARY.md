@@ -225,4 +225,21 @@ Compile warning or static assets error code check pass hona chahiye.
 
 ---
 
+## 🏆 9. Completed Distributed Market Data Architecture (July 2026)
+Recently, the core market data layer has been upgraded to a highly robust **Distributed Market Data Architecture** spanning four phases:
+1. **Unified Symbol Mapping & SENSEX (Phase 1)**: Integrated `SENSEX` across all layers, replacing `MIDCAPNIFTY` references in core layouts, and introduced a unified symbol mapper (`resolveSymbol()`) for resolving standard symbols across Upstox, Angel One, Fyers, Yahoo, and NSE.
+2. **Broker API Protection & Session Concurrency (Phase 2)**: Solved Angel One concurrent login totp token locks. Bypassed modern F5 firewall blocks on Angel One via modern endpoints. Implemented auto-reconnects and protected Fyers API from locking on non-auth errors.
+3. **Fallback Routing & Sanity Checks (Phase 3)**: Implemented a central orchestrator (`marketDataLayer.ts`) with custom feature categories and automated fallback paths:
+   * **Quotes**: `upstox` ➔ `yahoo`
+   * **Futures/OI**: `angelone` ➔ `nse`
+   * **Option Chain**: `fyers` ➔ `angelone` ➔ `nse` ➔ `synthetic` (mathematically computed Option Chain model).
+   * **3-Strike Circuit Breaker**: Auto-bypasses failed brokers on 4th call.
+   * **IST Market-Hours & Quote Sanity Guard**: Prevents bad ticks and rate limit wastage.
+4. **Data Lineage UI & Polish (Phase 4)**: Added real-time source badges and latency indicators in Option Chain and OI Analysis Pro pages. Option chains utilizing synthetic computed feeds are flagged with a prominent rose-red pulsating `ESTIMATED (MOCK)` badge.
+5. **Key Bug Fixes**:
+   * **AI Lab Divide-by-Zero**: Fixed `+Infinity%` index price ticks on loading state by defaulting baseline properties to spot price, and adding `Data Pending` labels in `public/ai-analysis.html` if `prevClose` is zero.
+   * **Isolated Cache Keys**: Solved persistent cache-collision by hashing symbol lists to generate isolated EOD snapshot keys (avoiding overwrites between stocks and index quotes).
+
+---
+
 Yahi is Indian Stock Market Dashboard project ki blueprint summary hai. Naye integrations add karte waqt existing services (`src/lib/services/marketDataLayer.ts`) aur fallbacks system ka leverage karein.
