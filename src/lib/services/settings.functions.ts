@@ -114,7 +114,7 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
 );
 
 export const saveFyersTokenFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ token: z.string().trim().min(1) }))
+  .validator(z.object({ token: z.string().trim().min(1) }))
   .handler(async ({ data }) => {
     await saveFyersToken(data.token);
     return { success: true };

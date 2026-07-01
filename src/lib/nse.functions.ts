@@ -318,7 +318,7 @@ async function fetchOptionChain(symbol: string, expiry?: string): Promise<Option
 import { marketDataLayer } from "./services/marketDataLayer";
 
 export const getOptionChain = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
+  .validator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
     return cached(`oc:${data.symbol}:${data.expiry ?? ""}`, async () => {
       return await marketDataLayer.getOptionChain(data.symbol, data.spot, data.expiry);
@@ -326,7 +326,7 @@ export const getOptionChain = createServerFn({ method: "GET" })
   });
 
 export const getCachedOptionChain = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ symbol: z.string().default("NIFTY"), expiry: z.string().optional() }))
+  .validator(z.object({ symbol: z.string().default("NIFTY"), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
     const cacheKey = `option_chain_${data.symbol}_${data.expiry || "default"}`;
     const cachedVal = await getEodData(cacheKey);
@@ -1221,7 +1221,7 @@ export const getFnoScreener = createServerFn({ method: "GET" }).handler(async ()
 
 
 export const saveIntradaySnapshot = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ date: z.string(), timestamp: z.string(), data: z.any() }))
+  .validator(z.object({ date: z.string(), timestamp: z.string(), data: z.any() }))
   .handler(async ({ data }) => {
     try {
       const dir = path.join(process.cwd(), "eod_cache", "intraday");
@@ -1263,16 +1263,16 @@ export const listIntradayDates = createServerFn({ method: "GET" })
       await fs.mkdir(dir, { recursive: true });
       const files = await fs.readdir(dir);
       return files
-        .filter(f => f.endsWith(".json"))
-        .map(f => f.replace(".json", ""))
-        .sort();
+          .filter(f => f.endsWith(".json"))
+          .map(f => f.replace(".json", ""))
+          .sort();
     } catch {
       return [];
     }
   });
 
 export const getIntradayHistory = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ date: z.string() }))
+  .validator(z.object({ date: z.string() }))
   .handler(async ({ data }) => {
     try {
       const filePath = path.join(process.cwd(), "eod_cache", "intraday", `${data.date}.json`);

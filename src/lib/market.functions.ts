@@ -93,7 +93,7 @@ async function cachedQuotes(symbols: string[]): Promise<Quote[]> {
 }
 
 export const getQuotes = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ symbols: z.array(z.string()).min(1).max(60) }))
+  .validator(z.object({ symbols: z.array(z.string()).min(1).max(60) }))
   .handler(async ({ data }) => cachedQuotes(data.symbols));
 
 function statsFor(stocks: Quote[]) {
@@ -230,7 +230,7 @@ export const getDashboard = createServerFn({ method: "GET" }).handler(async () =
 });
 
 export const getIndexConstituents = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
+  .validator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
   .handler(async ({ data }) => {
     const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
     const stocks = await cachedQuotes(map[data.index]);
@@ -248,7 +248,7 @@ export type ContributorRow = {
 };
 
 export const getIndexContributions = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
+  .validator(z.object({ index: z.enum(["nifty", "banknifty", "sensex"]) }))
   .handler(async ({ data }) => {
     const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
     const indexSymbolMap = { nifty: "^NSEI", banknifty: "^NSEBANK", sensex: "^BSESN" } as const;
@@ -291,7 +291,7 @@ export const getIndexContributions = createServerFn({ method: "GET" })
   });
 
 export const getSectorDetail = createServerFn({ method: "GET" })
-  .inputValidator(z.object({ key: z.string() }))
+  .validator(z.object({ key: z.string() }))
   .handler(async ({ data }) => {
     const sector = SECTORS.find((s) => s.key === data.key);
     if (!sector) throw new Error("Unknown sector");
