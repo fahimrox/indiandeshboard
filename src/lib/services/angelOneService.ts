@@ -75,6 +75,15 @@ const ANGEL_INDEX_MAP: Record<string, { token: string; symbol: string; exchange:
   "^CNXPSUBANK": { token: "99926020", symbol: "Nifty PSU Bank", exchange: "NSE" },
   "NIFTY_FIN_SERVICE.NS": { token: "99926021", symbol: "Nifty Fin Service", exchange: "NSE" },
   "^CNXINFRA": { token: "99926022", symbol: "Nifty Infra", exchange: "NSE" },
+  // Additional Indices for Quotes & Orchestrator mapping
+  "^NSEMDCP50": { token: "99926074", symbol: "Nifty Midcap Select", exchange: "NSE" },
+  "^CNXFIN": { token: "99926037", symbol: "Nifty Fin Service", exchange: "NSE" },
+  "NIFTY": { token: "99926000", symbol: "Nifty 50", exchange: "NSE" },
+  "BANKNIFTY": { token: "99926009", symbol: "Nifty Bank", exchange: "NSE" },
+  "SENSEX": { token: "99919000", symbol: "SENSEX", exchange: "BSE" },
+  "FINNIFTY": { token: "99926037", symbol: "Nifty Fin Service", exchange: "NSE" },
+  "MIDCAPNIFTY": { token: "99926074", symbol: "Nifty Midcap Select", exchange: "NSE" },
+  "MIDCPNIFTY": { token: "99926074", symbol: "Nifty Midcap Select", exchange: "NSE" },
 };
 
 export const angelOneService = {
@@ -135,11 +144,25 @@ export const angelOneService = {
       try {
         const cached = await fs.readFile(SCRIP_MASTER_FILE, "utf-8");
         masterInstruments = JSON.parse(cached);
+        
+        // Force reload if cache is old (does not contain SENSEX or FINNIFTY options)
+        const hasSensexOpt = masterInstruments.some(
+          (x: any) => x.name === "SENSEX" && x.instrumenttype === "OPTIDX"
+        );
+        const hasFinniftyOpt = masterInstruments.some(
+          (x: any) => x.name === "FINNIFTY" && x.instrumenttype === "OPTIDX"
+        );
+        
+        if (!hasSensexOpt || !hasFinniftyOpt) {
+          console.log("Cached scrip master missing SENSEX/FINNIFTY options, forcing re-download...");
+          throw new Error("force reload");
+        }
+
         masterLoaded = true;
         masterLoading = false;
         return;
       } catch {
-        // Cache file not found, proceed to download
+        // Cache file not found or outdated, proceed to download
       }
 
       console.log("Downloading Angel One scrip master JSON (approx. 20-30MB)...");
@@ -150,7 +173,7 @@ export const angelOneService = {
 
       // Filter to keep only index options & main stocks to save disk space
       masterInstruments = raw.filter((x: any) => {
-        const isIndexOption = x.instrumenttype === "OPTIDX" && ["NIFTY", "BANKNIFTY", "SENSEX"].includes(x.name);
+        const isIndexOption = x.instrumenttype === "OPTIDX" && ["NIFTY", "BANKNIFTY", "SENSEX", "FINNIFTY", "MIDCPNIFTY"].includes(x.name);
         const isMainEquity = x.exch_seg === "NSE" && x.symbol?.endsWith("-EQ") && x.instrumenttype === "";
         return isIndexOption || isMainEquity;
       });
@@ -271,7 +294,13 @@ export const angelOneService = {
     await this.loadScripMaster();
 
     // Filter index options from scrip master
-    const underlying = symbol === "SENSEX" ? "SENSEX" : symbol;
+    const angelUnderlyingMap: Record<string, string> = {
+      SENSEX: "SENSEX",
+      MIDCAPNIFTY: "MIDCPNIFTY",
+      MIDCPNIFTY: "MIDCPNIFTY",
+      FINNIFTY: "FINNIFTY",
+    };
+    const underlying = angelUnderlyingMap[symbol] || symbol;
     const optionContracts = masterInstruments.filter(
       (x) => x.instrumenttype === "OPTIDX" && x.name === underlying
     );

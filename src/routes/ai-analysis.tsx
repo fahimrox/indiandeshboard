@@ -55,11 +55,7 @@ function Page() {
     enabled: mode === "LIVE",
     placeholderData: (prev) => prev,
   });
-  const { data: midcapChain } = useQuery({
-    ...optionChainQuery("MIDCAPNIFTY"),
-    enabled: mode === "LIVE",
-    placeholderData: (prev) => prev,
-  });
+
 
   // Fetch available dates when switching to replay mode
   useEffect(() => {
@@ -114,7 +110,6 @@ function Page() {
   const niftyChainRef = useRef(niftyChain);
   const bankniftyChainRef = useRef(bankniftyChain);
   const sensexChainRef = useRef(sensexChain);
-  const midcapChainRef = useRef(midcapChain);
   const modeRef = useRef(mode);
 
   useEffect(() => {
@@ -122,9 +117,8 @@ function Page() {
     niftyChainRef.current = niftyChain;
     bankniftyChainRef.current = bankniftyChain;
     sensexChainRef.current = sensexChain;
-    midcapChainRef.current = midcapChain;
     modeRef.current = mode;
-  }, [dashData, niftyChain, bankniftyChain, sensexChain, midcapChain, mode]);
+  }, [dashData, niftyChain, bankniftyChain, sensexChain, mode]);
 
   const lastSentDataRef = useRef<string>("");
 
@@ -169,14 +163,6 @@ function Page() {
             vwap: dashData.bankNifty?.price ?? 0,
             chain: transformChain(bankniftyChain),
           },
-          MIDCAPNIFTY: {
-            ltp: midcapChain?.spot ?? 0,
-            prevClose: midcapChain?.spot ?? 0,
-            dayHigh: midcapChain?.spot ?? 0,
-            dayLow: midcapChain?.spot ?? 0,
-            vwap: midcapChain?.spot ?? 0,
-            chain: transformChain(midcapChain),
-          },
           SENSEX: {
             ltp: dashData.sensex?.price ?? sensexChain?.spot ?? 0,
             prevClose: dashData.sensex?.prevClose ?? 0,
@@ -209,7 +195,7 @@ function Page() {
         },
       }).catch((e) => console.error("Error auto-recording tick:", e));
     }
-  }, [mode, dashData, niftyChain, bankniftyChain, sensexChain, midcapChain]);
+  }, [mode, dashData, niftyChain, bankniftyChain, sensexChain]);
 
   // 2. Send history ticks to iframe (REPLAY mode)
   useEffect(() => {
@@ -262,14 +248,6 @@ function Page() {
             dayLow: dashDataRef.current.bankNifty?.dayLow ?? 0,
             vwap: dashDataRef.current.bankNifty?.price ?? 0,
             chain: transformChain(bankniftyChainRef.current),
-          },
-          MIDCAPNIFTY: {
-            ltp: midcapChainRef.current?.spot ?? 0,
-            prevClose: midcapChainRef.current?.spot ?? 0,
-            dayHigh: midcapChainRef.current?.spot ?? 0,
-            dayLow: midcapChainRef.current?.spot ?? 0,
-            vwap: midcapChainRef.current?.spot ?? 0,
-            chain: transformChain(midcapChainRef.current),
           },
           SENSEX: {
             ltp: dashDataRef.current.sensex?.price ?? sensexChainRef.current?.spot ?? 0,

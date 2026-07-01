@@ -20,7 +20,11 @@ const STATIC_INDEX_MAP: Record<string, string> = {
   "^CNXPSUBANK": "NSE_INDEX|Nifty PSU Bank",
   "NIFTY_FIN_SERVICE.NS": "NSE_INDEX|Nifty Fin Service",
   "^CNXINFRA": "NSE_INDEX|Nifty Infra",
+  "NIFTY": "NSE_INDEX|Nifty 50",
+  "BANKNIFTY": "NSE_INDEX|Nifty Bank",
+  "SENSEX": "BSE_INDEX|SENSEX",
 };
+
 
 let symbolToKeyMap = new Map<string, string>();
 let initializing = false;

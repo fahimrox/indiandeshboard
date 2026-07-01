@@ -5,6 +5,9 @@ const FYERS_INDEX_MAP: Record<string, string> = {
   NIFTY: "NSE:NIFTY50-INDEX",
   BANKNIFTY: "NSE:NIFTYBANK-INDEX",
   SENSEX: "BSE:SENSEX-INDEX",
+  FINNIFTY: "NSE:FINNIFTY-INDEX",
+  MIDCAPNIFTY: "NSE:MIDCPNIFTY-INDEX",
+  MIDCPNIFTY: "NSE:MIDCPNIFTY-INDEX",
 };
 
 function formatExpiry(dateStr: string): string {
