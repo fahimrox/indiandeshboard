@@ -442,16 +442,6 @@ const DATA = {
       ],
       dayHigh:52482, dayLow:52118, vwap:52310
     },
-    MIDCAPNIFTY:{
-      ltp:11842.75, prevClose:11810.40,
-      chain:[
-        {strike:11700, ceLtp:182.4, ceOI:540000,  ceOIc:+18000, ceVol:12400, peLtp:4.2,  peOI:280000,  peOIc:+8000,  peVol:4200},
-        {strike:11800, ceLtp:118.6, ceOI:840000,  ceOIc:+42000, ceVol:22400, peLtp:18.8, peOI:520000,  peOIc:+28000, peVol:9800},
-        {strike:11900, ceLtp:68.2,  ceOI:1240000, ceOIc:+88000, ceVol:38400, peLtp:62.4, peOI:840000,  peOIc:+52000, peVol:18400},
-        {strike:12000, ceLtp:32.8,  ceOI:1840000, ceOIc:+142000,ceVol:62400, peLtp:142.6,peOI:620000,  peOIc:-18000, peVol:12400}
-      ],
-      dayHigh:11882, dayLow:11808, vwap:11840
-    },
     SENSEX:{
       ltp:79420.10, prevClose:79102.50,
       chain:[
@@ -729,9 +719,10 @@ function renderOverview(){
   $('#mBreadth').innerHTML=adr>=1.3?`<span class="up">STRONG</span>`:adr>=1?`<span class="up">POS</span>`:adr>=.8?`<span class="down">NEG</span>`:`<span class="down">WEAK</span>`;
   $('#mFlow').innerHTML=adr>=1.1?`<span class="up">INFLOW</span>`:`<span class="down">OUTFLOW</span>`;
   $('#mVol').innerHTML=DATA.vix.value>=16?`<span class="down">HIGH</span>`:DATA.vix.value>=12?`<span class="flat">MID</span>`:`<span class="up">LOW</span>`;
-  const v=DATA.vix,vc=v.value-v.prevClose;
+  const v=DATA.vix,vc=v.prevClose ? (v.value-v.prevClose) : 0;
   $('#vixVal').textContent=v.value.toFixed(2);
-  const ve=$('#vixChg');ve.textContent=sign(+vc.toFixed(2))+" ("+sign((+((vc/v.prevClose)*100).toFixed(2)))+"%)"
+  const vixPct = v.prevClose ? ((vc / v.prevClose) * 100) : 0;
+  const ve=$('#vixChg');ve.textContent=sign(+vc.toFixed(2))+" ("+sign(+vixPct.toFixed(2))+"%)"
   ve.className="mono "+(vc>=0?"down":"up");
   const pct=Math.min(100,(v.value/25)*100);$('#vixBar').style.width=pct+"%";
   const zone=v.value>=16?"HIGH - Caution / Hedged":v.value>=12?"NORMAL":v.value>=10?"LOW - Complacency":"VERY LOW";
@@ -811,8 +802,8 @@ function renderIndexSentiment() {
     if (!card) return;
 
     const A = analyzeIndex(name, idx);
-    const chg = idx.ltp - idx.prevClose;
-    const pct = (chg / idx.prevClose * 100);
+    const chg = idx.prevClose ? (idx.ltp - idx.prevClose) : 0;
+    const pct = idx.prevClose ? (chg / idx.prevClose * 100) : 0;
     const up = chg >= 0;
     const pcrPos = Math.min(96, Math.max(4, (A.pcr / 2) * 100));
     const putShare = Math.round(A.totPE_OIc / (A.totPE_OIc + A.totCE_OIc + 1) * 100);
