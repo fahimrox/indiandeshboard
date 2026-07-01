@@ -1212,11 +1212,29 @@ function Page() {
             <div className="flex flex-col text-[10px] font-bold mt-0.5 text-zinc-500">
               <div className="flex items-center gap-1">
                 <Database className="w-2.5 h-2.5 text-zinc-600 shrink-0" />
-                <span className="truncate">{sourceLabel}</span>
+                <span className="truncate flex items-center gap-1">
+                  <span className="capitalize">{oc?._metadata?.source || oc?.source || "Disconnect"}</span>
+                  {oc?._metadata && (
+                    <span className={`px-1 py-0.2 text-[8px] font-extrabold uppercase rounded ${
+                      oc._metadata.status === 'live'
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : oc._metadata.status === 'fallback'
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+                    }`}>
+                      {oc._metadata.status}
+                    </span>
+                  )}
+                </span>
               </div>
               <div className="flex items-center gap-1 mt-0.5">
                 <Clock className="w-2.5 h-2.5 text-zinc-600 shrink-0" />
-                <span className="tabular-nums">{lastUpdatedTime}</span>
+                <span className="tabular-nums flex items-center gap-1">
+                  {lastUpdatedTime}
+                  {oc?._metadata?.latencyMs !== undefined && (
+                    <span className="text-[8px] text-zinc-600 font-mono">({oc._metadata.latencyMs}ms)</span>
+                  )}
+                </span>
               </div>
             </div>
           </div>

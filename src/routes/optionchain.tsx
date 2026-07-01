@@ -129,7 +129,26 @@ function Page() {
           )}
         </div>
 
-        <span className="ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground">
+        {oc._metadata && (
+          <div className="ml-auto flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            <span className="text-muted-foreground uppercase tracking-wider text-[9px]">Source:</span>
+            <span className="font-mono text-emerald-400 capitalize">{oc._metadata.source}</span>
+            <span className={`rounded-full px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-wider ${
+              oc._metadata.status === 'live'
+                ? 'bg-emerald-500/10 text-emerald-300'
+                : oc._metadata.status === 'fallback'
+                ? 'bg-amber-500/10 text-amber-300'
+                : 'bg-slate-500/10 text-slate-300'
+            }`}>
+              {oc._metadata.status}
+            </span>
+            {oc._metadata.latencyMs !== undefined && (
+              <span className="text-muted-foreground font-mono">({oc._metadata.latencyMs}ms)</span>
+            )}
+          </div>
+        )}
+
+        <span className={oc._metadata ? "rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground" : "ml-auto rounded-full border border-border bg-card px-3 py-1 text-[11px] text-muted-foreground"}>
           {isFetching ? "Refreshing…" : oc.isEod ? "EOD Data" : "Live"} • Auto-refresh 10s
         </span>
       </div>
