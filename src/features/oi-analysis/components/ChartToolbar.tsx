@@ -1,13 +1,32 @@
 import { memo } from "react";
-import type { ChartMode } from "../types";
+import type { ChartMode, DataStatus } from "../types";
 
 interface Props {
   mode: ChartMode;
   onModeChange: (m: ChartMode) => void;
   lastUpdated: string;
-  brokerOnline: boolean;
-  marketOpen: boolean;
+  dataStatus: DataStatus;
+  showLot: boolean;
+  onShowLotChange: (v: boolean) => void;
 }
+
+const STATUS_STYLES: Record<DataStatus, { label: string; dot: string; box: string }> = {
+  LIVE: {
+    label: "LIVE",
+    dot: "bg-emerald-400 animate-pulse",
+    box: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+  },
+  EOD: {
+    label: "EOD",
+    dot: "bg-amber-400",
+    box: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+  },
+  FAIL: {
+    label: "FAIL",
+    dot: "bg-rose-500",
+    box: "border-rose-500/40 bg-rose-500/10 text-rose-400",
+  },
+};
 
 const MODES: ReadonlyArray<{ id: ChartMode; label: string }> = [
   { id: "OI_CHANGE_TOTAL", label: "OI Change + Total" },
@@ -15,11 +34,12 @@ const MODES: ReadonlyArray<{ id: ChartMode; label: string }> = [
   { id: "TOTAL_OI", label: "Total OI" },
 ];
 
-function ChartToolbarBase({ mode, onModeChange, lastUpdated, brokerOnline, marketOpen }: Props) {
+function ChartToolbarBase({ mode, onModeChange, lastUpdated, dataStatus, showLot, onShowLotChange }: Props) {
   const time = new Date(lastUpdated);
   const timeStr = isNaN(time.getTime())
     ? lastUpdated
     : time.toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const status = STATUS_STYLES[dataStatus];
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -38,19 +58,19 @@ function ChartToolbarBase({ mode, onModeChange, lastUpdated, brokerOnline, marke
       </div>
 
       <div className="flex items-center gap-4 text-xs text-slate-300">
-        {marketOpen ? (
-          <span className="flex items-center gap-1.5">
-            <span
-              className={`h-2 w-2 rounded-full ${brokerOnline ? "bg-emerald-400 animate-pulse" : "bg-rose-500"}`}
-            />
-            {brokerOnline ? "Live" : "Offline"}
-          </span>
-        ) : (
-          <span className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-400">
-            <span className="h-2 w-2 rounded-full bg-amber-400" />
-            Market Closed
-          </span>
-        )}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <span className="text-slate-400">Show Lot</span>
+          <button
+            onClick={() => onShowLotChange(!showLot)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${showLot ? "bg-sky-600" : "bg-slate-600"}`}
+          >
+            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${showLot ? "translate-x-4.5" : "translate-x-0.5"}`} />
+          </button>
+        </label>
+        <span className={`flex items-center gap-1.5 rounded-md border px-2 py-1 font-bold uppercase tracking-wider ${status.box}`}>
+          <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+          {status.label}
+        </span>
         <span className="tabular-nums text-slate-400">{timeStr}</span>
       </div>
     </div>

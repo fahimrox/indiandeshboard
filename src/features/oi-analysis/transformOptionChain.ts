@@ -42,6 +42,7 @@ export function transformOptionChainToSnapshot(oc: OptionChain): OISnapshot {
   const prevPeOi = totalPeOi - totalPeOiChg;
   const prevPcr = prevCeOi > 0 ? prevPeOi / prevCeOi : 0;
   const pcrChange = prevPcr > 0 ? pcr - prevPcr : 0;
+  const pcrOIChange = pcr; // PCR based on current OI (same as pcr for now, can be refined)
 
   const sorted = [...oc.rows].sort((a, b) => a.strike - b.strike);
   const atmRow = sorted.reduce((prev, curr) =>
@@ -57,7 +58,7 @@ export function transformOptionChainToSnapshot(oc: OptionChain): OISnapshot {
     maxPain,
     pcr,
     pcrChange,
-    pcrOIChange: 0,
+    pcrOIChange: pcrOIChange,
     totalCallOI: totalCeOi,
     totalPutOI: totalPeOi,
     totalCallOIChange: totalCeOiChg,

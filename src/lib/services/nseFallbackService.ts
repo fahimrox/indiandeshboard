@@ -86,43 +86,6 @@ function filterMonthlyExpiries(expiries: string[]): string[] {
   return [...byMonth.values()];
 }
 
-export function synthOptionChain(symbol: string, spot: number, expiry?: string): OptionChain {
-  const step = symbol === "BANKNIFTY" ? 100 : symbol === "SENSEX" ? 100 : 50;
-  const center = Math.round(spot / step) * step;
-  const rows: OcRow[] = [];
-  for (let i = -10; i <= 10; i++) {
-    const strike = center + i * step;
-    const dist = Math.abs(strike - spot) / spot;
-    const base = Math.round(50_000 * Math.exp(-dist * 18));
-    const noise = () => 0.5 + Math.random();
-    const ceOi = Math.round(base * noise() * (i < 0 ? 0.6 : 1.2));
-    const peOi = Math.round(base * noise() * (i > 0 ? 0.6 : 1.2));
-    const ceOiChg = Math.round(ceOi * (Math.random() - 0.4) * 0.5);
-    const peOiChg = Math.round(peOi * (Math.random() - 0.4) * 0.5);
-    const ce = buildLeg("ce", ceOi, ceOiChg, Math.max(1, ceOi - ceOiChg), Math.round(ceOi * (1 + Math.random() * 4)), Math.max(0.5, spot - strike + Math.random() * 80), 12 + Math.random() * 8);
-    const pe = buildLeg("pe", peOi, peOiChg, Math.max(1, peOi - peOiChg), Math.round(peOi * (1 + Math.random() * 4)), Math.max(0.5, strike - spot + Math.random() * 80), 12 + Math.random() * 8);
-    rows.push({ strike, ce, pe, straddle: (ce?.ltp ?? 0) + (pe?.ltp ?? 0), pcr: ce && ce.oi ? (pe?.oi ?? 0) / ce.oi : 0 });
-  }
-  let expiries = nextWeeklyExpiries(symbol, 6);
-  if (symbol === "BANKNIFTY") expiries = filterMonthlyExpiries(expiries);
-  return computeOcAggregates({
-    symbol,
-    spot,
-    expiry: expiry ?? expiries[0] ?? "WEEKLY",
-    expiries,
-    rows,
-    maxCeOiStrike: 0,
-    maxPeOiStrike: 0,
-    maxCeVolStrike: 0,
-    maxPeVolStrike: 0,
-    second: { ceOi: 0, peOi: 0, ceVol: 0, peVol: 0 },
-    totals: { ceOi: 0, peOi: 0, ceOiChg: 0, peOiChg: 0, ceVol: 0, peVol: 0 },
-    levels: [],
-    source: "fallback",
-    updatedAt: Date.now(),
-  });
-}
-
 function computeOcAggregates(oc: OptionChain): OptionChain {
   const ceOis = oc.rows.map((r) => ({ s: r.strike, v: r.ce?.oi ?? 0 })).sort((a, b) => b.v - a.v);
   const peOis = oc.rows.map((r) => ({ s: r.strike, v: r.pe?.oi ?? 0 })).sort((a, b) => b.v - a.v);
@@ -166,25 +129,12 @@ function num(n: unknown, fallback = 0): number {
   return typeof v === "number" && isFinite(v) ? v : fallback;
 }
 
-async function fetchOptionChainSensex(spot: number, expiry?: string): Promise<OptionChain> {
-  return synthOptionChain("SENSEX", spot || 80000, expiry);
-}
-
 export const nseFallbackService = {
   async getOptionChain(symbol: string, expiry?: string): Promise<OptionChain> {
     if (symbol === "SENSEX") {
-      try {
-        const res = await fetch(
-          `https://query2.finance.yahoo.com/v7/finance/spark?symbols=%5EBSESN&range=1d&interval=5m`,
-          { headers: { "User-Agent": HEADERS_BASE["User-Agent"], Accept: "application/json", Referer: "https://finance.yahoo.com/" } }
-        );
-        const json = (await res.json()) as { spark?: { result?: Array<{ response?: Array<{ meta?: Record<string, number> }> }> } };
-        const meta = json.spark?.result?.[0]?.response?.[0]?.meta;
-        const spot = num(meta?.regularMarketPrice, 80000);
-        return fetchOptionChainSensex(spot, expiry);
-      } catch {
-        return fetchOptionChainSensex(80000, expiry);
-      }
+      // No reliable BSE option-chain scraper from the edge. Let the caller fall
+      // back to EOD cache / FAIL instead of fabricating a synthetic chain.
+      throw new Error("SENSEX option chain not available from NSE scraper");
     }
     const contractPath = `/api/option-chain-contract-info?symbol=${encodeURIComponent(symbol)}`;
     try {
@@ -247,7 +197,9 @@ export const nseFallbackService = {
         source: "nse",
         updatedAt: Date.now(),
       });
-    } catch {
+    } catch (err) {
+      // Real data only: try the persisted EOD snapshot, otherwise propagate the
+      // failure so the caller shows a FAIL state (no synthetic fabrication).
       const cacheKey = `option_chain_${symbol}_${expiry || "default"}`;
       const cachedData = await getEodData(cacheKey);
       if (cachedData) {
@@ -256,8 +208,7 @@ export const nseFallbackService = {
           isEod: true,
         };
       }
-      const fallbackSpots: Record<string, number> = { NIFTY: 24500, BANKNIFTY: 52000 };
-      return synthOptionChain(symbol, fallbackSpots[symbol] ?? 1000, expiry);
+      throw err instanceof Error ? err : new Error(`NSE option chain failed for ${symbol}`);
     }
   },
 };

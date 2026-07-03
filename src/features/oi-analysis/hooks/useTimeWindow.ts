@@ -25,6 +25,8 @@ interface UseTimeWindowReturn {
   start: number;
   end: number;
   onRangeChange: (s: number, e: number) => void;
+  dayStart: number;
+  dayEnd: number;
 }
 
 export function useTimeWindow(
@@ -114,5 +116,7 @@ export function useTimeWindow(
     start,
     end,
     onRangeChange,
+    dayStart,
+    dayEnd,
   };
 }

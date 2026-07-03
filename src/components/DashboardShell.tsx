@@ -317,11 +317,11 @@ export function DashboardShell({
               <span
                 className={`h-2 w-2 rounded-full ${marketOpen
                   ? "animate-pulse bg-[var(--neon)]"
-                  : "bg-muted-foreground"
+                  : "bg-amber-400"
                   }`}
               />
-              <span className="text-muted-foreground whitespace-nowrap">
-                {marketOpen ? "Live" : "Market Closed"}
+              <span className={`whitespace-nowrap ${marketOpen ? "text-muted-foreground" : "font-semibold text-amber-400"}`}>
+                {marketOpen ? "Live" : "EOD"}
               </span>
             </div>
 

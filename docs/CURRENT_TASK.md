@@ -1,112 +1,73 @@
 # CURRENT TASK
 
-Current Feature
+> The single active feature only. Open this first. When a feature ships, replace
+> this file's contents with the next task. No history here (see `CHANGELOG.md`).
 
-Distributed Market Data Architecture & API Polish
+---
 
---------------------------------------------------------
+## Status: IDLE — no feature in progress
 
-Current Goal
+Most recent work (all 2026-07-03, recorded in `CHANGELOG.md`): **Index Lab pages
+redesign + polish pass 2** (breadth + contribution panels, hero card VIX/PCR/Max
+Pain, table restyle), **OI Analysis Pro** rebuild, full docs rebuild, and the
+**AI bootstrap system** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`). There is no
+active development task.
 
-1. Implement SENSEX, Symbol Mapping, and multi-tier Broker Fallback Routing.
-2. Protect Broker sessions, add circuit breakers, IST market-hours checks, and bad-tick guards.
-3. Show Data Lineage indicators in Option Chain & OI Pro pages with Estimated warning badges for synthetic data.
-4. Clean up deprecated React Router methods, resolve CSRF warnings, and fix cache-collision bugs.
+**Next AI:** take the user's next instruction and fill the template below before
+starting work.
 
---------------------------------------------------------
+---
 
-Current Status
+## Current Feature
+_None — awaiting assignment._
 
-All implementation phases (1-4) plus all cleanup tasks (CSRF, validator deprecations, AI Lab infinite loops, Yahoo symbols mapper, and isolated caching keys) are completed, verified, and signed off. Production build is 100% clean.
+## Current Objective
+_TBD_
 
---------------------------------------------------------
+## Functional Requirements
+- _TBD_
 
-Completed
+## UI Requirements
+- Match the existing design language (dark theme, oklch tokens, Tailwind v4).
+- Reuse `src/components/ui/*` and the `DashboardShell` layout.
 
-1. **Phase 1: Symbol Mapper & SENSEX Integration**:
-   - Built a central symbol mapper (`symbolMapper.ts`) supporting all indices and stocks.
-   - Cleared out MIDCAPNIFTY references and replaced with SENSEX across all layout pages.
-2. **Phase 2: Broker Security & API Protection**:
-   - Resolved Angel One multi-session totp verification concurrency conflicts.
-   - Resolved Angel One WAF firewall blocks via Quote endpoints.
-   - Isolated Fyers auth-token lockouts to prevent accidental token expirations.
-3. **Phase 3: Fallback Routing & Guards**:
-   - Implemented a custom fallthrough engine in `marketDataLayer.ts` with categories: quotes, futuresOI, and optionChain.
-   - Built a 3-strike circuit breaker to auto-skip failed brokers.
-   - Integrated IST market-hours checks and quote sanity check (bad-tick guard).
-4. **Phase 4: Data Lineage UI & Indicators**:
-   - Added active routes statuses inside the API Configurations settings panel.
-   - Rendered real-time lineage source, status, and latency indicators in Option Chain and OI Analysis Pro pages.
-   - Designed a pulsating rose-red `ESTIMATED (MOCK)` badge warning when rendering synthetic fallback option chains.
-5. **Phase 4 Polish & Final Fixes**:
-   - CSRF protection middleware added to `src/start.ts`.
-   - All `.inputValidator()` calls migrated to `.validator()`.
-   - Fixed `+Infinity%` divide-by-zero layout bugs in `public/ai-analysis.html` and `src/routes/ai-analysis.tsx`.
-   - Prevented cache collisions by hashing queried symbols into isolated persistent snapshot files.
-   - Corrected Yahoo fallback symbol restoration mapper to map back to original symbols properly.
+## Data Requirements
+- Real data only (live during market hours, EOD when closed). **Never mock.**
+- Use the existing query layer (`src/lib/dashboard-query.ts`) + `marketDataLayer`.
+- Surface a **FAIL** state when no real data is available.
 
---------------------------------------------------------
+## Files Expected To Change
+- _TBD (list before editing)_
 
-Pending
+## Files That Must NOT Be Modified
+- `src/routeTree.gen.ts` (auto-generated)
+- `.env`, `.env.example`, `fyers_config.enc`
+- `angel_one_scrip_master.json`, `upstox_instruments.json`
+- `eod_cache/**`, `backend/database/**`
+- Generated/build dirs: `node_modules/`, `.output/`, `.tanstack/`, `.wrangler/`, `.nitro/`
+- Broker auth/session logic unless the task IS an auth fix (see PROJECT_MASTER).
 
+## Dependencies
+- _TBD_
+
+## Current Blockers
 - None.
 
---------------------------------------------------------
+## Risks
+- Cloudflare deploy has no persistent FS/SQLite — EOD/history persistence is
+  Node/Bun-only. Consider this for any storage-related task.
 
-Modified Files
+## Acceptance Checklist
+- [ ] Feature works with real live + EOD data
+- [ ] Existing features still work
+- [ ] No mock/synthetic data introduced
+- [ ] `npm run build` clean (exit 0)
+- [ ] Only task-related files changed
+- [ ] `CURRENT_TASK.md`, `SESSION_HANDOVER.md`, `CHANGELOG.md` updated
 
-- src/lib/services/marketDataLayer.ts
-- src/lib/services/symbolMapper.ts
-- src/lib/services/circuitBreaker.ts
-- src/lib/services/upstoxService.ts
-- src/lib/services/angelOneService.ts
-- src/lib/services/fyersService.ts
-- src/lib/services/yahooService.ts
-- src/lib/services/nseFallbackService.ts
-- src/lib/services/persistentCache.ts
-- src/lib/services/settings.functions.ts
-- src/lib/market.functions.ts
-- src/lib/nse.functions.ts
-- src/components/DashboardShell.tsx
-- src/routes/optionchain.tsx
-- src/routes/oi-analysis-pro.tsx
-- src/routes/ai-analysis.tsx
-- public/ai-analysis.html
-- src/start.ts
+## Definition of Done
+Feature meets acceptance checklist, build is clean, and all three living docs are
+updated (this file reset for the next task; handover + changelog appended).
 
---------------------------------------------------------
-
-Files Not To Touch
-
-None.
-
---------------------------------------------------------
-
-Known Issues
-
-None.
-
---------------------------------------------------------
-
-Next AI Instructions
-
-1. Read docs/PROJECT_MASTER.md.
-2. Read docs/CURRENT_TASK.md.
-3. The platform is ready for next development tasks.
-
---------------------------------------------------------
-
-Handover Checklist
-
-[x] Current task updated
-[x] Completed work listed
-[x] Pending work listed
-[x] Modified files listed
-[x] Known issues listed
-[x] Next step written
-
---------------------------------------------------------
-
-Last Updated
-
-2026-07-01 (Distributed Market Data Architecture & API Polish Completed)
+## Next Immediate Task
+Await user instruction.

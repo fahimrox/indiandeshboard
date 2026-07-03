@@ -2,8 +2,8 @@ import { upstoxService } from "./upstoxService";
 import { fyersService } from "./fyersService";
 import { angelOneService } from "./angelOneService";
 import { yahooService } from "./yahooService";
-import { nseFallbackService, synthOptionChain } from "./nseFallbackService";
-import { saveEodData, getEodData } from "./persistentCache";
+import { nseFallbackService } from "./nseFallbackService";
+import { saveEodData, getEodData, getEodOptionChain, saveEodOptionChain } from "./persistentCache";
 import { getFyersConfig } from "./configStore";
 import { resolveSymbol, StandardSymbol, BrokerName } from "./symbolMapper";
 import { DataLineage, EnvelopedResponse } from "./dataLineage";
@@ -210,11 +210,9 @@ export const marketDataLayer = {
     const defaultSpot = symbol === "BANKNIFTY" ? 52000 : symbol === "SENSEX" ? 80000 : 24500;
     const finalSpot = spot || defaultSpot;
 
-    const cacheKey = `option_chain_${symbol}_${expiry || "default"}`;
-
     // Check if market is closed - serve from EOD cache immediately if possible
     if (!isMarketOpen()) {
-      const cachedData = await getEodData(cacheKey);
+      const cachedData = await getEodOptionChain(symbol, expiry);
       if (cachedData) {
         const res = {
           ...cachedData,
@@ -258,7 +256,7 @@ export const marketDataLayer = {
           timestamp: Date.now(),
           latencyMs: Date.now() - start,
         };
-        await saveEodData(cacheKey, res);
+        await saveEodOptionChain(symbol, expiry, res);
         return res;
       } catch (err: any) {
         console.warn(`Fyers option chain failed: ${err.message}. Falling back to Angel One.`);
@@ -281,7 +279,7 @@ export const marketDataLayer = {
           timestamp: Date.now(),
           latencyMs: Date.now() - start,
         };
-        await saveEodData(cacheKey, res);
+        await saveEodOptionChain(symbol, expiry, res);
         return res;
       } catch (err: any) {
         console.warn(`Angel One option chain failed: ${err.message}. Falling back to NSE scraper.`);
@@ -301,7 +299,7 @@ export const marketDataLayer = {
           timestamp: Date.now(),
           latencyMs: Date.now() - start,
         };
-        await saveEodData(cacheKey, res);
+        await saveEodOptionChain(symbol, expiry, res);
         return res;
       } catch (err: any) {
         console.error(`NSE scraper failed: ${err.message}`);
@@ -309,8 +307,8 @@ export const marketDataLayer = {
       }
     }
 
-    // 4. Try persistent EOD cache
-    const cachedData = await getEodData(cacheKey);
+    // 4. Try persistent EOD cache (exact expiry, else default snapshot)
+    const cachedData = await getEodOptionChain(symbol, expiry);
     if (cachedData) {
       const res = {
         ...cachedData,
@@ -326,15 +324,11 @@ export const marketDataLayer = {
       return res;
     }
 
-    // 5. Fallback to pure synthetic so the dashboard never crashes
-    const synthChain = synthOptionChain(symbol, finalSpot, expiry);
-    const res = { ...synthChain, fyersTokenStatus } as EnvelopedResponse<any>;
-    res.source = "synthetic";
-    res._metadata = {
-      source: "synthetic",
-      status: "fallback",
-      timestamp: Date.now(),
-    };
-    return res;
+    // 5. No synthetic/mock fallback. If every live source and the EOD cache
+    //    failed, surface a real error so the UI can show a FAIL state instead
+    //    of fabricated data.
+    throw new Error(
+      `Option chain unavailable for ${symbol}: all live sources and EOD cache failed.`
+    );
   },
 };

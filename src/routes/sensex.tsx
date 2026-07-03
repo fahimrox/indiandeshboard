@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
-import { ChangePill, IndexHeroCard, StockRow } from "@/components/MarketBits";
-import { dashboardQuery, constituentsQuery } from "@/lib/dashboard-query";
+import { IndexHeroCard } from "@/components/MarketBits";
+import { IndexBreadthCard, IndexContributionPanel } from "@/components/IndexPanels";
+import { dashboardQuery, constituentsQuery, indexContributionsQuery } from "@/lib/dashboard-query";
 
 export const Route = createFileRoute("/sensex")({
   head: () => ({
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/sensex")({
     Promise.all([
       context.queryClient.ensureQueryData(dashboardQuery),
       context.queryClient.ensureQueryData(constituentsQuery("sensex")),
+      context.queryClient.ensureQueryData(indexContributionsQuery("sensex")),
     ]),
   component: Page,
   errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
@@ -35,35 +37,16 @@ export const Route = createFileRoute("/sensex")({
 function Page() {
   const { data: dash } = useSuspenseQuery(dashboardQuery);
   const { data } = useSuspenseQuery(constituentsQuery("sensex"));
-  const stocks = [...data.stocks].sort((a, b) => b.changePct - a.changePct);
-  const max = Math.max(0.5, ...stocks.map((s) => Math.abs(s.changePct)));
+  const { data: contrib } = useSuspenseQuery(indexContributionsQuery("sensex"));
   return (
-    <DashboardShell title="SENSEX" subtitle="BSE benchmark — live constituents" updatedAt={data.updatedAt}>
+    <DashboardShell title="SENSEX" subtitle="Constituent breadth & contribution — live" updatedAt={data.updatedAt}>
       {dash.sensex && (
-        <div className="mb-6 grid gap-5 lg:grid-cols-2">
-          <IndexHeroCard q={dash.sensex} label="SENSEX" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">Advance</div>
-              <div className="mt-2 font-mono text-3xl font-bold text-[var(--bull)]">{data.advance}</div>
-            </div>
-            <div className="rounded-2xl border border-border bg-card p-5">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">Decline</div>
-              <div className="mt-2 font-mono text-3xl font-bold text-[var(--bear)]">{data.decline}</div>
-            </div>
-            <div className="col-span-2 rounded-2xl border border-border bg-card p-5">
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">Avg Change</div>
-              <div className="mt-2"><ChangePill pct={data.avgChange} /></div>
-            </div>
-          </div>
+        <div className="mb-5 grid gap-4 lg:grid-cols-2">
+          <IndexHeroCard q={dash.sensex} label="SENSEX" vix={dash.vix} />
+          <IndexBreadthCard label="SENSEX" advance={data.advance} decline={data.decline} changePct={dash.sensex.changePct} />
         </div>
       )}
-      <div className="rounded-2xl border border-border bg-card p-5">
-        <div className="mb-2 text-sm font-semibold">All constituents</div>
-        <div className="divide-y divide-border">
-          {stocks.map((s) => <StockRow key={s.symbol} q={s} max={max} />)}
-        </div>
-      </div>
+      <IndexContributionPanel positive={contrib.positive} negative={contrib.negative} />
     </DashboardShell>
   );
 }

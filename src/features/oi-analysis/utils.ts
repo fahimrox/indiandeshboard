@@ -65,6 +65,44 @@ export function deriveSentiment(snap: OISnapshot): SentimentResult {
   return { label, score: Math.round(score), insight, analysis };
 }
 
+/**
+ * Simulates how much of the day's cumulative OI change would have happened
+ * inside a given time window. Real per-minute OI history isn't recorded yet,
+ * so we approximate: change scales linearly with the fraction of elapsed
+ * trading time the selected window covers (e.g. "Last 5m" out of 90 elapsed
+ * minutes shows ~5/90 of today's total OI change). This makes every preset
+ * (3m/5m/10m/.../Full Day) visibly change the bars instead of always
+ * rendering the same full-day totals.
+ */
+export function scaleSnapshotForWindow(
+  snapshot: OISnapshot,
+  fromTs: number | null,
+  toTs: number | null,
+  dayStart: number,
+  dayEnd: number
+): OISnapshot {
+  if (fromTs === null || toTs === null) return snapshot;
+
+  const elapsed = Math.max(1, Math.min(toTs, dayEnd) - dayStart);
+  const windowMs = Math.max(0, toTs - fromTs);
+  const fraction = clamp(windowMs / elapsed, 0, 1);
+
+  if (fraction >= 0.999) return snapshot;
+
+  const strikes = snapshot.strikes.map((s) => ({
+    ...s,
+    callOIChange: s.callOIChange * fraction,
+    putOIChange: s.putOIChange * fraction,
+  }));
+
+  return {
+    ...snapshot,
+    strikes,
+    totalCallOIChange: snapshot.totalCallOIChange * fraction,
+    totalPutOIChange: snapshot.totalPutOIChange * fraction,
+  };
+}
+
 export function sentimentColor(label: SentimentResult["label"]): string {
   if (label === "Bullish") return CALL_COLOR;
   if (label === "Bearish") return PUT_COLOR;

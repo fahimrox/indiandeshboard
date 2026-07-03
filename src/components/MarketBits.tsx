@@ -40,7 +40,7 @@ export function IndexHeroCard({ q, label, vix }: { q: Quote; label: string; vix?
   const marketOpen = useMarketOpenStatus();
   const vixUp = (vix?.changePct ?? 0) >= 0;
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4">
       <div
         className={`pointer-events-none absolute inset-0 opacity-20 ${
           up
@@ -52,27 +52,27 @@ export function IndexHeroCard({ q, label, vix }: { q: Quote; label: string; vix?
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="text-xs uppercase tracking-widest text-muted-foreground">
-              {label} {marketOpen ? "LIVE" : "LAST PRICE"}
+              {label} {marketOpen ? "LIVE" : "EOD"}
             </div>
-            <div className="mt-1 font-mono text-4xl font-bold tabular-nums">
+            <div className="mt-0.5 font-mono text-3xl font-bold tabular-nums leading-tight">
               <TickingNumber value={q.price} />
             </div>
-            <div className="mt-2">
+            <div className="mt-1.5">
               <ChangePill pct={q.changePct} change={q.change} />
             </div>
           </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="rounded-md border border-border bg-background/40 px-2 py-1 text-[10px] uppercase tracking-wider">
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="rounded-md border border-border bg-background/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
               {marketOpen ? (
                 <span className="text-[var(--bull)] animate-pulse">● LIVE</span>
               ) : (
-                <span className="text-muted-foreground">● Market Closed</span>
+                <span className="text-amber-400">● EOD</span>
               )}
             </div>
             {vix && (
-              <div className="rounded-lg border border-border bg-background/40 px-3 py-2 text-right">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">India VIX</div>
-                <div className="font-mono text-lg font-semibold tabular-nums">{fmt(vix.price)}</div>
+              <div className="rounded-lg border border-border bg-background/40 px-3 py-1.5 text-right">
+                <div className="text-[9px] uppercase tracking-wider text-muted-foreground">India VIX</div>
+                <div className="font-mono text-base font-bold tabular-nums">{fmt(vix.price)}</div>
                 <div className={`text-[10px] font-semibold ${vixUp ? "text-[var(--bear)]" : "text-[var(--bull)]"}`}>
                   {vixUp ? "▲" : "▼"} {fmt(Math.abs(vix.changePct))}%
                 </div>
@@ -80,16 +80,16 @@ export function IndexHeroCard({ q, label, vix }: { q: Quote; label: string; vix?
             )}
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-4 gap-3 text-xs">
+        <div className="mt-3 grid grid-cols-4 gap-2 text-xs">
           {[
             ["Open", q.open],
             ["High", q.dayHigh],
             ["Low", q.dayLow],
             ["Prev Close", q.prevClose],
           ].map(([l, v]) => (
-            <div key={l as string} className="rounded-lg bg-background/40 p-3">
+            <div key={l as string} className="rounded-lg bg-background/40 p-2">
               <div className="text-muted-foreground">{l as string}</div>
-              <div className="mt-1 font-mono font-semibold">{fmt(v as number)}</div>
+              <div className="mt-0.5 font-mono font-semibold">{fmt(v as number)}</div>
             </div>
           ))}
         </div>

@@ -25,6 +25,7 @@ function Bar({
   chartHeight,
   color,
   hatchId,
+  decorate,
 }: {
   x: number;
   width: number;
@@ -35,36 +36,66 @@ function Bar({
   chartHeight: number;
   color: string;
   hatchId: string;
+  /** When false (Total OI mode) draw a plain solid bar with no change decoration. */
+  decorate: boolean;
 }) {
   const scale = (v: number) => (maxValue <= 0 ? 0 : (v / maxValue) * chartHeight);
 
   const totalH = scale(total);
-  const prevTotal = total - change;
-  const prevH = scale(Math.max(prevTotal, 0));
+  const prevTotal = Math.max(total - change, 0);
+  const prevH = scale(prevTotal);
+  const rx = 1.5;
+
+  // Plain solid bar (Total OI mode) — no hatch/outline.
+  if (!decorate) {
+    return (
+      <rect
+        x={x}
+        y={baseY - totalH}
+        width={width}
+        height={Math.max(totalH, 0)}
+        rx={rx}
+        fill={color}
+        style={{ transition: "height 600ms ease, y 600ms ease" }}
+      />
+    );
+  }
 
   if (change >= 0) {
-    const addedH = scale(change);
-    const solidH = totalH - addedH;
+    // OI INCREASE: solid base = previous OI, hatched top = today's increase.
+    // A single transparent outline wraps the whole bar so there is no internal seam.
+    const solidH = prevH;
+    const topH = Math.max(totalH - solidH, 0);
     return (
-      <g>
+      <g style={{ transition: "height 600ms ease, y 600ms ease" }}>
+        {/* solid base (previous OI) */}
         <rect
           x={x}
           y={baseY - solidH}
           width={width}
           height={Math.max(solidH, 0)}
-          rx={3}
           fill={color}
-          stroke={color}
-          strokeWidth={1}
           style={{ transition: "height 600ms ease, y 600ms ease" }}
         />
+        {/* hatched top (the increase) */}
+        {topH > 0 && (
+          <rect
+            x={x}
+            y={baseY - totalH}
+            width={width}
+            height={topH}
+            fill={`url(#${hatchId})`}
+            style={{ transition: "height 600ms ease, y 600ms ease" }}
+          />
+        )}
+        {/* single clean outer border around the full bar */}
         <rect
           x={x}
           y={baseY - totalH}
           width={width}
-          height={Math.max(addedH, 0)}
-          rx={3}
-          fill={`url(#${hatchId})`}
+          height={Math.max(totalH, 0)}
+          rx={rx}
+          fill="none"
           stroke={color}
           strokeWidth={1}
           style={{ transition: "height 600ms ease, y 600ms ease" }}
@@ -73,30 +104,29 @@ function Bar({
     );
   }
 
-  const removedH = prevH - totalH;
+  // OI DECREASE: solid base = current OI, hollow outline extends up to previous OI.
   return (
-    <g>
-      <rect
-        x={x}
-        y={baseY - prevH}
-        width={width}
-        height={Math.max(removedH, 0)}
-        rx={3}
-        fill="transparent"
-        stroke={color}
-        strokeWidth={1}
-        strokeOpacity={0.85}
-        style={{ transition: "height 600ms ease, y 600ms ease" }}
-      />
+    <g style={{ transition: "height 600ms ease, y 600ms ease" }}>
+      {/* solid base (current OI) */}
       <rect
         x={x}
         y={baseY - totalH}
         width={width}
         height={Math.max(totalH, 0)}
-        rx={3}
         fill={color}
+        style={{ transition: "height 600ms ease, y 600ms ease" }}
+      />
+      {/* hollow outline covering the full previous height — the removed part reads as an empty bordered box */}
+      <rect
+        x={x}
+        y={baseY - prevH}
+        width={width}
+        height={Math.max(prevH, 0)}
+        rx={rx}
+        fill="none"
         stroke={color}
         strokeWidth={1}
+        strokeOpacity={0.9}
         style={{ transition: "height 600ms ease, y 600ms ease" }}
       />
     </g>
@@ -128,7 +158,36 @@ function ChangeBar({
   );
 }
 
-function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
+function ChartLegend({ mode }: { mode: ChartMode }) {
+  if (mode === "OI_CHANGE_TOTAL") {
+    return (
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: CALL_COLOR }} />Call OI</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2" style={{ borderColor: CALL_COLOR, backgroundColor: "transparent" }} />Call OI Decrease</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: CALL_COLOR, backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)" }} />Call OI Increase</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: PUT_COLOR }} />Put OI</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm border-2" style={{ borderColor: PUT_COLOR, backgroundColor: "transparent" }} />Put OI Decrease</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: PUT_COLOR, backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(0,0,0,0.3) 2px, rgba(0,0,0,0.3) 4px)" }} />Put OI Increase</span>
+      </div>
+    );
+  }
+  if (mode === "OI_CHANGE") {
+    return (
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: CALL_COLOR }} />Call OI Change</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: PUT_COLOR }} />Put OI Change</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-[11px] text-slate-400">
+      <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: CALL_COLOR }} />Call OI Total</span>
+      <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-sm" style={{ backgroundColor: PUT_COLOR }} />Put OI Total</span>
+    </div>
+  );
+}
+
+function OIChartBase({ snapshot, strikes, mode, height = 500 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverState | null>(null);
 
@@ -196,22 +255,22 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
           <pattern
             id="hatch-call"
             patternUnits="userSpaceOnUse"
-            width="6"
-            height="6"
+            width="7"
+            height="7"
             patternTransform="rotate(45)"
           >
-            <rect width="6" height="6" fill={CALL_COLOR} fillOpacity={0.22} />
-            <line x1="0" y1="0" x2="0" y2="6" stroke={CALL_COLOR} strokeWidth="2.4" />
+            <rect width="7" height="7" fill={CALL_COLOR} fillOpacity={0.32} />
+            <line x1="0" y1="0" x2="0" y2="7" stroke={CALL_COLOR} strokeWidth="3" />
           </pattern>
           <pattern
             id="hatch-put"
             patternUnits="userSpaceOnUse"
-            width="6"
-            height="6"
+            width="7"
+            height="7"
             patternTransform="rotate(45)"
           >
-            <rect width="6" height="6" fill={PUT_COLOR} fillOpacity={0.22} />
-            <line x1="0" y1="0" x2="0" y2="6" stroke={PUT_COLOR} strokeWidth="2.4" />
+            <rect width="7" height="7" fill={PUT_COLOR} fillOpacity={0.32} />
+            <line x1="0" y1="0" x2="0" y2="7" stroke={PUT_COLOR} strokeWidth="3" />
           </pattern>
         </defs>
 
@@ -334,11 +393,11 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
                   <Bar x={cx - barW - 2} width={barW} baseY={baseY}
                     total={s.callTotalOI} change={s.callOIChange}
                     maxValue={maxValue} chartHeight={chartHeight}
-                    color={CALL_COLOR} hatchId="hatch-call" />
+                    color={CALL_COLOR} hatchId="hatch-call" decorate={mode === "OI_CHANGE_TOTAL"} />
                   <Bar x={cx + 2} width={barW} baseY={baseY}
                     total={s.putTotalOI} change={s.putOIChange}
                     maxValue={maxValue} chartHeight={chartHeight}
-                    color={PUT_COLOR} hatchId="hatch-put" />
+                    color={PUT_COLOR} hatchId="hatch-put" decorate={mode === "OI_CHANGE_TOTAL"} />
                 </>
               )}
 
@@ -358,6 +417,7 @@ function OIChartBase({ snapshot, strikes, mode, height = 460 }: Props) {
       </svg>
 
       {hover && <OITooltip hover={hover} snapshot={snapshot} />}
+      <ChartLegend mode={mode} />
     </div>
   );
 }

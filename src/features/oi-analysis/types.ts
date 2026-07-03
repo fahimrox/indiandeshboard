@@ -2,12 +2,14 @@ export type OptionSide = "CALL" | "PUT";
 export type SentimentLabel = "Bullish" | "Bearish" | "Neutral";
 export type ChartMode = "OI_CHANGE_TOTAL" | "OI_CHANGE" | "TOTAL_OI";
 
+/** Data-source status shown in the chart toolbar badge. */
+export type DataStatus = "LIVE" | "EOD" | "FAIL";
+
 export type IndexSymbol = "NIFTY" | "BANKNIFTY" | "MIDCPNIFTY" | "SENSEX";
 
 export const INDEX_OPTIONS: ReadonlyArray<{ id: IndexSymbol; label: string }> = [
   { id: "NIFTY", label: "NIFTY 50" },
   { id: "BANKNIFTY", label: "BANK NIFTY" },
-  { id: "MIDCPNIFTY", label: "MIDCAP NIFTY" },
   { id: "SENSEX", label: "SENSEX" },
 ];
 

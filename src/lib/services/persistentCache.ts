@@ -38,3 +38,37 @@ export async function getEodData(key: string): Promise<any | null> {
     return null;
   }
 }
+
+/**
+ * Read the best-available real EOD option chain for a symbol.
+ * Tries the exact expiry file first, then falls back to the symbol's `default`
+ * snapshot (the last saved real chain). This avoids a FAIL when the selected
+ * expiry has no dedicated cache file yet but real data exists under `default`.
+ */
+export async function getEodOptionChain(symbol: string, expiry?: string): Promise<any | null> {
+  if (expiry) {
+    const exact = await getEodData(`option_chain_${symbol}_${expiry}`);
+    if (exact && Array.isArray(exact.rows) && exact.rows.length) return exact;
+  }
+  const def = await getEodData(`option_chain_${symbol}_default`);
+  if (def && Array.isArray(def.rows) && def.rows.length) return def;
+  return null;
+}
+
+/**
+ * Persist a real option chain under both its returned expiry key and (when the
+ * request had no explicit expiry) the `default` key, so per-expiry cache files
+ * accumulate and future exact-expiry reads succeed.
+ */
+export async function saveEodOptionChain(
+  symbol: string,
+  requestedExpiry: string | undefined,
+  data: any
+): Promise<void> {
+  const returnedExpiry: string | undefined = data?.expiry;
+  if (returnedExpiry) await saveEodData(`option_chain_${symbol}_${returnedExpiry}`, data);
+  if (requestedExpiry && requestedExpiry !== returnedExpiry) {
+    await saveEodData(`option_chain_${symbol}_${requestedExpiry}`, data);
+  }
+  if (!requestedExpiry) await saveEodData(`option_chain_${symbol}_default`, data);
+}

@@ -8,6 +8,7 @@ interface Props {
   start: number;
   end: number;
   onRangeChange: (start: number, end: number) => void;
+  onReset: () => void;
   mode: "LIVE" | "HISTORICAL";
   historicalDate?: string;
   onHistoricalDate?: (d: string) => void;
@@ -21,6 +22,12 @@ function TimeControlsBase(p: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
+        <button
+          onClick={p.onReset}
+          className="rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700/50 transition-colors"
+        >
+          Reset
+        </button>
         <span className="text-xs text-slate-400">9:15 AM</span>
         <div className="relative h-1.5 flex-1 rounded-full bg-slate-700/60">
           <div
