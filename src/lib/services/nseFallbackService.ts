@@ -1,5 +1,6 @@
 import type { OptionChain, OcRow, OcLeg, SrLevel } from "../nse.functions";
 import { getEodData } from "./persistentCache";
+import { NSE_INDEX_NAME, type IndexQuote } from "./indexRegistry";
 
 let cookieStore: { value: string; at: number } | null = null;
 const COOKIE_TTL = 5 * 60_000;
@@ -130,6 +131,45 @@ function num(n: unknown, fallback = 0): number {
 }
 
 export const nseFallbackService = {
+  /**
+   * Live sector/broad index quotes from NSE's public `allIndices` snapshot.
+   * Accepts canonical registry keys, returns one IndexQuote per requested key
+   * that NSE carries (matched by the registry's NSE index name). Used as the
+   * first fallback when FYERS is unavailable. No fabrication — unmatched keys
+   * are simply omitted.
+   */
+  async getAllIndices(keys: string[]): Promise<IndexQuote[]> {
+    type Row = {
+      index?: string;
+      indexSymbol?: string;
+      last?: number | string;
+      percentChange?: number | string;
+      previousClose?: number | string;
+    };
+    const json = await nseGet<{ data?: Row[] }>("/api/allIndices");
+    const rows = json.data ?? [];
+    const byName = new Map<string, Row>();
+    for (const r of rows) {
+      if (r.index) byName.set(r.index.toUpperCase().trim(), r);
+    }
+    const out: IndexQuote[] = [];
+    for (const key of keys) {
+      const name = NSE_INDEX_NAME[key];
+      if (!name) continue;
+      const r = byName.get(name.toUpperCase().trim());
+      if (!r) continue;
+      const price = num(r.last);
+      if (!price) continue;
+      out.push({
+        key,
+        price,
+        changePct: num(r.percentChange),
+        prevClose: num(r.previousClose, price),
+      });
+    }
+    return out;
+  },
+
   async getOptionChain(symbol: string, expiry?: string): Promise<OptionChain> {
     if (symbol === "SENSEX") {
       // No reliable BSE option-chain scraper from the edge. Let the caller fall

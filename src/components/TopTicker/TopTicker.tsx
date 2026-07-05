@@ -1,6 +1,7 @@
 import { useRef, useMemo, useCallback, useEffect, useState } from "react";
-import { useQuery, useQueries } from "@tanstack/react-query";
-import { quotesQuery, fnoScreenerQuery } from "@/lib/dashboard-query";
+import { useQuery } from "@tanstack/react-query";
+import { fnoStocksQuery } from "@/lib/dashboard-query";
+import { computeBoosterFlows } from "@/lib/boosterFlow";
 import { TickerItem } from "./TickerItem";
 import "./ticker.css";
 
@@ -98,19 +99,10 @@ function getCategoryForStock(stock: {
 }
 
 function useTickerData() {
-  const queries = useQueries({
-    queries: [
-      { ...quotesQuery(INDEX_SYMBOLS), enabled: true },
-      { ...fnoScreenerQuery, enabled: true },
-    ],
-  });
-
-  const [quotesResult, screenerResult] = queries;
-
+  const fnoResult = useQuery(fnoStocksQuery);
   return {
-    quotes: quotesResult.data ?? [],
-    screener: screenerResult.data?.data ?? [],
-    isLoading: quotesResult.isLoading && screenerResult.isLoading,
+    fnoStocks: ((fnoResult.data as any)?.data ?? []) as any[],
+    isLoading: fnoResult.isLoading,
   };
 }
 
@@ -124,7 +116,7 @@ function useTickerAnimation(trackRef: React.RefObject<HTMLDivElement | null>, it
     const itemWidth = 160;
     const separatorWidth = 42;
     const totalWidth = itemCount * (itemWidth + separatorWidth);
-    const speedPxPerSec = 220;
+    const speedPxPerSec = 480;
     const durationSec = totalWidth / speedPxPerSec;
 
     el.style.setProperty("--duration", `${durationSec}s`);
@@ -139,54 +131,43 @@ function useTickerAnimation(trackRef: React.RefObject<HTMLDivElement | null>, it
 
 export function TopTicker() {
   const trackRef = useRef<HTMLDivElement>(null);
-  const { quotes, screener } = useTickerData();
+  const { fnoStocks } = useTickerData();
 
-  const indices = useMemo(() => {
-    const quoteMap = new Map(quotes.map((q: any) => [q.symbol, q]));
-    return INDEX_SYMBOLS
-      .map((sym) => {
-        const q = quoteMap.get(sym);
-        if (!q) return null;
-        return {
-          kind: "index" as const,
-          symbol: sym,
-          name: INDEX_NAMES[sym] || sym,
-          price: q.price,
-          changePct: q.changePct,
-          change: q.change,
-          dayHigh: q.dayHigh,
-          dayLow: q.dayLow,
-          volume: q.volume || 0,
-        };
-      })
-      .filter((x): x is NonNullable<typeof x> => x != null);
-  }, [quotes]);
-
+  // Intraday Booster inflow/outflow — the SAME Momentum-Ignition signals as the
+  // page, latest signal first.
   const fnoItems = useMemo(() => {
-    return screener
-      .filter((stock: any) => {
-        const { category } = getCategoryForStock(stock);
-        return category !== "Neutral" || false;
-      })
-      .slice(0, 30)
-      .map((stock: any) => {
-        const { category, categoryClass } = getCategoryForStock(stock);
-        return {
-          kind: "fno" as const,
-          symbol: stock.symbol,
-          price: stock.ltp,
-          changePct: stock.changePct,
-          category,
-          categoryClass,
-          volume: stock.volume,
-          oi: stock.oi,
-          dayHigh: stock.dayHigh,
-          dayLow: stock.dayLow,
-        };
-      });
-  }, [screener]);
+    const { inflow, outflow } = computeBoosterFlows(fnoStocks);
+    const mk = (s: any, category: string, categoryClass: string) => ({
+      kind: "fno" as const,
+      symbol: s.symbol,
+      price: s.ltp,
+      changePct: s.changePct,
+      category,
+      categoryClass,
+      volume: s.volume,
+      oi: 0,
+      dayHigh: 0,
+      dayLow: 0,
+      oiChgPct: s.oiChgPct,
+      signalTime: s.signalTime,
+      buildup: s.buildup,
+    });
+    const ins = inflow.map((s) => mk(s, "INFLOW", "long-buildup"));
+    const outs = outflow.map((s) => mk(s, "OUTFLOW", "short-buildup"));
+    // Alternate green (inflow) ↔ red (outflow). Each list is already latest /
+    // strongest first, so we surface the freshest inflow, then freshest outflow,
+    // then the next of each, and so on. The longer list contributes its remainder.
+    const woven: Array<(typeof ins)[number]> = [];
+    const n = Math.max(ins.length, outs.length);
+    for (let i = 0; i < n; i++) {
+      if (i < ins.length) woven.push(ins[i]);
+      if (i < outs.length) woven.push(outs[i]);
+    }
+    return woven;
+  }, [fnoStocks]);
 
-  const items = useMemo(() => [...indices, ...fnoItems], [indices, fnoItems]);
+  // Only the Intraday Booster inflow/outflow signals (latest first). No indices.
+  const items = fnoItems;
   const duplicated = useMemo(() => [...items, ...items], [items]);
   const { paused: p, handleMouseEnter, handleMouseLeave } = useTickerAnimation(trackRef, items.length);
 

@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Sparkles,
   Globe,
   Wrench,
   Newspaper,
@@ -92,13 +91,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Sector Lab",
     icon: Flame,
-    items: [{ to: "/heatmap", label: "Sector Heatmap" }],
-  },
-  {
-    label: "AI Lab",
-    icon: Sparkles,
     items: [
-      { to: "/ai-analysis", label: "AI Analysis" },
+      { to: "/heatmap", label: "Sector Heatmap" },
+      { to: "/intraday-booster", label: "Intraday Booster" },
     ],
   },
   { label: "Global Lab", icon: Globe, items: [], comingSoon: true },

@@ -7,10 +7,12 @@
 
 ## Status: IDLE — no feature in progress
 
-Most recent work (all 2026-07-03, recorded in `CHANGELOG.md`): **Index Lab pages
-redesign + polish pass 2** (breadth + contribution panels, hero card VIX/PCR/Max
-Pain, table restyle), **OI Analysis Pro** rebuild, full docs rebuild, and the
-**AI bootstrap system** (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`). There is no
+Most recent work (2026-07-05, recorded in `CHANGELOG.md`): (1) built the
+**FYERS-primary sector-index data layer** (chain FYERS → NSE allIndices → Yahoo →
+EOD) and (2) polished the **Intraday Booster** — flow tables (10 rows, no scroll,
+newest-first), and **one paired gainers↔losers table per strip index/sector** with
+real constituents (`INDEX_CONSTITUENTS`, 24 indices) + click-a-bar-to-scroll.
+Earlier (2026-07-04): Intraday Booster page + AI Analysis removal. There is no
 active development task.
 
 **Next AI:** take the user's next instruction and fill the template below before

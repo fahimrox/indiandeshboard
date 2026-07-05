@@ -1,5 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail } from "./market.functions";
+import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail, getIntradayBooster } from "./market.functions";
 import { getFnoStocks, getOptionChain, getCachedOptionChain, getFnoScreener } from "./nse.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
@@ -50,6 +50,12 @@ export const fnoStocksQuery = queryOptions({
   queryFn: () => getFnoStocks(),
   refetchInterval: liveInterval(15_000),
   staleTime: 8_000,
+});
+export const intradayBoosterQuery = queryOptions({
+  queryKey: ["intraday-booster"],
+  queryFn: () => getIntradayBooster(),
+  refetchInterval: liveInterval(20_000),
+  staleTime: 10_000,
 });
 export const fnoScreenerQuery = queryOptions({
   queryKey: ["fno-screener"],

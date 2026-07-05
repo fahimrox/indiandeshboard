@@ -1,4 +1,5 @@
 import { getFyersConfig, markFyersExpired, getFyersClientId } from "./configStore";
+import { FYERS_INDEX_SYMBOL, type IndexQuote } from "./indexRegistry";
 import type { OptionChain, OcRow, OcLeg, OcSignal } from "../nse.functions";
 
 const FYERS_INDEX_MAP: Record<string, string> = {
@@ -9,6 +10,17 @@ const FYERS_INDEX_MAP: Record<string, string> = {
   MIDCAPNIFTY: "NSE:MIDCPNIFTY-INDEX",
   MIDCPNIFTY: "NSE:MIDCPNIFTY-INDEX",
 };
+
+/**
+ * Shared FYERS auth-error detection. Returns true when a FYERS JSON response (or
+ * message) indicates an expired/invalid token/session, so callers can mark the
+ * token expired and fall back to the next provider — identically for the option
+ * chain and the sector-index quotes.
+ */
+export function isFyersAuthError(json: { code?: number; message?: string }): boolean {
+  const msg = json?.message || "";
+  return json?.code === 401 || /token|session|auth|unauthorized|expire|login/i.test(msg);
+}
 
 function formatExpiry(dateStr: string): string {
   if (!dateStr) return "";
@@ -51,6 +63,67 @@ function parseExpiry(dateStr: string): string {
 }
 
 export const fyersService = {
+  /**
+   * Batch live quotes for sector/broad indices via FYERS `/data/quotes`.
+   * Accepts canonical registry keys, returns one IndexQuote per key that FYERS
+   * actually returned (keys FYERS doesn't carry are simply omitted so the
+   * caller can fill them from the next provider). Marks the token expired on an
+   * auth error so the circuit/fallback behaves exactly like the option chain.
+   */
+  async getIndexQuotes(keys: string[]): Promise<IndexQuote[]> {
+    const config = await getFyersConfig();
+    const token = config.accessToken;
+    if (!token) {
+      throw new Error("FYERS manual access token is missing. Please configure it in Settings.");
+    }
+
+    const pairs = keys
+      .map((k) => [k, FYERS_INDEX_SYMBOL[k]] as const)
+      .filter((p): p is readonly [string, string] => Boolean(p[1]));
+    if (pairs.length === 0) return [];
+
+    const symbols = pairs.map(([, sym]) => sym);
+    const clientId = await getFyersClientId();
+    const url = `https://api-t1.fyers.in/data/quotes?symbols=${encodeURIComponent(symbols.join(","))}`;
+
+    const res = await fetch(url, {
+      headers: { Accept: "application/json", Authorization: `${clientId}:${token}` },
+    });
+
+    if (res.status === 401) {
+      await markFyersExpired("Unauthorized (401) - Token may be expired");
+      throw new Error("FYERS Access Token is invalid or expired.");
+    }
+
+    const json = await res.json();
+    if (json.s === "error" || json.code === 401) {
+      const msg = json.message || "Token error";
+      if (isFyersAuthError(json)) await markFyersExpired(msg);
+      throw new Error(`FYERS API error: ${msg}`);
+    }
+
+    const bySym = new Map<string, any>();
+    if (Array.isArray(json.d)) {
+      for (const item of json.d) bySym.set(item.n, item.v || {});
+    }
+
+    const out: IndexQuote[] = [];
+    for (const [key, sym] of pairs) {
+      const v = bySym.get(sym);
+      if (!v || typeof v.lp !== "number") continue; // FYERS didn't return this one
+      const price = v.lp;
+      const changePct = typeof v.chp === "number" ? v.chp : 0;
+      const prevClose =
+        typeof v.prev_close_price === "number"
+          ? v.prev_close_price
+          : typeof v.ch === "number"
+            ? price - v.ch
+            : price;
+      out.push({ key, price, changePct, prevClose });
+    }
+    return out;
+  },
+
   async getOptionChain(
     symbol: string,
     spotPrice: number,
@@ -88,8 +161,7 @@ export const fyersService = {
       const json = await res.json();
       if (json.s === "error" || json.code === 401) {
         const msg = json.message || "Token error";
-        const isAuth = json.code === 401 || /token|session|auth|unauthorized|expire|login/i.test(msg);
-        if (isAuth) {
+        if (isFyersAuthError(json)) {
           await markFyersExpired(msg);
         }
         throw new Error(`FYERS API error: ${msg}`);

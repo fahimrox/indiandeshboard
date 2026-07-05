@@ -20,19 +20,20 @@ export type Quote = {
 
 const INDICES = ["^NSEI", "^BSESN", "^NSEBANK", "^INDIAVIX"];
 
+// `ik` = canonical index key in indexRegistry (FYERS-primary sector-index layer).
 export const SECTORS = [
-  { key: "it", symbol: "^CNXIT", name: "IT" },
-  { key: "pharma", symbol: "^CNXPHARMA", name: "Pharma" },
-  { key: "auto", symbol: "^CNXAUTO", name: "Auto" },
-  { key: "energy", symbol: "^CNXENERGY", name: "Energy" },
-  { key: "fmcg", symbol: "^CNXFMCG", name: "FMCG" },
-  { key: "metal", symbol: "^CNXMETAL", name: "Metal" },
-  { key: "realty", symbol: "^CNXREALTY", name: "Realty" },
-  { key: "media", symbol: "^CNXMEDIA", name: "Media" },
-  { key: "psubank", symbol: "^CNXPSUBANK", name: "PSU Bank" },
-  { key: "finance", symbol: "NIFTY_FIN_SERVICE.NS", name: "Finance" },
-  { key: "banking", symbol: "^NSEBANK", name: "Banking" },
-  { key: "infra", symbol: "^CNXINFRA", name: "Infra" },
+  { key: "it", symbol: "^CNXIT", name: "IT", ik: "IT" },
+  { key: "pharma", symbol: "^CNXPHARMA", name: "Pharma", ik: "PHARMA" },
+  { key: "auto", symbol: "^CNXAUTO", name: "Auto", ik: "AUTO" },
+  { key: "energy", symbol: "^CNXENERGY", name: "Energy", ik: "ENERGY" },
+  { key: "fmcg", symbol: "^CNXFMCG", name: "FMCG", ik: "FMCG" },
+  { key: "metal", symbol: "^CNXMETAL", name: "Metal", ik: "METAL" },
+  { key: "realty", symbol: "^CNXREALTY", name: "Realty", ik: "REALTY" },
+  { key: "media", symbol: "^CNXMEDIA", name: "Media", ik: "MEDIA" },
+  { key: "psubank", symbol: "^CNXPSUBANK", name: "PSU Bank", ik: "PSUBANK" },
+  { key: "finance", symbol: "NIFTY_FIN_SERVICE.NS", name: "Finance", ik: "FINNIFTY" },
+  { key: "banking", symbol: "^NSEBANK", name: "Banking", ik: "BANKNIFTY" },
+  { key: "infra", symbol: "^CNXINFRA", name: "Infra", ik: "INFRA" },
 ];
 
 export const SECTOR_STOCKS: Record<string, string[]> = {
@@ -74,6 +75,7 @@ const SENSEX_STOCKS = [
 ];
 
 import { marketDataLayer } from "./services/marketDataLayer";
+import { getIndexDef, type IndexQuote } from "./services/indexRegistry";
 
 const cache = new Map<string, { at: number; data: Quote[] }>();
 const TTL_MS = 25_000;
@@ -306,3 +308,242 @@ export const getSectorDetail = createServerFn({ method: "GET" })
       updatedAt: Date.now(),
     };
   });
+
+// ─── INTRADAY BOOSTER ─────────────────────────────────────────────────────────
+// Real data only. One aggregated payload: index groups + all sector groups, each
+// with its constituent stocks. Powers the top sector-strength strip and the
+// index/sector constituent tables. F&O inflow/outflow is computed client-side
+// from fnoStocksQuery (which carries volume/OI/buildup/signalTime).
+
+export type BoosterStock = { symbol: string; name: string; ltp: number; changePct: number };
+export type BoosterGroup = {
+  key: string;
+  name: string;
+  isIndex: boolean;
+  changePct: number;
+  price: number;
+  stocks: BoosterStock[];
+};
+export type StripItem = { key: string; label: string; changePct: number; price: number; isIndex: boolean };
+
+const cleanSym = (s: string) => s.replace(".NS", "").replace(".BO", "");
+
+// Real constituent members per canonical index key (indexRegistry `ik`). Powers
+// one table per top-strip index/sector. All real NSE stocks (Yahoo `.NS`); any
+// ticker the quotes layer can't resolve is simply dropped (no fabrication).
+const N = (arr: string[]) => arr.map((s) => `${s}.NS`);
+const INDEX_CONSTITUENTS: Record<string, string[]> = {
+  NIFTY: N([
+    "RELIANCE","HDFCBANK","ICICIBANK","INFY","TCS","BHARTIARTL","ITC","LT","KOTAKBANK","AXISBANK",
+    "SBIN","HINDUNILVR","BAJFINANCE","MARUTI","ASIANPAINT","M&M","SUNPHARMA","HCLTECH","ULTRACEMCO","TITAN",
+    "NTPC","POWERGRID","WIPRO","NESTLEIND","TATAMOTORS","TECHM","TATASTEEL","JSWSTEEL","ADANIPORTS","INDUSINDBK",
+    "BAJAJFINSV","BAJAJ-AUTO","HDFCLIFE","GRASIM","CIPLA","DRREDDY","EICHERMOT","COALINDIA","BPCL","BRITANNIA",
+    "HEROMOTOCO","APOLLOHOSP","TATACONSUM","SBILIFE","ADANIENT","HINDALCO","SHRIRAMFIN","LTIM","TRENT","ONGC",
+    "JIOFIN","BEL",
+  ]),
+  BANKNIFTY: N([
+    "HDFCBANK","ICICIBANK","KOTAKBANK","AXISBANK","SBIN","INDUSINDBK","AUBANK","FEDERALBNK","IDFCFIRSTB","BANDHANBNK",
+    "PNB","BANKBARODA",
+  ]),
+  SENSEX: N([
+    "RELIANCE","HDFCBANK","ICICIBANK","INFY","TCS","BHARTIARTL","ITC","LT","KOTAKBANK","AXISBANK",
+    "SBIN","HINDUNILVR","BAJFINANCE","MARUTI","ASIANPAINT","M&M","SUNPHARMA","HCLTECH","ULTRACEMCO","TITAN",
+    "NTPC","POWERGRID","NESTLEIND","TATAMOTORS","TECHM","TATASTEEL","ADANIPORTS","INDUSINDBK","BAJAJFINSV","TATACONSUM",
+  ]),
+  FINNIFTY: N([
+    "HDFCBANK","ICICIBANK","AXISBANK","KOTAKBANK","SBIN","BAJFINANCE","BAJAJFINSV","SHRIRAMFIN","HDFCLIFE","SBILIFE",
+    "ICICIPRULI","ICICIGI","HDFCAMC","CHOLAFIN","MUTHOOTFIN","SBICARD","PFC","RECLTD","JIOFIN","LICI",
+  ]),
+  MIDCAP: N([
+    "LUPIN","AUROPHARMA","ZYDUSLIFE","PERSISTENT","COFORGE","MPHASIS","GODREJPROP","OBEROIRLTY","PHOENIXLTD","ASHOKLEY",
+    "TVSMOTOR","MRF","BALKRISIND","PIIND","SRF","DEEPAKNTR","TATACOMM","INDUSTOWER","CONCOR","CUMMINSIND",
+    "PAGEIND","VOLTAS","DIXON","POLYCAB","ASTRAL","MAXHEALTH","FORTIS","PETRONET","MFSL","IDFCFIRSTB",
+    "AUBANK","FEDERALBNK","HINDPETRO","SAIL","NMDC",
+  ]),
+  IT: N(["TCS","INFY","HCLTECH","WIPRO","TECHM","LTIM","PERSISTENT","COFORGE","MPHASIS","OFSS"]),
+  PHARMA: N([
+    "SUNPHARMA","DIVISLAB","CIPLA","DRREDDY","LUPIN","AUROPHARMA","TORNTPHARM","ZYDUSLIFE","BIOCON","ALKEM",
+    "LAURUSLABS","GLENMARK","MANKIND","ABBOTINDIA","IPCALAB",
+  ]),
+  AUTO: N([
+    "MARUTI","TATAMOTORS","M&M","BAJAJ-AUTO","EICHERMOT","HEROMOTOCO","TVSMOTOR","ASHOKLEY","BOSCHLTD","MRF",
+    "BALKRISIND","MOTHERSON","BHARATFORG","TIINDIA","EXIDEIND",
+  ]),
+  ENERGY: N([
+    "RELIANCE","ONGC","NTPC","POWERGRID","COALINDIA","BPCL","IOC","GAIL","TATAPOWER","ADANIGREEN",
+    "ADANIENSOL","HINDPETRO","JSWENERGY","NHPC","SJVN",
+  ]),
+  FMCG: N([
+    "HINDUNILVR","ITC","NESTLEIND","BRITANNIA","TATACONSUM","DABUR","GODREJCP","MARICO","COLPAL","VBL",
+    "UNITDSPR","PGHH","EMAMILTD","RADICO","BALRAMCHIN",
+  ]),
+  METAL: N([
+    "TATASTEEL","JSWSTEEL","HINDALCO","VEDL","JINDALSTEL","SAIL","NMDC","HINDZINC","NATIONALUM","APLAPOLLO",
+    "JSL","HINDCOPPER","WELCORP","RATNAMANI","LLOYDSME",
+  ]),
+  REALTY: N([
+    "DLF","GODREJPROP","LODHA","OBEROIRLTY","PRESTIGE","PHOENIXLTD","BRIGADE","SOBHA","ANANTRAJ","RAYMOND",
+  ]),
+  MEDIA: N([
+    "ZEEL","SUNTV","PVRINOX","NETWORK18","TV18BRDCST","SAREGAMA","TIPSINDLTD","NAZARA","HATHWAY","DISHTV",
+  ]),
+  PSUBANK: N([
+    "SBIN","BANKBARODA","PNB","CANBK","UNIONBANK","INDIANB","BANKINDIA","CENTRALBK","IOB","UCOBANK",
+    "MAHABANK","PSB",
+  ]),
+  PVTBANK: N([
+    "HDFCBANK","ICICIBANK","AXISBANK","KOTAKBANK","INDUSINDBK","IDFCFIRSTB","FEDERALBNK","BANDHANBNK","RBLBANK","CUB",
+  ]),
+  INFRA: N([
+    "LT","ADANIPORTS","ULTRACEMCO","NTPC","POWERGRID","GRASIM","BHARTIARTL","ONGC","RELIANCE","GAIL",
+    "DLF","SIEMENS","ABB","INDUSTOWER","IOC","AMBUJACEM","SHREECEM","GMRAIRPORT","IRB","NCC",
+  ]),
+  HEALTHCARE: N([
+    "SUNPHARMA","DIVISLAB","CIPLA","DRREDDY","APOLLOHOSP","MAXHEALTH","FORTIS","LUPIN","AUROPHARMA","TORNTPHARM",
+    "ZYDUSLIFE","ALKEM","BIOCON","LAURUSLABS","GLENMARK","ABBOTINDIA","MANKIND","SYNGENE","IPCALAB","GLAND",
+  ]),
+  CONSUMPTION: N([
+    "HINDUNILVR","ITC","MARUTI","TITAN","M&M","BHARTIARTL","ASIANPAINT","NESTLEIND","TATAMOTORS","BAJAJ-AUTO",
+    "TATACONSUM","DABUR","BRITANNIA","GODREJCP","VBL","TRENT","EICHERMOT","HEROMOTOCO","COLPAL","MARICO",
+    "HAVELLS","DMART","ETERNAL","JUBLFOOD","PAGEIND","VOLTAS","INDHOTEL","UNITDSPR","TVSMOTOR","NAUKRI",
+  ]),
+  OILGAS: N([
+    "RELIANCE","ONGC","IOC","BPCL","GAIL","HINDPETRO","PETRONET","ATGL","IGL","MGL",
+    "OIL","GSPL","GUJGASLTD","CASTROLIND","AEGISLOG",
+  ]),
+  CONSRDURBL: N([
+    "TITAN","HAVELLS","DIXON","CROMPTON","VOLTAS","BLUESTARCO","BATAINDIA","KAJARIACER","WHIRLPOOL","VGUARD",
+    "AMBER","RAJESHEXPO","CERA","ORIENTELEC","KALYANKJIL",
+  ]),
+  SERVICES: N([
+    "HDFCBANK","ICICIBANK","INFY","TCS","BHARTIARTL","SBIN","KOTAKBANK","AXISBANK","BAJFINANCE","HCLTECH",
+    "WIPRO","TECHM","LTIM","ADANIPORTS","DMART","BAJAJFINSV","HDFCLIFE","SBILIFE","NAUKRI","INDUSINDBK",
+    "ETERNAL","JIOFIN","SHRIRAMFIN","PFC","RECLTD",
+  ]),
+  COMMODITIES: N([
+    "RELIANCE","ONGC","NTPC","POWERGRID","COALINDIA","TATASTEEL","JSWSTEEL","HINDALCO","ULTRACEMCO","GRASIM",
+    "VEDL","ADANIGREEN","ADANIENSOL","BPCL","IOC","GAIL","AMBUJACEM","SHREECEM","PIDILITIND","UPL",
+    "SRF","TATAPOWER","JINDALSTEL","NMDC","SAIL","HINDPETRO","ACC","PIIND","DALBHARAT","NATIONALUM",
+  ]),
+  DEFENCE: N([
+    "HAL","BEL","BDL","SOLARINDS","MAZDOCK","COCHINSHIP","BEML","DATAPATTNS","ZENTEC","MTARTECH",
+    "ASTRAMICRO","PARAS","GRSE","DYNAMATECH","IDEAFORGE",
+  ]),
+  CHEMICALS: N([
+    "PIDILITIND","SRF","PIIND","DEEPAKNTR","AARTIIND","ATUL","NAVINFLUOR","TATACHEM","FLUOROCHEM","LINDEINDIA",
+    "SOLARINDS","VINATIORGA","CLEAN","FINEORG","ALKYLAMINE","BALAMINES","COROMANDEL","UPL","EIDPARRY","CHAMBLFERT",
+  ]),
+  CAPITALMKT: N([
+    "BSE","HDFCAMC","ANGELONE","MCX","CDSL","CAMS","KFINTECH","360ONE","NUVAMA","MOTILALOFS",
+    "IEX","NAM-INDIA","ABSLAMC","UTIAMC","ANANDRATHI",
+  ]),
+};
+
+// Sector-strength strip: broad + sectoral indices, matching the reference
+// layout. Each entry references a canonical index key resolved by the
+// FYERS-primary sector-index data layer (indexRegistry). Any key the chain
+// can't resolve is simply dropped (no fabricated bars).
+const BOOSTER_STRIP: { ik: string; isIndex: boolean }[] = [
+  { ik: "NIFTY", isIndex: true },
+  { ik: "BANKNIFTY", isIndex: true },
+  { ik: "FINNIFTY", isIndex: true },
+  { ik: "MIDCAP", isIndex: true },
+  { ik: "IT", isIndex: false },
+  { ik: "PHARMA", isIndex: false },
+  { ik: "AUTO", isIndex: false },
+  { ik: "ENERGY", isIndex: false },
+  { ik: "FMCG", isIndex: false },
+  { ik: "METAL", isIndex: false },
+  { ik: "REALTY", isIndex: false },
+  { ik: "MEDIA", isIndex: false },
+  { ik: "PSUBANK", isIndex: false },
+  { ik: "PVTBANK", isIndex: false },
+  { ik: "INFRA", isIndex: false },
+  { ik: "HEALTHCARE", isIndex: false },
+  { ik: "CONSUMPTION", isIndex: false },
+  { ik: "OILGAS", isIndex: false },
+  { ik: "CONSRDURBL", isIndex: false },
+  { ik: "SERVICES", isIndex: false },
+  { ik: "COMMODITIES", isIndex: false },
+  { ik: "DEFENCE", isIndex: false },
+  { ik: "CHEMICALS", isIndex: false },
+  { ik: "CAPITALMKT", isIndex: false },
+];
+
+export const getIntradayBooster = createServerFn({ method: "GET" }).handler(async () => {
+  // Index / sector-index VALUES come from the FYERS-primary sector-index layer
+  // (FYERS → NSE allIndices → Yahoo → EOD cache). Constituent STOCK quotes stay
+  // on the Upstox → Yahoo quotes layer. Both are real data only.
+  const idxMap = new Map<string, IndexQuote>();
+  try {
+    const indexQuotes = await marketDataLayer.getSectorIndices();
+    for (const iq of indexQuotes) idxMap.set(iq.key, iq);
+  } catch {
+    // All index tiers + EOD failed — groups/strip with no resolved value drop.
+  }
+
+  // Collect every constituent across all strip indices/sectors (deduped), fetch
+  // in chunks of 50.
+  const symSet = new Set<string>();
+  for (const s of BOOSTER_STRIP) (INDEX_CONSTITUENTS[s.ik] ?? []).forEach((x) => symSet.add(x));
+  const all = [...symSet];
+  const chunks: string[][] = [];
+  for (let i = 0; i < all.length; i += 50) chunks.push(all.slice(i, i + 50));
+  const results = await Promise.all(chunks.map((c) => cachedQuotes(c).catch(() => [] as Quote[])));
+
+  const qmap = new Map<string, Quote>();
+  for (const arr of results) for (const q of arr) qmap.set(q.symbol, q);
+
+  const buildStocks = (syms: string[]): BoosterStock[] =>
+    syms
+      .map((s) => {
+        const q = qmap.get(s);
+        if (!q) return null;
+        return { symbol: cleanSym(s), name: q.name, ltp: q.price, changePct: q.changePct };
+      })
+      .filter((x): x is BoosterStock => x !== null)
+      .sort((a, b) => b.changePct - a.changePct);
+
+  // One group per strip index/sector (strip order), each with its real
+  // constituents. Only groups with at least one resolved constituent are kept.
+  const groups: BoosterGroup[] = BOOSTER_STRIP
+    .map((s) => {
+      const iq = idxMap.get(s.ik);
+      const def = getIndexDef(s.ik);
+      return {
+        key: s.ik,
+        name: def?.label ?? s.ik,
+        isIndex: s.isIndex,
+        changePct: iq?.changePct ?? 0,
+        price: iq?.price ?? 0,
+        stocks: buildStocks(INDEX_CONSTITUENTS[s.ik] ?? []),
+      };
+    })
+    .filter((g) => g.stocks.length > 0);
+
+  // Sector-strength strip: only entries whose index value resolved (no
+  // fabricated bars), sorted best → worst.
+  const strip: StripItem[] = BOOSTER_STRIP
+    .map((s) => {
+      const iq = idxMap.get(s.ik);
+      if (!iq) return null;
+      const def = getIndexDef(s.ik);
+      return { key: s.ik, label: def?.label ?? s.ik, changePct: iq.changePct, price: iq.price, isIndex: s.isIndex };
+    })
+    .filter((x): x is StripItem => x !== null)
+    .sort((a, b) => b.changePct - a.changePct);
+
+  // Market sentiment breadth from every constituent (real quotes only).
+  let adv = 0, dec = 0;
+  for (const s of symSet) {
+    const q = qmap.get(s);
+    if (!q) continue;
+    if (q.changePct > 0) adv++;
+    else if (q.changePct < 0) dec++;
+  }
+  const totalBreadth = adv + dec || 1;
+  const bullPct = Math.round((adv / totalBreadth) * 100);
+  const breadth = { bullPct, bearPct: 100 - bullPct, advances: adv, declines: dec };
+
+  return { groups, strip, breadth, updatedAt: Date.now() };
+});

@@ -24,6 +24,9 @@ interface FnoItemData {
   oi: number;
   dayHigh: number;
   dayLow: number;
+  oiChgPct?: number;
+  signalTime?: number | null;
+  buildup?: string;
 }
 
 type ItemData = IndexItemData | FnoItemData;
@@ -49,7 +52,19 @@ function fmtLarge(n: number): string {
   return n.toLocaleString("en-IN");
 }
 
+function fmtSig(ts: number): string {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  let h = d.getHours();
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
+}
+
 const CATEGORY_EMOJI: Record<string, string> = {
+  "INFLOW": "🟢",
+  "OUTFLOW": "🔴",
   "Long Buildup": "🔥",
   "Short Buildup": "🔴",
   "Short Covering": "🟢",
@@ -65,6 +80,8 @@ const CATEGORY_EMOJI: Record<string, string> = {
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
+  "INFLOW": "INFLOW",
+  "OUTFLOW": "OUTFLOW",
   "Long Buildup": "LONG BUILDUP",
   "Short Buildup": "SHORT BUILDUP",
   "Short Covering": "SHORT COVERING",
@@ -92,7 +109,7 @@ export function TickerItem({ data }: TickerItemProps) {
     if (data.kind === "index") {
       navigate({ to: "/" });
     } else {
-      navigate({ to: "/fno" });
+      navigate({ to: "/intraday-booster" });
     }
   }, [data, navigate]);
 
@@ -198,14 +215,32 @@ export function TickerItem({ data }: TickerItemProps) {
               {fmtChange(data.changePct)}%
             </span>
           </div>
-          <div className="tt-row">
-            <span className="tt-label">Day High</span>
-            <span className="tt-value">{fmtPrice(data.dayHigh)}</span>
-          </div>
-          <div className="tt-row">
-            <span className="tt-label">Day Low</span>
-            <span className="tt-value">{fmtPrice(data.dayLow)}</span>
-          </div>
+          {data.buildup && (
+            <div className="tt-row">
+              <span className="tt-label">Signal</span>
+              <span className="tt-value">{data.buildup}</span>
+            </div>
+          )}
+          {typeof data.oiChgPct === "number" && (
+            <div className="tt-row">
+              <span className="tt-label">OI Chg</span>
+              <span className={`tt-value ${data.oiChgPct >= 0 ? "positive" : "negative"}`}>
+                {fmtChange(data.oiChgPct)}%
+              </span>
+            </div>
+          )}
+          {data.dayHigh > 0 && (
+            <div className="tt-row">
+              <span className="tt-label">Day High</span>
+              <span className="tt-value">{fmtPrice(data.dayHigh)}</span>
+            </div>
+          )}
+          {data.dayLow > 0 && (
+            <div className="tt-row">
+              <span className="tt-label">Day Low</span>
+              <span className="tt-value">{fmtPrice(data.dayLow)}</span>
+            </div>
+          )}
           {data.oi > 0 && (
             <div className="tt-row">
               <span className="tt-label">OI</span>
@@ -218,6 +253,12 @@ export function TickerItem({ data }: TickerItemProps) {
               <span className="tt-value">{fmtLarge(data.volume)}</span>
             </div>
           )}
+          {data.signalTime ? (
+            <div className="tt-row">
+              <span className="tt-label">Time</span>
+              <span className="tt-value">{fmtSig(data.signalTime)}</span>
+            </div>
+          ) : null}
         </div>
       )}
     </>

@@ -8,6 +8,11 @@ import { getFyersConfig } from "./configStore";
 import { resolveSymbol, StandardSymbol, BrokerName } from "./symbolMapper";
 import { DataLineage, EnvelopedResponse } from "./dataLineage";
 import { isBrokerAvailable, recordFailure, recordSuccess } from "./circuitBreaker";
+import {
+  ALL_INDEX_KEYS,
+  YAHOO_INDEX_SYMBOL,
+  type IndexQuote,
+} from "./indexRegistry";
 import type { Quote } from "../market.functions";
 import type { OptionChain } from "../nse.functions";
 
@@ -17,13 +22,19 @@ const INDEX_SYMBOL_MAP: Record<string, string> = {
   SENSEX: "^BSESN",
 };
 
-export type FeatureCategory = "quotes" | "futuresOI" | "optionChain";
+export type FeatureCategory = "quotes" | "futuresOI" | "optionChain" | "sectorIndices";
 
 export const routingConfig: Record<FeatureCategory, BrokerName[]> = {
   quotes: ["upstox", "yahoo"],
   futuresOI: ["angelone", "nse"],
   optionChain: ["fyers", "angelone", "nse"],
+  // Sector/broad index quotes: FYERS is authenticated HTTPS (works on Cloudflare
+  // and carries every sectoral index incl. Defence/Chemicals/Capital Markets),
+  // then NSE allIndices, then Yahoo, then the EOD snapshot.
+  sectorIndices: ["fyers", "nse", "yahoo"],
 };
+
+const SECTOR_INDICES_CACHE_KEY = "sector_indices_snapshot";
 
 function getQuotesCacheKey(symbols: string[]): string {
   const sorted = [...symbols].sort().join(",");
@@ -186,6 +197,123 @@ export const marketDataLayer = {
     }
 
     throw new Error(`Market quotes service temporarily unavailable.`);
+  },
+
+  /**
+   * Sector/broad index quotes with the sectorIndices fallback chain:
+   * FYERS (primary) → NSE allIndices → Yahoo → EOD snapshot. Each tier only
+   * fills the keys still missing, so the result degrades gracefully per-index
+   * (e.g. when the FYERS token expires, core sectors still resolve via NSE/Yahoo
+   * and only FYERS-exclusive indices drop). Real data only — no fabrication.
+   */
+  async getSectorIndices(): Promise<EnvelopedResponse<IndexQuote[]>> {
+    const start = Date.now();
+    const keys = ALL_INDEX_KEYS;
+    const marketOpen = isMarketOpen();
+
+    // Market closed → serve the real EOD snapshot immediately if present.
+    if (!marketOpen) {
+      const cached = await getEodData(SECTOR_INDICES_CACHE_KEY);
+      if (cached?.indices?.length) {
+        const res = cached.indices as EnvelopedResponse<IndexQuote[]>;
+        res._metadata = { source: "cache", status: "cached", timestamp: cached.updatedAt || Date.now() };
+        return res;
+      }
+    }
+
+    const result = new Map<string, IndexQuote>();
+    let primary: DataLineage["source"] | "" = "";
+
+    // 1. FYERS (primary) — unless circuit-broken or token expired.
+    let fyersAvailable = isBrokerAvailable("fyers");
+    if (fyersAvailable) {
+      try {
+        const cfg = await getFyersConfig();
+        if (cfg.isExpired || !cfg.accessToken) fyersAvailable = false;
+      } catch {
+        fyersAvailable = false;
+      }
+    }
+    if (fyersAvailable) {
+      try {
+        const q = await fyersService.getIndexQuotes(keys);
+        if (q.length) {
+          recordSuccess("fyers");
+          for (const iq of q) result.set(iq.key, iq);
+          primary = "fyers";
+        }
+      } catch (err: any) {
+        console.warn(`FYERS sector indices failed: ${err.message}. Falling back to NSE.`);
+        recordFailure("fyers");
+      }
+    }
+
+    // 2. NSE allIndices — fill any keys still missing.
+    let missing = keys.filter((k) => !result.has(k));
+    if (missing.length && isBrokerAvailable("nse")) {
+      try {
+        const q = await nseFallbackService.getAllIndices(missing);
+        if (q.length) {
+          recordSuccess("nse");
+          for (const iq of q) if (!result.has(iq.key)) result.set(iq.key, iq);
+          if (!primary) primary = "nse";
+        }
+      } catch (err: any) {
+        console.warn(`NSE allIndices failed: ${err.message}. Falling back to Yahoo.`);
+        recordFailure("nse");
+      }
+    }
+
+    // 3. Yahoo — fill remaining keys that have a Yahoo ticker.
+    missing = keys.filter((k) => !result.has(k) && YAHOO_INDEX_SYMBOL[k]);
+    if (missing.length && isBrokerAvailable("yahoo")) {
+      try {
+        const symToKey = new Map<string, string>();
+        const ySyms = missing.map((k) => {
+          const s = YAHOO_INDEX_SYMBOL[k];
+          symToKey.set(s, k);
+          return s;
+        });
+        const quotes = await yahooService.getQuotes(ySyms);
+        if (quotes.length) {
+          recordSuccess("yahoo");
+          for (const qt of quotes) {
+            const key = symToKey.get(qt.symbol);
+            if (key && !result.has(key)) {
+              result.set(key, { key, price: qt.price, changePct: qt.changePct, prevClose: qt.prevClose });
+            }
+          }
+          if (!primary) primary = "yahoo";
+        }
+      } catch (err: any) {
+        console.error(`Yahoo sector indices failed: ${err.message}`);
+        recordFailure("yahoo");
+      }
+    }
+
+    const arr = [...result.values()];
+    if (arr.length && primary) {
+      const res = arr as EnvelopedResponse<IndexQuote[]>;
+      res._metadata = {
+        source: primary,
+        status: primary === "fyers" ? "live" : "fallback",
+        timestamp: Date.now(),
+        latencyMs: Date.now() - start,
+      };
+      // Persist a real snapshot for the closed-market / EOD path.
+      await saveEodData(SECTOR_INDICES_CACHE_KEY, { indices: arr, updatedAt: Date.now(), source: primary });
+      return res;
+    }
+
+    // 4. EOD snapshot (last real data) as the final resort.
+    const cached = await getEodData(SECTOR_INDICES_CACHE_KEY);
+    if (cached?.indices?.length) {
+      const res = cached.indices as EnvelopedResponse<IndexQuote[]>;
+      res._metadata = { source: "cache", status: "cached", timestamp: cached.updatedAt || Date.now() };
+      return res;
+    }
+
+    throw new Error("Sector index service temporarily unavailable: all sources and EOD cache failed.");
   },
 
   async getOptionChain(

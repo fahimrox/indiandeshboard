@@ -77,7 +77,7 @@ indiandeshboard/
 ├── eod_cache/                  # Persisted EOD JSON snapshots (real data) + intraday/
 ├── backend/database/           # SQLite market_data.db + backups (created at runtime)
 ├── docs/                       # PROJECT_MASTER · CURRENT_TASK · SESSION_HANDOVER · CHANGELOG
-├── public/                     # static assets (incl. ai-analysis.html)
+├── public/                     # static assets (favicon, robots, etc.)
 └── package.json / vite.config.ts / tsconfig.json
 ```
 
@@ -100,8 +100,8 @@ File-based under `src/routes/`. Navigation is grouped into "Labs" in `DashboardS
 | `/oi-analysis-pro` | Option | **AI OI intelligence** (3 indices) | `getOptionChain` / cached + `quotes` |
 | `/screener` | Screener | Live F&O scanner / signals | `getLiveScannerData`, `getFnoScreener` |
 | `/heatmap` | Sector | Sector heatmap | `getDashboard` sectors |
+| `/intraday-booster` | Sector | Sector strength strip, F&O inflow/outflow momentum, index+sector movers | `getIntradayBooster`, `getFnoStocks` |
 | `/sector/$key` | Sector | Sector constituents | `getSectorDetail` |
-| `/ai-analysis` | AI | AI analysis view | dashboard + option data |
 | `/sitemap[.]xml` | — | Sitemap | — |
 | `/api/*` | — | Server API routes (history/candles/export/oi-history/…) | SQLite via `database.server` |
 
@@ -200,9 +200,8 @@ EOD read:      getEodOptionChain() = exact-expiry file, else symbol `default` sn
 - **F&O Lab** — Future Dashboard, F&O Stocks, F&O Board (heatmap).
 - **Option Lab** — Option Chain, OI Analysis, **OI Analysis Pro**.
 - **Screener Lab** — Live F&O scanner + signals.
-- **Sector Lab** — Sector heatmap + sector detail.
-- **AI Lab** — AI Analysis.
-- **Coming soon (nav placeholders only):** Global Lab, Chart Lab, Tool Lab, News Lab.
+- **Sector Lab** — Sector heatmap, sector detail, Intraday Booster.
+- **Coming soon (nav placeholders only):** AI Lab, Global Lab, Chart Lab, Tool Lab, News Lab.
 
 **`src/features/oi-analysis-pro/`** (flagship): `analysis.ts` (deterministic AI
 engine — sentiment/PCR/max-pain/S-R/buildup/VIX/smart-money/action-plan/signals),

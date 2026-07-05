@@ -16,13 +16,13 @@ import { Route as OptionchainRouteImport } from './routes/optionchain'
 import { Route as OiAnalysisProRouteImport } from './routes/oi-analysis-pro'
 import { Route as OiAnalysisRouteImport } from './routes/oi-analysis'
 import { Route as Nifty50RouteImport } from './routes/nifty50'
+import { Route as IntradayBoosterRouteImport } from './routes/intraday-booster'
 import { Route as IndexContributionRouteImport } from './routes/index-contribution'
 import { Route as HeatmapRouteImport } from './routes/heatmap'
 import { Route as FutureDashboardRouteImport } from './routes/future-dashboard'
 import { Route as FnoboardRouteImport } from './routes/fnoboard'
 import { Route as FnoRouteImport } from './routes/fno'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
-import { Route as AiAnalysisRouteImport } from './routes/ai-analysis'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
 import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
@@ -69,6 +69,11 @@ const Nifty50Route = Nifty50RouteImport.update({
   path: '/nifty50',
   getParentRoute: () => rootRouteImport,
 } as any)
+const IntradayBoosterRoute = IntradayBoosterRouteImport.update({
+  id: '/intraday-booster',
+  path: '/intraday-booster',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexContributionRoute = IndexContributionRouteImport.update({
   id: '/index-contribution',
   path: '/index-contribution',
@@ -97,11 +102,6 @@ const FnoRoute = FnoRouteImport.update({
 const BankniftyRoute = BankniftyRouteImport.update({
   id: '/banknifty',
   path: '/banknifty',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AiAnalysisRoute = AiAnalysisRouteImport.update({
-  id: '/ai-analysis',
-  path: '/ai-analysis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -157,13 +157,13 @@ const ApiCandlesSymbolRoute = ApiCandlesSymbolRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
+  '/intraday-booster': typeof IntradayBoosterRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
   '/oi-analysis-pro': typeof OiAnalysisProRoute
@@ -183,13 +183,13 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
+  '/intraday-booster': typeof IntradayBoosterRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
   '/oi-analysis-pro': typeof OiAnalysisProRoute
@@ -210,13 +210,13 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/ai-analysis': typeof AiAnalysisRoute
   '/banknifty': typeof BankniftyRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
   '/heatmap': typeof HeatmapRoute
   '/index-contribution': typeof IndexContributionRoute
+  '/intraday-booster': typeof IntradayBoosterRoute
   '/nifty50': typeof Nifty50Route
   '/oi-analysis': typeof OiAnalysisRoute
   '/oi-analysis-pro': typeof OiAnalysisProRoute
@@ -238,13 +238,13 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
     | '/index-contribution'
+    | '/intraday-booster'
     | '/nifty50'
     | '/oi-analysis'
     | '/oi-analysis-pro'
@@ -264,13 +264,13 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
     | '/index-contribution'
+    | '/intraday-booster'
     | '/nifty50'
     | '/oi-analysis'
     | '/oi-analysis-pro'
@@ -290,13 +290,13 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/ai-analysis'
     | '/banknifty'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
     | '/heatmap'
     | '/index-contribution'
+    | '/intraday-booster'
     | '/nifty50'
     | '/oi-analysis'
     | '/oi-analysis-pro'
@@ -317,13 +317,13 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AiAnalysisRoute: typeof AiAnalysisRoute
   BankniftyRoute: typeof BankniftyRoute
   FnoRoute: typeof FnoRoute
   FnoboardRoute: typeof FnoboardRoute
   FutureDashboardRoute: typeof FutureDashboardRoute
   HeatmapRoute: typeof HeatmapRoute
   IndexContributionRoute: typeof IndexContributionRoute
+  IntradayBoosterRoute: typeof IntradayBoosterRoute
   Nifty50Route: typeof Nifty50Route
   OiAnalysisRoute: typeof OiAnalysisRoute
   OiAnalysisProRoute: typeof OiAnalysisProRoute
@@ -392,6 +392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof Nifty50RouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/intraday-booster': {
+      id: '/intraday-booster'
+      path: '/intraday-booster'
+      fullPath: '/intraday-booster'
+      preLoaderRoute: typeof IntradayBoosterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/index-contribution': {
       id: '/index-contribution'
       path: '/index-contribution'
@@ -432,13 +439,6 @@ declare module '@tanstack/react-router' {
       path: '/banknifty'
       fullPath: '/banknifty'
       preLoaderRoute: typeof BankniftyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ai-analysis': {
-      id: '/ai-analysis'
-      path: '/ai-analysis'
-      fullPath: '/ai-analysis'
-      preLoaderRoute: typeof AiAnalysisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -528,13 +528,13 @@ const ApiHistoryRouteWithChildren = ApiHistoryRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AiAnalysisRoute: AiAnalysisRoute,
   BankniftyRoute: BankniftyRoute,
   FnoRoute: FnoRoute,
   FnoboardRoute: FnoboardRoute,
   FutureDashboardRoute: FutureDashboardRoute,
   HeatmapRoute: HeatmapRoute,
   IndexContributionRoute: IndexContributionRoute,
+  IntradayBoosterRoute: IntradayBoosterRoute,
   Nifty50Route: Nifty50Route,
   OiAnalysisRoute: OiAnalysisRoute,
   OiAnalysisProRoute: OiAnalysisProRoute,

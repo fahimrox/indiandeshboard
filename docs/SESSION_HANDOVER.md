@@ -11,57 +11,54 @@
 
 | Field | Value |
 |-------|-------|
-| **Date** | 2026-07-03 |
+| **Date** | 2026-07-05 |
 | **AI** | Claude Opus 4.8 (Kiro IDE agent) |
-| **Focus** | Index Lab polish pass 2 (hero card VIX/PCR/MaxPain + table restyle) · Index Lab redesign · OI Analysis Pro · remove all mock · LIVE/EOD/FAIL · docs + AI bootstrap |
-| **Build** | ✅ Clean — `npm run build` exit 0 (client + ssr + nitro) |
+| **Focus** | Intraday Booster: FYERS-primary sector-index layer + flow-table polish + **per-index constituent tables** (click-to-scroll) |
+| **Build** | ✅ Clean — `npm run build` exit 0 (client + ssr + nitro, cloudflare-module) |
 
 ---
 
 ## Work Completed
-- **Index Lab polish 3** (latest): reverted hero-card PCR/Max Pain row (India VIX
-  box stays on the right by the price/EOD line); DashboardShell top-bar
-  "Market Closed" → "EOD"; hero + breadth card heights reduced further; rebuilt the
-  3-table Contribution panel to the reference layout (plain Positive/Negative
-  lists + centre-diverging green/red Points Contribution bars), bigger fonts, no
-  logos, **no scrollbars** (full-length downward). Removed `useIndexOptionStats`.
-- **Index Lab polish 2** (superseded by polish 3 for the hero/table styling):
-  added VIX/PCR/MaxPain + logo/pill styling — reverted per user feedback.
-- **Index Lab pages** (NIFTY/BANKNIFTY/SENSEX): replaced the 3 header tiles with a
-  Bulls-vs-Bears **Breadth card** (+ per-index sentiment lines), and replaced the
-  bottom "All constituents" list with a 3-table **Contribution panel** (Positive ·
-  Points Contribution · Negative). Shared via `src/components/IndexPanels.tsx`.
-  `IndexHeroCard` closed label → **EOD**.
-- Rebuilt `/oi-analysis-pro` as an AI OI-intelligence page (3 indices only).
-- Removed every mock/synthetic/random generator from live code paths.
-- Added LIVE / EOD / FAIL data-source badges.
-- Fixed SENSEX/EOD expiry-key FAIL via `getEodOptionChain`/`saveEodOptionChain`.
-- Fixed `/oi-analysis` bars, presets, width, bottom panels; removed MIDCAP NIFTY.
-- Rebuilt all four `docs/` files; created AI bootstrap (`AGENTS.md`/`CLAUDE.md`/`GEMINI.md`).
+- Built a dedicated **sector/broad index data layer** so the Intraday Booster's
+  strip + index/sector group headers get **real** index values on Cloudflare:
+  - `indexRegistry.ts` — canonical key → FYERS / NSE-name / Yahoo symbol for 26
+    indices. All FYERS symbols **live-verified**; includes Defence, Chemicals,
+    Capital Markets (which Yahoo lacks).
+  - `fyersService.getIndexQuotes()` + shared `isFyersAuthError()` (option chain
+    refactored to use it).
+  - `nseFallbackService.getAllIndices()` (NSE `/api/allIndices`, 24/24 names match).
+  - `marketDataLayer.getSectorIndices()` + `sectorIndices` routing category —
+    chain **FYERS → NSE allIndices → Yahoo → EOD snapshot**, per-tier fill,
+    circuitBreaker + FYERS-expiry check + persistentCache. Throws (FAIL) if all fail.
+  - `getIntradayBooster` rewired: index **values** from `getSectorIndices` (FYERS
+    primary), constituent **stocks** stay on `cachedQuotes` (Upstox→Yahoo). Strip
+    re-keyed + extended with Defence/Chemicals/Capital Markets.
 
-_Full detail: see `CHANGELOG.md` → 2026-07-03 (three entries)._
+- **Intraday Booster UI** (later in the session):
+  - Flow tables → 10 rows, no scroll, middle bar removed, `@ h:mm AM/PM` time pill
+    + colored chg% pill, newest-signal-first ordering.
+  - Constituent tables → **one paired gainers↔losers table per strip
+    index/sector** (green gainer + red loser centre bar; badge + name + (chg%) +
+    `N↑ M↓`). Real constituents via new `INDEX_CONSTITUENTS` (24 indices).
+  - Click a SECTOR-chart bar → smooth-scroll to that table (`#tbl-<key>`).
+  - `getIntradayBooster` now returns `groups[]` + `strip` (with `key`) + `breadth`
+    (dropped separate `indices`/`sectors`).
+
+_Full detail: see `CHANGELOG.md` → 2026-07-05 (two entries)._
 
 ## Files Created
-- `src/components/IndexPanels.tsx`
-- `src/features/oi-analysis-pro/analysis.ts`, `charts.tsx`, `OiProPage.tsx`
-- `src/features/oi-analysis/oiHistoryStore.ts`
-- `docs/CHANGELOG.md`
-- `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` (project root — AI bootstrap)
+- `src/lib/services/indexRegistry.ts`
 
 ## Files Modified
-- `src/routes/{nifty50,banknifty,sensex}.tsx` (breadth + contribution redesign; VIX/PCR/MaxPain wiring)
-- `src/components/MarketBits.tsx` (`IndexHeroCard` → EOD label, stats row, sizing)
-- `src/features/oi-analysis/{OIAnalysisPage,utils,types}.ts(x)`
-- `src/features/oi-analysis/components/{OIChart,BottomPanels,TimeControls,ChartToolbar}.tsx`
-- `src/features/oi-analysis/hooks/useTimeWindow.ts`
-- `src/lib/services/{marketDataLayer,nseFallbackService,persistentCache}.ts`
-- `src/lib/nse.functions.ts`
-- `src/routes/oi-analysis-pro.tsx`
-- `docs/{PROJECT_MASTER,CURRENT_TASK,SESSION_HANDOVER}.md`
+- `src/lib/services/fyersService.ts` (shared `isFyersAuthError`, `getIndexQuotes`)
+- `src/lib/services/nseFallbackService.ts` (`getAllIndices`)
+- `src/lib/services/marketDataLayer.ts` (`sectorIndices` category + `getSectorIndices`)
+- `src/lib/market.functions.ts` (`getIntradayBooster` → `groups`/`strip`; `INDEX_CONSTITUENTS`; `SECTORS`/`BOOSTER_STRIP` keyed to registry; `BoosterGroup.isIndex`, `StripItem.key`)
+- `src/features/intraday-booster/IntradayBoosterPage.tsx` (flow tables, `IndexFlowTable`, clickable `SectorBarChart`)
+- `docs/{CURRENT_TASK,SESSION_HANDOVER,CHANGELOG}.md`
 
 ## Files Removed
-- `src/features/oi-analysis/mockSnapshot.ts`
-- `src/hooks/useIndexOptionStats.ts` (created then removed same session)
+- None.
 
 ---
 
@@ -69,38 +66,47 @@ _Full detail: see `CHANGELOG.md` → 2026-07-03 (three entries)._
 - None known.
 
 ## Known Limitations
-- FYERS option-chain feed carries **no IV** → ATM IV shows "—"; volatility score
-  falls back to India VIX.
-- SQLite (`better-sqlite3`) + Node `fs` EOD cache work on Node/Bun runtime, **not
-  on Cloudflare Workers** (no filesystem). On Cloudflare, outside-market-hours
-  data relies on whatever `eod_cache/*.json` shipped with the build.
-- Time-window presets on `/oi-analysis` use a linear approximation until the
-  session OI history buffer accumulates ≥2 ticks.
+- **Cloudflare + FYERS token expiry (daily):** when the token is expired, the
+  sector-index layer falls to NSE allIndices → Yahoo. On Cloudflare, NSE can be
+  datacenter-IP-blocked, so Yahoo covers the core sectors while **Defence /
+  Chemicals / Capital Markets may drop from the strip** until the FYERS token is
+  refreshed (they have no Yahoo ticker). This is graceful degradation, not a crash
+  — no fabricated bars. On Node/VPS, NSE allIndices fills all 24 (verified).
+- SQLite (`better-sqlite3`) + Node `fs` EOD cache are Node/Bun-only, not Cloudflare
+  Workers. On Cloudflare, closed-market data relies on shipped `eod_cache/*.json`.
+- FYERS option-chain feed carries no IV (ATM IV shows "—").
 
 ## Important Decisions
-- Data integrity is absolute: **no fabricated data anywhere.** Missing data →
-  FAIL state, never mock.
-- Pro-page buildup colour = impact-based (green gaining / red losing; Strong dark,
-  Weak light). No other hues.
-- `src/components/OIAnalysis/*` and `src/components/IndexContribution/*` are
-  **unused legacy** (no imports) — safe to ignore or remove later.
+- **Sector-index source = FYERS primary** (authenticated HTTPS → works on
+  Cloudflare + carries every sectoral index). NSE allIndices is fallback (IP-block
+  risk on CF), Yahoo backs up the rest, EOD snapshot is the closed-market resort.
+- Reused the existing orchestrator/circuitBreaker/cache — no parallel system.
+- Data integrity absolute: no fabricated data; unresolved index values drop / FAIL.
 
 ## Assumptions
-- Underlying direction is used as the option-premium-direction proxy for leg
-  buildup (per-leg LTP change is not stored). Matches reference tools.
+- FYERS index symbols stay stable (all live-verified this session).
 
 ## Pending Work
-- None active. Awaiting next task from user.
+- None. Completed this session: **Intraday Booster** (FYERS-primary sector-index
+  layer, strip chart, Momentum-Ignition flow tables, per-index paired constituent
+  tables), **top ticker → Booster inflow/outflow signals**, and a full
+  **Option Chain (`/optionchain`) redesign** (OptionClock-style on real
+  FYERS→AngelOne→NSE→EOD data: buildup badges, WTT/WTB/DF heat, in-table spot bar,
+  R/S + stats cards, legend). All build clean (exit 0), real data only.
+  Awaiting the user's next task.
 
 ## Recommended Next Step
-- Await user direction. If asked to persist intraday OI cross-session on
-  Cloudflare, add a KV/D1-backed cache (current cache is FS/SQLite = Node only).
+- Await user direction. If asked to make sector-index data survive FYERS expiry on
+  Cloudflare for Defence/Chemicals/CapMkt, add a KV/D1 snapshot of the last good
+  FYERS index values (FS/SQLite cache is Node-only).
 
 ## Notes For Next AI
 - Run `npm run build` (exit 0) before finishing.
+- Do NOT touch `fyers_config.enc` / `.env` (secrets). FYERS index symbols live in
+  `indexRegistry.ts`; verify any new one with a live `/data/quotes` call before use.
 - Update BOTH `CURRENT_TASK.md` and this file; add a `CHANGELOG.md` entry for any
   completed feature. Keep this file to the latest session only.
 
 ---
 
-*Last Updated: 2026-07-03 · Claude Opus 4.8*
+*Last Updated: 2026-07-05 · Claude Opus 4.8*
