@@ -6,7 +6,135 @@
 
 ---
 
+## 2026-07-08 — Supabase health check & monitoring API endpoint
+
+### Added
+- **`src/routes/api/supabase-health.ts`** — API endpoint (`GET /api/supabase-health`) returning the health status and row counts / latest timestamps of all 7 Supabase tables.
+- **Health monitoring helpers in `supabase.server.ts`** — `getSupabaseHealthReport` and `getTableStats` functions to safely aggregate row counts and locate latest records without crashing or blocking.
+
+---
+
+## 2026-07-07 — Supabase dual-write from scheduler (SQLite + Supabase)
+
+
+### Added
+- **`SUPABASE_DUAL_WRITE` feature flag** — set to `true` in `.env` to enable dual-write.
+  Default `false` keeps scheduler SQLite-only (safe for any environment).
+- **3 new insert helpers** in `supabase.server.ts`:
+  `insertMarketBreadth`, `insertSectorStrength`, `insertTradeSignal` (+ matching types).
+- **`isDualWriteEnabled()` helper** — reads `process.env.SUPABASE_DUAL_WRITE`.
+- **`dualWrite(label, promise)` wrapper** in `scheduler.server.ts` — void fire-and-forget
+  that logs errors via `console.error` but NEVER throws and NEVER blocks the SQLite path.
+- **Dual-write hooks in `scheduler.server.ts`** after each SQLite write:
+  - `dbService.saveBreadth()` → `insertMarketBreadth()` (fire-and-forget)
+  - `dbService.saveSnapshots()` → `insertMarketSnapshot()` (fire-and-forget, batched)
+  - `dbService.saveSectors()` → `insertSectorStrength()` (fire-and-forget, batched)
+  - `dbService.saveOptionChain()` → `insertOptionChainSnapshot()` then
+    `insertOiActivity()` chained on the returned snapshot `id` (fire-and-forget)
+  - `startScheduler()` startup log → `insertSystemLog()` (fire-and-forget)
+- **`.env.example`** — `SUPABASE_DUAL_WRITE=false` placeholder added with comment.
+
+### Unchanged
+- `database.server.ts` — SQLite is always primary, completely untouched.
+- All broker logic, routes, UI components.
+- `scheduler.server.ts` async tick timing and error handling are identical.
+
+---
+
+## 2026-07-07 — Supabase integration layer (connection + insert test)
+
+### Added
+- **`@supabase/supabase-js`** dependency (8 packages).
+- **`src/lib/services/supabase.server.ts`** — server-only Supabase client using
+  `SUPABASE_SERVICE_ROLE_KEY` (never exposed to the browser). Lazy singleton.
+  Exports: `insertSystemLog`, `insertMarketSnapshot`, `insertOptionChainSnapshot`,
+  `insertOiActivity`. All are fire-and-forget safe (return bool/null, never throw).
+- **`src/lib/supabase-test.functions.ts`** — TanStack server fn; inserts one row
+  into `system_logs` and returns `{ ok, message, timestamp }`.
+- **`src/routes/api/supabase-test.ts`** — `GET /api/supabase-test` API endpoint;
+  returns JSON. Visit in browser to verify connectivity.
+- **`.env.example`** — added `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY` placeholder lines with inline comments.
+
+### Unchanged
+- Existing SQLite `database.server.ts` + scheduler: **untouched**.
+- No broker logic, routes, or components modified.
+
+---
+
+## 2026-07-07 — Chart Lab: multi-symbol candle rendering fix
+
+### Fixed
+- **BANKNIFTY / SENSEX / stocks showed blank chart** when selected from the symbol picker.
+  NIFTY continued working because it was always the initial symbol (no symbol-switch involved).
+  Root cause: React Query `keepPreviousData` caused the old NIFTY candle response to remain
+  in `cd` while the new symbol's fetch was in-flight. The `setData` effect fired immediately
+  with stale NIFTY candles; when the correct data arrived, LWC's internal timestamp state was
+  already set and silently rejected the second `setData` (swallowed by `try/catch`) → blank chart.
+
+### Changes (`src/features/chart/ChartLabPage.tsx` only)
+1. **Clear on symbol change** — `useEffect([sym.yahoo])` calls `setData([])` on candlestick and
+   volume series when the symbol changes, resetting LWC's timestamp state before new data arrives.
+2. **Stale-data guard** — `if (cd.symbol !== sym.yahoo) return` in both `setData` effects so
+   old-symbol candles are never written to the new symbol's series.
+3. **`fitContent` fix** — removed the now-redundant `cd.symbol === sym.yahoo` guard so `fitContent`
+   reliably fires once when the correct data arrives.
+
+### No changes to
+- Query layer, server functions, symbol mapping, OI overlay, EOD logic, UI/theme.
+
+---
+
+## 2026-07-07 — Chart Lab: EOD OI bars + CE/PE volume histogram + 3m timeframe
+
+### Added
+- **EOD OI bars** — OI bars now show after market close using last saved snapshot.
+  Fallback chain: SQLite `option_chain_snapshots` (per-strike via `oi_activity`) →
+  `eod_cache/*.json` → "No OI snapshot available" clear state. GPT-5.5's correct
+  logic implemented: market open → live OI, market closed → saved snapshot. Never
+  silently hides bars.
+- **`getEodOiSnapshot` server fn** (`chart.functions.ts`) — queries SQLite DB for the
+  latest `option_chain_snapshots` row + joins `oi_activity` for per-strike OI. Falls
+  back to `getEodOptionChain` from `persistentCache`.
+- **`eodOiSnapshotQuery`** (`dashboard-query.ts`) — always-on query for indices, 2 min
+  refetch when market open, 1 hour when closed.
+- **LIVE / EOD badge** on OI Bars toggle button — green "LIVE" or blue "EOD" indicator.
+- **`🗄 EOD Snapshot · HH:MM IST`** toolbar badge — shows when using saved snapshot.
+- **CE/PE volume dual histogram** — green CE bars ↑ / red PE bars ↓ from SQLite
+  `option_chain_snapshots` time-series (`getCepeVolHistory` + `cepeVolQuery`).
+- **3m timeframe** — added to timeframe selector bar.
+- **Hatched OI bars** — diagonal stripe pattern for building OI, hollow/drained look
+  for unwinding OI. Matches screenshot reference.
+- **`getEodOiSnapshot`** + **`getCepeVolHistory`** in `chart.functions.ts`.
+
+### Changed
+- `ChartLabPage.tsx` — complete rewrite with proper EOD/live data routing.
+- `dashboard-query.ts` — added `cepeVolQuery` + `eodOiSnapshotQuery`.
+
+---
+
+## 2026-07-07 — Chart Lab bug fixes (Claude Sonnet 4.6, Antigravity)
+
+
+### Fixed
+- **Symbol switching** — changing to any stock/index now correctly renders its candles.
+  Root cause: candle series lacked `priceScaleId: "right"` (LWC v5 requirement) and
+  `setData` calls lacked error boundaries. Added `try/catch` + `prevSymTfRef` for
+  clean symbol-change detection.
+- **Volume histogram not appearing** — LWC v5 requires `chart.priceScale("vol").applyOptions()`
+  to be called **after** `addSeries`. Previous code had the scale setup before add,
+  so the `"vol"` scale was never wired. Fixed initialization order.
+- **OI overlay bars not showing** — `priceToCoordinate` returned `null` silently because
+  the candle series had no explicit `priceScaleId`. Setting `priceScaleId: "right"` on
+  the candle series restored correct coordinate mapping.
+
+### Notes
+- Only `src/features/chart/ChartLabPage.tsx` changed. No new files. Build clean (exit 0).
+
+---
+
 ## 2026-07-05 — Option Chain page redesign (StockMojo/OptionClock style) (Claude Opus 4.8)
+
 
 ### Changed
 - Rebuilt `/optionchain` with the OptionClock-style dense terminal design on the
@@ -42,6 +170,75 @@
 ### Notes
 - Real data only; `generateChain()` synthetic and cosmetic tick from the source
   snippet were NOT ported. `npm run build` clean (exit 0).
+
+---
+
+## 2026-07-06 — Chart Lab: Lightweight Charts with OI overlay (Claude Opus 4.8)
+
+### Added
+- **Chart Lab** (`/chart`) — professional live chart on TradingView's open-source
+  **`lightweight-charts` v5**:
+  - Candlestick + direction-coloured **volume** histogram (green up / red down).
+  - **Right-side Call/Put OI bars overlay** at strike levels (red = Call OI /
+    resistance, green = Put OI / support; bright tip = OI change) drawn as an
+    HTML layer synced to the candle series via `priceToCoordinate` in a rAF loop.
+    Live from `optionChainQuery` for NIFTY / BANKNIFTY / SENSEX.
+  - **Symbol universe**: all indices (from `indexRegistry`), ~150 NSE F&O stocks,
+    plus free-text search to load any NSE cash symbol (`.NS`). Timeframes
+    1m/5m/15m/30m/1h/1D/1W. Header shows LTP + day change.
+- **`getCandles`** server fn (`chart.functions.ts`) + `candlesQuery` — real OHLCV
+  via Yahoo chart API (`v8/finance/chart`), timestamps shifted to IST. Live-verified
+  (^NSEI, RELIANCE.NS, ^NSEBANK).
+- **`chartSymbols.ts`** — client-safe symbol universe + typed-symbol resolver.
+
+### Changed
+- Top-nav: **Chart Lab ↔ Global Lab positions swapped**; Chart Lab is now active
+  (→ `/chart`), Global Lab stays "coming soon".
+
+### Live OI hatched/draining effect
+- OI-mode bars now show the **live building/draining effect**: during live market
+  each Call/Put OI bar renders solid + the recent OI-change on the left tip —
+  **building (OI↑) = hatched**, **draining (OI↓) = hollow outline + dimmer body**.
+  Market closed (EOD) → plain solid bars only (matches Dhan). Requires the live
+  option chain (`liveOc`) to be returning rows; otherwise it's EOD-solid.
+
+### Volume + symbol-switch blank fix
+- **Volume** now a single **candle-volume histogram** (green up / red down candle),
+  matching the reference — works for stocks (indices have no traded volume).
+  Replaced the non-functional CE/PE dual-histogram. Toggle relabelled "Volume".
+- **Permanent fix for "only NIFTY renders, others blank":** `getCandles` never
+  throws now (returns empty on failure); `candlesQuery` uses `keepPreviousData`;
+  and the re-fit is gated on `cd.symbol === selected` so the keepPreviousData
+  transition never leaves a new symbol stuck on the old view. Verified all
+  symbols return candles (^NSEBANK, ^BSESN, RELIANCE, ^CNXIT, M&M, BAJAJ-AUTO).
+
+### OI overlay — Dhan-style bars + settings panel
+- OI bars rebuilt to match the Dhan reference: **solid thick Call (red) + Put
+  (green) bars stacked per strike**, right-anchored, length = OI (sqrt-normalized
+  so medium strikes stay visible), **square corners**, colours configurable.
+- Added a compact **OI settings panel** (top-left): OI on/off · **OI ⇄ Change-in-OI**
+  toggle · **Expiry** dropdown (live) · **Call/Put colour** pickers · CE/PE Vol ·
+  LIVE/EOD badge.
+- **Change-in-OI** mode (live only): bars diverge from a centre line — building
+  = solid grows left, draining = hollow grows right (toward axis).
+- **Market closed → solid OI only** (no hatched/draining; Change toggle disabled).
+  Fixed root cause of invisible bars earlier: overlay `z-index` (`z-[3]`) so bars
+  sit above the LWC canvas. Temporary diagnostics removed.
+
+### Fixes (same day)
+- Fixed a chart-creation race so **candles apply reliably** (stocks/any symbol now
+  render, not just the initial index) — data is applied via a `ready` gate + data
+  effects instead of the async create closure.
+- Chart now **fits the screen** (`h-[calc(100vh-210px)]`), no page scroll.
+- Added TradingView-style **OI / Volume eye toggles** (top-left, on/off).
+- OI overlay + volume now show once ready (volume is genuinely ~0 for indices —
+  shows for stocks; noted in the legend).
+
+### Notes
+- Real data only (no synthetic). SSR-safe (lightweight-charts dynamic-imported in
+  effect). `npm run build` clean (exit 0). Follow-ups: broker-history candle
+  fallback for Cloudflare, and true time-series CE/PE volume (needs intraday
+  snapshot collection — currently volume is per-candle traded volume).
 
 ---
 

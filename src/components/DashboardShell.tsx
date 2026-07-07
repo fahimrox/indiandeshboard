@@ -96,8 +96,12 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/intraday-booster", label: "Intraday Booster" },
     ],
   },
+  {
+    label: "Chart Lab",
+    icon: BarChart3,
+    items: [{ to: "/chart", label: "Live Chart" }],
+  },
   { label: "Global Lab", icon: Globe, items: [], comingSoon: true },
-  { label: "Chart Lab", icon: BarChart3, items: [], comingSoon: true },
   { label: "Tool Lab", icon: Wrench, items: [], comingSoon: true },
   { label: "News Lab", icon: Newspaper, items: [], comingSoon: true },
 ];

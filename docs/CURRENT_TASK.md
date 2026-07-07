@@ -7,7 +7,12 @@
 
 ## Status: IDLE — no feature in progress
 
-Most recent work (2026-07-05, recorded in `CHANGELOG.md`): (1) built the
+Most recent work (2026-07-08, recorded in `CHANGELOG.md`): added **Supabase health/debug API endpoint** (`GET /api/supabase-health`) —
+queries row counts and latest timestamps/records from all 7 Supabase tables safely without throwing or exposing env credentials.
+SQLite remains primary.
+
+
+Earlier (2026-07-05, recorded in `CHANGELOG.md`): (1) built the
 **FYERS-primary sector-index data layer** (chain FYERS → NSE allIndices → Yahoo →
 EOD) and (2) polished the **Intraday Booster** — flow tables (10 rows, no scroll,
 newest-first), and **one paired gainers↔losers table per strip index/sector** with
