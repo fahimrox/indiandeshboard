@@ -2,6 +2,20 @@ import { getIstDate, isMarketOpenIst } from "../market-hours";
 import { dbService, DBQuote, DBOptionChain, DBBreadth, DBSector, DBSignal } from "./database.server";
 import { marketDataLayer } from "./marketDataLayer";
 import { dashboardService } from "./dashboardService.server";
+import {
+  isDualWriteEnabled,
+  insertSystemLog,
+  insertMarketSnapshot,
+  insertMarketBreadth,
+  insertSectorStrength,
+  insertOptionChainSnapshot,
+  insertOiActivity,
+  type SupabaseMarketSnapshot,
+  type SupabaseMarketBreadth,
+  type SupabaseSectorStrength,
+  type SupabaseOptionChainSnapshot,
+  type SupabaseOiActivity,
+} from "./supabase.server";
 
 declare global {
   var __market_data_scheduler__: {
@@ -34,9 +48,20 @@ const getFormattedDate = (date: Date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
+// ── Fire-and-forget Supabase write wrapper ─────────────────────────────────────
+// Wraps any Supabase insert in a void promise that logs errors but NEVER throws.
+// The SQLite write has already happened before this is called — this is secondary.
+function dualWrite(label: string, p: Promise<any>): void {
+  void p.catch((err) => {
+    console.error(`[scheduler] dual-write failed [${label}]:`, err?.message ?? err);
+  });
+}
+
 async function executeTick() {
   if (isRunningTick) return;
   isRunningTick = true;
+
+  const dualWrite_ = isDualWriteEnabled();
 
   const now = new Date();
   const ist = getIstDate(now.getTime());
@@ -75,7 +100,7 @@ async function executeTick() {
     // 1. Fetch Dashboard Quotes & Breadth
     const dash = await dashboardService.getDashboardData(true);
     
-    // Save Breadth
+    // ── Breadth ──────────────────────────────────────────────────────────────
     const breadth: DBBreadth = {
       advance: dash.advance ?? 0,
       decline: dash.decline ?? 0,
@@ -85,46 +110,58 @@ async function executeTick() {
     };
     dbService.saveBreadth(breadth, timestamp, dateStr, timeStr);
 
-    // Save Index Quotes
+    // Dual-write breadth to Supabase (fire-and-forget)
+    if (dualWrite_) {
+      const sbBreadth: SupabaseMarketBreadth = {
+        trading_date: dateStr,
+        trading_time: timeStr,
+        advance: breadth.advance,
+        decline: breadth.decline,
+        unchanged: breadth.unchanged,
+        adr: breadth.adr,
+        india_vix: breadth.indiaVix,
+      };
+      dualWrite("market_breadth", insertMarketBreadth(sbBreadth));
+    }
+
+    // ── Index Quotes ──────────────────────────────────────────────────────────
     const quotesToSave: DBQuote[] = [];
-    if (dash.nifty) {
-      quotesToSave.push({
-        symbol: "NIFTY", exchange: "NSE",
-        open: dash.nifty.open, high: dash.nifty.dayHigh, low: dash.nifty.dayLow, close: dash.nifty.price,
-        ltp: dash.nifty.price, prevClose: dash.nifty.prevClose, changeVal: dash.nifty.change, changePct: dash.nifty.changePct,
-        volume: 0, vwap: dash.nifty.price
+    const sbQuotes: SupabaseMarketSnapshot[] = [];
+
+    const pushQuote = (
+      symbol: string, exchange: string, q: { open: number; dayHigh: number; dayLow: number; price: number; prevClose: number; change: number; changePct: number }
+    ) => {
+      const dbQ: DBQuote = {
+        symbol, exchange,
+        open: q.open, high: q.dayHigh, low: q.dayLow, close: q.price,
+        ltp: q.price, prevClose: q.prevClose, changeVal: q.change, changePct: q.changePct,
+        volume: 0, vwap: q.price
+      };
+      quotesToSave.push(dbQ);
+      sbQuotes.push({
+        trading_date: dateStr, trading_time: timeStr,
+        symbol, exchange,
+        open: q.open, high: q.dayHigh, low: q.dayLow, close: q.price,
+        ltp: q.price, prev_close: q.prevClose, change_val: q.change, change_pct: q.changePct,
+        volume: 0, vwap: q.price,
       });
-    }
-    if (dash.bankNifty) {
-      quotesToSave.push({
-        symbol: "BANKNIFTY", exchange: "NSE",
-        open: dash.bankNifty.open, high: dash.bankNifty.dayHigh, low: dash.bankNifty.dayLow, close: dash.bankNifty.price,
-        ltp: dash.bankNifty.price, prevClose: dash.bankNifty.prevClose, changeVal: dash.bankNifty.change, changePct: dash.bankNifty.changePct,
-        volume: 0, vwap: dash.bankNifty.price
-      });
-    }
-    if (dash.sensex) {
-      quotesToSave.push({
-        symbol: "SENSEX", exchange: "BSE",
-        open: dash.sensex.open, high: dash.sensex.dayHigh, low: dash.sensex.dayLow, close: dash.sensex.price,
-        ltp: dash.sensex.price, prevClose: dash.sensex.prevClose, changeVal: dash.sensex.change, changePct: dash.sensex.changePct,
-        volume: 0, vwap: dash.sensex.price
-      });
-    }
-    if (dash.vix) {
-      quotesToSave.push({
-        symbol: "INDIAVIX", exchange: "NSE",
-        open: dash.vix.open, high: dash.vix.dayHigh, low: dash.vix.dayLow, close: dash.vix.price,
-        ltp: dash.vix.price, prevClose: dash.vix.prevClose, changeVal: dash.vix.change, changePct: dash.vix.changePct,
-        volume: 0, vwap: dash.vix.price
-      });
-    }
+    };
+
+    if (dash.nifty)     pushQuote("NIFTY",    "NSE", dash.nifty);
+    if (dash.bankNifty) pushQuote("BANKNIFTY", "NSE", dash.bankNifty);
+    if (dash.sensex)    pushQuote("SENSEX",    "BSE", dash.sensex);
+    if (dash.vix)       pushQuote("INDIAVIX",  "NSE", dash.vix);
 
     if (quotesToSave.length > 0) {
       dbService.saveSnapshots(quotesToSave, timestamp, dateStr, timeStr);
+
+      // Dual-write quotes to Supabase (fire-and-forget)
+      if (dualWrite_ && sbQuotes.length > 0) {
+        dualWrite("market_snapshots", insertMarketSnapshot(sbQuotes));
+      }
     }
 
-    // Save Sector strength
+    // ── Sector strength ───────────────────────────────────────────────────────
     if (dash.sectors && dash.sectors.length > 0) {
       const sectorsToSave: DBSector[] = dash.sectors.map((s: any) => ({
         symbol: s.symbol,
@@ -133,9 +170,22 @@ async function executeTick() {
         changePct: s.changePct || 0
       }));
       dbService.saveSectors(sectorsToSave, timestamp, dateStr, timeStr);
+
+      // Dual-write sectors to Supabase (fire-and-forget)
+      if (dualWrite_) {
+        const sbSectors: SupabaseSectorStrength[] = sectorsToSave.map((s) => ({
+          trading_date: dateStr,
+          trading_time: timeStr,
+          symbol: s.symbol,
+          name: s.name,
+          price: s.price,
+          change_pct: s.changePct,
+        }));
+        dualWrite("sector_strength", insertSectorStrength(sbSectors));
+      }
     }
 
-    // 2. Fetch Option Chains
+    // ── Option Chains ─────────────────────────────────────────────────────────
     const indicesToFetch = ["NIFTY", "BANKNIFTY", "SENSEX"];
     for (const symbol of indicesToFetch) {
       try {
@@ -175,6 +225,53 @@ async function executeTick() {
             }))
           };
           dbService.saveOptionChain(dbChain, timestamp, dateStr, timeStr);
+
+          // Dual-write option chain + OI activity to Supabase (fire-and-forget)
+          if (dualWrite_) {
+            const sbSnap: SupabaseOptionChainSnapshot = {
+              trading_date: dateStr,
+              trading_time: timeStr,
+              symbol: dbChain.symbol,
+              expiry: dbChain.expiry,
+              spot_price: dbChain.spotPrice,
+              pcr: dbChain.pcr,
+              max_pain: dbChain.maxPain,
+              atm_strike: dbChain.atmStrike,
+              total_ce_oi: dbChain.totalCeOi,
+              total_pe_oi: dbChain.totalPeOi,
+              total_ce_oi_chg: dbChain.totalCeOiChg,
+              total_pe_oi_chg: dbChain.totalPeOiChg,
+              total_ce_vol: dbChain.totalCeVol,
+              total_pe_vol: dbChain.totalPeVol,
+              max_ce_oi_strike: dbChain.maxCeOiStrike,
+              max_pe_oi_strike: dbChain.maxPeOiStrike,
+              support_levels: dbChain.supportLevels,
+              resistance_levels: dbChain.resistanceLevels,
+            };
+
+            // Chain: first insert the snapshot, then link OI rows to its id
+            dualWrite(
+              `option_chain+oi [${symbol}]`,
+              insertOptionChainSnapshot(sbSnap).then((snapId) => {
+                if (!snapId) return; // snapshot insert failed or was a dup; skip OI rows
+                const sbOiRows: SupabaseOiActivity[] = dbChain.rows.map((r) => ({
+                  snapshot_id: snapId,
+                  strike: r.strike,
+                  ce_ltp: r.ceLtp,
+                  ce_oi: r.ceOi,
+                  ce_oi_chg: r.ceOiChg,
+                  ce_vol: r.ceVol,
+                  ce_signal: r.ceSignal,
+                  pe_ltp: r.peLtp,
+                  pe_oi: r.peOi,
+                  pe_oi_chg: r.peOiChg,
+                  pe_vol: r.peVol,
+                  pe_signal: r.peSignal,
+                }));
+                return insertOiActivity(sbOiRows);
+              })
+            );
+          }
         }
       } catch (err: any) {
         dbService.logEvent("WARN", `Option chain data capture failed for ${symbol}: ${err.message}`);
@@ -204,7 +301,22 @@ export function startScheduler() {
     return;
   }
 
+  const dualEnabled = isDualWriteEnabled();
   console.log(`Starting Intraday Data Scheduler at interval: ${SAVE_INTERVAL_MS / 1000}s`);
+  if (dualEnabled) {
+    console.log("[scheduler] Supabase dual-write ENABLED (SUPABASE_DUAL_WRITE=true)");
+    // Log scheduler startup to Supabase system_logs (fire-and-forget)
+    dualWrite(
+      "system_logs/startup",
+      insertSystemLog({
+        service: "scheduler",
+        level: "INFO",
+        message: "Intraday scheduler started with Supabase dual-write enabled",
+      })
+    );
+  } else {
+    console.log("[scheduler] Supabase dual-write DISABLED (set SUPABASE_DUAL_WRITE=true to enable)");
+  }
 
   // Run first tick immediately to catch up
   executeTick().catch(err => console.error("Error executing initial scheduler tick:", err));

@@ -22,9 +22,12 @@ import { Route as HeatmapRouteImport } from './routes/heatmap'
 import { Route as FutureDashboardRouteImport } from './routes/future-dashboard'
 import { Route as FnoboardRouteImport } from './routes/fnoboard'
 import { Route as FnoRouteImport } from './routes/fno'
+import { Route as ChartRouteImport } from './routes/chart'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
+import { Route as ApiSupabaseTestRouteImport } from './routes/api/supabase-test'
+import { Route as ApiSupabaseHealthRouteImport } from './routes/api/supabase-health'
 import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
 import { Route as ApiOiHistoryRouteImport } from './routes/api/oi-history'
 import { Route as ApiMarketHistoryRouteImport } from './routes/api/market-history'
@@ -99,6 +102,11 @@ const FnoRoute = FnoRouteImport.update({
   path: '/fno',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChartRoute = ChartRouteImport.update({
+  id: '/chart',
+  path: '/chart',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BankniftyRoute = BankniftyRouteImport.update({
   id: '/banknifty',
   path: '/banknifty',
@@ -112,6 +120,16 @@ const IndexRoute = IndexRouteImport.update({
 const SectorKeyRoute = SectorKeyRouteImport.update({
   id: '/sector/$key',
   path: '/sector/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSupabaseTestRoute = ApiSupabaseTestRouteImport.update({
+  id: '/api/supabase-test',
+  path: '/api/supabase-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSupabaseHealthRoute = ApiSupabaseHealthRouteImport.update({
+  id: '/api/supabase-health',
+  path: '/api/supabase-health',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOptionHistoryRoute = ApiOptionHistoryRouteImport.update({
@@ -158,6 +176,7 @@ const ApiCandlesSymbolRoute = ApiCandlesSymbolRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
+  '/chart': typeof ChartRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
@@ -177,6 +196,8 @@ export interface FileRoutesByFullPath {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/supabase-health': typeof ApiSupabaseHealthRoute
+  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -184,6 +205,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
+  '/chart': typeof ChartRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
@@ -203,6 +225,8 @@ export interface FileRoutesByTo {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/supabase-health': typeof ApiSupabaseHealthRoute
+  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -211,6 +235,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/banknifty': typeof BankniftyRoute
+  '/chart': typeof ChartRoute
   '/fno': typeof FnoRoute
   '/fnoboard': typeof FnoboardRoute
   '/future-dashboard': typeof FutureDashboardRoute
@@ -230,6 +255,8 @@ export interface FileRoutesById {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/supabase-health': typeof ApiSupabaseHealthRoute
+  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -239,6 +266,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/banknifty'
+    | '/chart'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
@@ -258,6 +286,8 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/supabase-health'
+    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -265,6 +295,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/banknifty'
+    | '/chart'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
@@ -284,6 +315,8 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/supabase-health'
+    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -291,6 +324,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/banknifty'
+    | '/chart'
     | '/fno'
     | '/fnoboard'
     | '/future-dashboard'
@@ -310,6 +344,8 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/supabase-health'
+    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -318,6 +354,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BankniftyRoute: typeof BankniftyRoute
+  ChartRoute: typeof ChartRoute
   FnoRoute: typeof FnoRoute
   FnoboardRoute: typeof FnoboardRoute
   FutureDashboardRoute: typeof FutureDashboardRoute
@@ -337,6 +374,8 @@ export interface RootRouteChildren {
   ApiMarketHistoryRoute: typeof ApiMarketHistoryRoute
   ApiOiHistoryRoute: typeof ApiOiHistoryRoute
   ApiOptionHistoryRoute: typeof ApiOptionHistoryRoute
+  ApiSupabaseHealthRoute: typeof ApiSupabaseHealthRoute
+  ApiSupabaseTestRoute: typeof ApiSupabaseTestRoute
   SectorKeyRoute: typeof SectorKeyRoute
   ApiCandlesSymbolRoute: typeof ApiCandlesSymbolRoute
 }
@@ -434,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FnoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chart': {
+      id: '/chart'
+      path: '/chart'
+      fullPath: '/chart'
+      preLoaderRoute: typeof ChartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/banknifty': {
       id: '/banknifty'
       path: '/banknifty'
@@ -453,6 +499,20 @@ declare module '@tanstack/react-router' {
       path: '/sector/$key'
       fullPath: '/sector/$key'
       preLoaderRoute: typeof SectorKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/supabase-test': {
+      id: '/api/supabase-test'
+      path: '/api/supabase-test'
+      fullPath: '/api/supabase-test'
+      preLoaderRoute: typeof ApiSupabaseTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/supabase-health': {
+      id: '/api/supabase-health'
+      path: '/api/supabase-health'
+      fullPath: '/api/supabase-health'
+      preLoaderRoute: typeof ApiSupabaseHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/option-history': {
@@ -529,6 +589,7 @@ const ApiHistoryRouteWithChildren = ApiHistoryRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BankniftyRoute: BankniftyRoute,
+  ChartRoute: ChartRoute,
   FnoRoute: FnoRoute,
   FnoboardRoute: FnoboardRoute,
   FutureDashboardRoute: FutureDashboardRoute,
@@ -548,6 +609,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketHistoryRoute: ApiMarketHistoryRoute,
   ApiOiHistoryRoute: ApiOiHistoryRoute,
   ApiOptionHistoryRoute: ApiOptionHistoryRoute,
+  ApiSupabaseHealthRoute: ApiSupabaseHealthRoute,
+  ApiSupabaseTestRoute: ApiSupabaseTestRoute,
   SectorKeyRoute: SectorKeyRoute,
   ApiCandlesSymbolRoute: ApiCandlesSymbolRoute,
 }
