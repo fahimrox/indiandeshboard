@@ -185,6 +185,18 @@ async function executeTick() {
       }
     }
 
+    // ── Sector index EOD snapshot refresh ────────────────────────────────────
+    // Call getSectorIndices() each tick so eod_cache/sector_indices_snapshot.json
+    // is updated with the latest live data. After market close the EOD branch will
+    // then return the final same-day close prices instead of a stale previous-day
+    // snapshot. Failures are logged but never crash or block the rest of the tick.
+    try {
+      await marketDataLayer.getSectorIndices();
+      dbService.logEvent("INFO", `Sector index EOD snapshot refreshed at ${timeStr}`);
+    } catch (sectorErr: any) {
+      dbService.logEvent("WARN", `Sector index snapshot refresh failed at ${timeStr}: ${sectorErr?.message ?? sectorErr}`);
+    }
+
     // ── Option Chains ─────────────────────────────────────────────────────────
     const indicesToFetch = ["NIFTY", "BANKNIFTY", "SENSEX"];
     for (const symbol of indicesToFetch) {
