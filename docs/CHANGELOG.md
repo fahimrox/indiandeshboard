@@ -6,6 +6,41 @@
 
 ---
 
+## 2026-07-08 21:10 IST — Claude Opus 4.8
+
+### Task
+Completed Stale-Cache Audit and Scheduler Refresh Plan.
+
+### Files Changed
+- `src/lib/services/scheduler.server.ts`
+- `src/lib/nse.functions.ts`
+- `src/lib/services/persistentCache.ts`
+- `src/lib/market.functions.ts`
+- `src/lib/services/marketDataLayer.ts`
+
+### What Changed
+- Added scheduler-driven F&O stocks snapshot refresh every 2 minutes.
+- Added scheduler-driven F&O screener snapshot refresh every 3 minutes.
+- Added duplicate prevention so screener refresh does not cause unnecessary separate F&O stock refresh in the same tick.
+- Added constituent/index contribution quote snapshot refresh every 5 minutes.
+- Deduplicated NIFTY, BANKNIFTY, and SENSEX component symbols.
+- Batched constituent quote refreshes safely.
+- Added stale-cache warning helper in persistent cache reads.
+- Propagated real broker/cache timestamps where possible.
+- Exported needed F&O fetchers and cache-key generator for scheduler use.
+
+### Why
+Multiple dashboard pages depended on UI/page visits to refresh EOD snapshots. This caused old cached market data to appear after market close. Scheduler-driven refreshes ensure same-day snapshots are captured during market hours even when pages are not open.
+
+### Verification
+- `npm run build`: ✅ exit 0
+
+### Notes / Risks
+- Final freshness still needs to be verified during live market hours.
+- After close, compare Sector Lab, Screener, F&O pages, and Index Contribution against trusted references such as StockMojo.
+
+---
+
 ## 2026-07-08 — Supabase health check & monitoring API endpoint
 
 ### Added
@@ -194,6 +229,24 @@
 ### Changed
 - Top-nav: **Chart Lab ↔ Global Lab positions swapped**; Chart Lab is now active
   (→ `/chart`), Global Lab stays "coming soon".
+
+### OI Analysis page — recent-refresh OI activity (same as Chart Lab)
+- The `/oi-analysis` bars now use the **per-refresh incremental OI delta** (change
+  since the last DISTINCT refresh, held until the next real refresh) for the
+  default/live view — via a `recentSnapshot` in `OIAnalysisPage` mirroring the
+  Chart Lab logic. So the hatched (increase) / hollow (decrease) decoration
+  reflects recent activity instead of the whole-day `oiChg`, and persists across
+  identical refetches. Explicit time presets (5m/30m/…) still use the recorded
+  windowed change. **OI Analysis Pro untouched.** `npm run build` clean.
+
+### Live OI hatched/draining — persist + bolder + incremental
+- Hatched/hollow now driven by the **per-refresh incremental OI delta** (change
+  since the last DISTINCT refresh), not the whole-day `oiChg` — so most bars stay
+  solid and only recently-active strikes show a change accent (like the broker).
+- **Persistence fix:** the delta only recomputes when OI values actually change;
+  identical refetches keep the last delta, so the hatched/hollow stays visible
+  until the next real refresh (was vanishing after ~2-3s).
+- **Bolder hatch:** bright colour + dark diagonal stripes (4px), wider accent.
 
 ### Live OI hatched/draining effect
 - OI-mode bars now show the **live building/draining effect**: during live market

@@ -7,7 +7,22 @@
 
 ## Status: IDLE — no feature in progress
 
-Most recent work (2026-07-08, recorded in `CHANGELOG.md`): added **Supabase health/debug API endpoint** (`GET /api/supabase-health`) —
+- Stale-cache scheduler refresh plan completed by Claude Opus 4.8 on 2026-07-08 21:10 IST. Build clean with `npm run build` exit 0. Pending: live market-hours verification and after-close comparison against reference data.
+
+Most recent work (recorded in `CHANGELOG.md`): completed the **Stale-Cache Audit & Scheduler Refresh** implementation — added F&O stocks (2 min), F&O screener (3 min), and index constituents (5 min) refreshes to the intraday scheduler tick; added a stale cache warning helper with Date comparison and 30-min log-throttling in `persistentCache.ts`; and propagated real broker data timestamps in constituent/contributions/sector server functions.
+
+Earlier: applied the **Chart Lab per-refresh incremental OI delta** logic to the **`/oi-analysis` page** — the bars now show
+recent-refresh OI activity (change since the last DISTINCT refresh, held until the
+Most recent work (2026-07-08, recorded in `CHANGELOG.md`): fixed **stale sector data bug** —
+added a `marketDataLayer.getSectorIndices()` call inside the scheduler tick so
+`eod_cache/sector_indices_snapshot.json` is refreshed every minute during market hours.
+After close, Sector Lab / Intraday Booster now shows same-day EOD sector prices.
+
+Earlier this session: built **Chart Lab** (`/chart`, lightweight-charts candles +
+volume + right-side OI overlay bars, Dhan-style live hatched/draining), swapped
+Chart Lab ↔ Global Lab nav, fixed non-NIFTY blank chart.
+
+Earlier (2026-07-08, recorded in `CHANGELOG.md`): added **Supabase health/debug API endpoint** (`GET /api/supabase-health`) —
 queries row counts and latest timestamps/records from all 7 Supabase tables safely without throwing or exposing env credentials.
 SQLite remains primary.
 

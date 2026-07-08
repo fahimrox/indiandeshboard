@@ -206,5 +206,31 @@ code without explanation · leave a session without updating the living docs.
 
 ---
 
+## 15. AI Work Logging Protocol
+
+- Every AI agent must record its work before finishing any meaningful task.
+- This applies after any code change, bug fix, build fix, refactor, backend/data-source change, scheduler change, documentation architecture change, or deployment/config change.
+- Each work log must include:
+  - AI agent/model name
+  - Date and time in IST
+  - Task summary
+  - Files changed
+  - Why the change was made
+  - Build/test result
+  - Remaining risks or follow-up items
+- Required documentation updates:
+  - `CHANGELOG.md` for permanent completed-change history
+  - `SESSION_HANDOVER.md` for latest handover summary
+  - `docs/CURRENT_TASK.md` only when active task status changes
+- Never silently modify code without documenting the change.
+- Never remove previous AI entries unless the user explicitly asks.
+- Use IST timezone.
+- Mention build result clearly, for example: `npm run build: ✅ exit 0`.
+- If build was not run, clearly write: `Build not run`.
+- If a fix is partial, clearly mark it as partial.
+- Future agents must read `AGENTS.md` first before editing the project.
+
+---
+
 *Master file. AI-specific bootstrap notes: `CLAUDE.md`, `GEMINI.md`. Deep
 architecture: `docs/PROJECT_MASTER.md`.*
