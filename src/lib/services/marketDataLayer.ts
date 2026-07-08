@@ -36,7 +36,7 @@ export const routingConfig: Record<FeatureCategory, BrokerName[]> = {
 
 const SECTOR_INDICES_CACHE_KEY = "sector_indices_snapshot";
 
-function getQuotesCacheKey(symbols: string[]): string {
+export function getQuotesCacheKey(symbols: string[]): string {
   const sorted = [...symbols].sort().join(",");
   let hash = 0;
   for (let i = 0; i < sorted.length; i++) {

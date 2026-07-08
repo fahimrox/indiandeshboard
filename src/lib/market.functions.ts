@@ -51,7 +51,7 @@ export const SECTOR_STOCKS: Record<string, string[]> = {
   infra: ["LT.NS","ADANIPORTS.NS","GMRINFRA.NS","IRB.NS","NCC.NS","KEC.NS","HGINFRA.NS","PNCINFRA.NS"],
 };
 
-const NIFTY_STOCKS = [
+export const NIFTY_STOCKS = [
   "RELIANCE.NS","HDFCBANK.NS","ICICIBANK.NS","INFY.NS","TCS.NS",
   "BHARTIARTL.NS","ITC.NS","LT.NS","KOTAKBANK.NS","AXISBANK.NS",
   "SBIN.NS","HINDUNILVR.NS","BAJFINANCE.NS","MARUTI.NS","ASIANPAINT.NS",
@@ -59,13 +59,13 @@ const NIFTY_STOCKS = [
   "NTPC.NS","POWERGRID.NS","WIPRO.NS","NESTLEIND.NS","TATAMOTORS.NS",
 ];
 
-const BANKNIFTY_STOCKS = [
+export const BANKNIFTY_STOCKS = [
   "HDFCBANK.NS","ICICIBANK.NS","KOTAKBANK.NS","AXISBANK.NS","SBIN.NS",
   "INDUSINDBK.NS","AUBANK.NS","FEDERALBNK.NS","IDFCFIRSTB.NS","BANDHANBNK.NS",
   "PNB.NS","BANKBARODA.NS",
 ];
 
-const SENSEX_STOCKS = [
+export const SENSEX_STOCKS = [
   "RELIANCE.NS","HDFCBANK.NS","ICICIBANK.NS","INFY.NS","TCS.NS",
   "BHARTIARTL.NS","ITC.NS","LT.NS","KOTAKBANK.NS","AXISBANK.NS",
   "SBIN.NS","HINDUNILVR.NS","BAJFINANCE.NS","MARUTI.NS","ASIANPAINT.NS",
@@ -236,7 +236,8 @@ export const getIndexConstituents = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const map = { nifty: NIFTY_STOCKS, banknifty: BANKNIFTY_STOCKS, sensex: SENSEX_STOCKS };
     const stocks = await cachedQuotes(map[data.index]);
-    return { ...statsFor(stocks), updatedAt: Date.now() };
+    const metadataTimestamp = (stocks as any)._metadata?.timestamp;
+    return { ...statsFor(stocks), updatedAt: metadataTimestamp || Date.now() };
   });
 
 export type ContributorRow = {
@@ -281,6 +282,7 @@ export const getIndexContributions = createServerFn({ method: "GET" })
     const positive = rows.filter((r) => r.contributionPct >= 0);
     const negative = rows.filter((r) => r.contributionPct < 0);
 
+    const metadataTimestamp = (allStocks as any)._metadata?.timestamp;
     return {
       index: data.index,
       rows,
@@ -288,7 +290,7 @@ export const getIndexContributions = createServerFn({ method: "GET" })
       negative,
       indexQuote,
       indexChange,
-      updatedAt: Date.now(),
+      updatedAt: metadataTimestamp || Date.now(),
     };
   });
 
@@ -302,10 +304,11 @@ export const getSectorDetail = createServerFn({ method: "GET" })
       cachedQuotes([sector.symbol]),
       list.length ? cachedQuotes(list) : Promise.resolve([]),
     ]);
+    const metadataTimestamp = (idxArr as any)._metadata?.timestamp || (stocks as any)._metadata?.timestamp;
     return {
       sector: { ...sector, quote: idxArr[0] ?? null },
       ...statsFor(stocks),
-      updatedAt: Date.now(),
+      updatedAt: metadataTimestamp || Date.now(),
     };
   });
 

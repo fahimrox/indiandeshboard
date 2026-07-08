@@ -249,7 +249,7 @@ async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, Yaho
   return out;
 }
 
-async function fetchFnoStocks(): Promise<FnoResponse> {
+export async function fetchFnoStocks(): Promise<FnoResponse> {
   const now = Date.now();
   try {
     type Resp = {
@@ -1002,7 +1002,7 @@ async function fetchYahooLevels(symbols: string[]): Promise<Map<string, LevelSet
   return out;
 }
 
-async function fetchFnoScreener(): Promise<ScreenerResponse> {
+export async function fetchFnoScreener(): Promise<ScreenerResponse> {
   try {
     const stocksResp = await fetchFnoStocks();
     const stocks = stocksResp.data;

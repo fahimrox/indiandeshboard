@@ -1,7 +1,11 @@
 import { getIstDate, isMarketOpenIst } from "../market-hours";
 import { dbService, DBQuote, DBOptionChain, DBBreadth, DBSector, DBSignal } from "./database.server";
-import { marketDataLayer } from "./marketDataLayer";
+import { marketDataLayer, getQuotesCacheKey } from "./marketDataLayer";
 import { dashboardService } from "./dashboardService.server";
+import { fetchFnoStocks, fetchFnoScreener } from "../nse.functions";
+import { NIFTY_STOCKS, BANKNIFTY_STOCKS, SENSEX_STOCKS } from "../market.functions";
+import { saveEodData } from "./persistentCache";
+import type { Quote } from "../market.functions";
 import {
   isDualWriteEnabled,
   insertSystemLog,
@@ -38,6 +42,7 @@ const SAVE_INTERVAL_MS = process.env.INTRA_LOG_INTERVAL
   : 60000; // 1 minute default
 
 let isRunningTick = false;
+let tickCount = 0;
 
 // Format helper
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -94,7 +99,8 @@ async function executeTick() {
     return;
   }
 
-  dbService.logEvent("INFO", `Executing scheduler data capture tick at ${timeStr}`);
+  tickCount++;
+  dbService.logEvent("INFO", `Executing scheduler data capture tick #${tickCount} at ${timeStr}`);
 
   try {
     // 1. Fetch Dashboard Quotes & Breadth
@@ -287,6 +293,78 @@ async function executeTick() {
         }
       } catch (err: any) {
         dbService.logEvent("WARN", `Option chain data capture failed for ${symbol}: ${err.message}`);
+      }
+    }
+
+    // ── F&O Stocks & Screener snapshot refresh ───────────────────────────────
+    if (tickCount % 3 === 0) {
+      try {
+        const screenerData = await fetchFnoScreener();
+        dbService.logEvent("INFO", `F&O screener snapshot refreshed at ${timeStr} with ${screenerData.data?.length ?? 0} rows (F&O stocks also refreshed internally)`);
+      } catch (screenerErr: any) {
+        dbService.logEvent("WARN", `F&O screener snapshot refresh failed at ${timeStr}: ${screenerErr?.message ?? screenerErr}`);
+      }
+    } else if (tickCount % 2 === 0) {
+      try {
+        const stocksData = await fetchFnoStocks();
+        dbService.logEvent("INFO", `F&O stocks snapshot refreshed at ${timeStr} with ${stocksData.data?.length ?? 0} rows`);
+      } catch (stocksErr: any) {
+        dbService.logEvent("WARN", `F&O stocks snapshot refresh failed at ${timeStr}: ${stocksErr?.message ?? stocksErr}`);
+      }
+    }
+
+    // ── Constituent/index contribution stock refresh ─────────────────────────
+    if (tickCount % 5 === 0) {
+      try {
+        const uniqueSymbols = Array.from(new Set([
+          ...NIFTY_STOCKS,
+          ...BANKNIFTY_STOCKS,
+          ...SENSEX_STOCKS
+        ]));
+
+        const chunkArray = <T>(arr: T[], size: number): T[][] => {
+          const chunks: T[][] = [];
+          for (let i = 0; i < arr.length; i += size) {
+            chunks.push(arr.slice(i, i + size));
+          }
+          return chunks;
+        };
+
+        const batches = chunkArray(uniqueSymbols, 30);
+        const quotesMap = new Map<string, Quote>();
+
+        for (const batch of batches) {
+          const res = await marketDataLayer.getQuotes(batch);
+          if (res && Array.isArray(res)) {
+            for (const q of res) {
+              quotesMap.set(q.symbol, q);
+            }
+          }
+        }
+
+        // Reconstruct constituent arrays for NIFTY, BANKNIFTY, and SENSEX and write EOD cache
+        const indicesToCache = [
+          { name: "NIFTY", symbols: NIFTY_STOCKS },
+          { name: "BANKNIFTY", symbols: BANKNIFTY_STOCKS },
+          { name: "SENSEX", symbols: SENSEX_STOCKS },
+        ];
+
+        let cacheCount = 0;
+        for (const idx of indicesToCache) {
+          const mappedQuotes = idx.symbols
+            .map(sym => quotesMap.get(sym))
+            .filter((q): q is Quote => q !== undefined);
+
+          if (mappedQuotes.length > 0) {
+            const cacheKey = getQuotesCacheKey(idx.symbols);
+            await saveEodData(cacheKey, { quotes: mappedQuotes, updatedAt: Date.now() });
+            cacheCount++;
+          }
+        }
+
+        dbService.logEvent("INFO", `Constituent stocks snapshot refreshed: ${uniqueSymbols.length} symbols across ${batches.length} batches, successfully updated EOD cache for ${cacheCount}/3 indices`);
+      } catch (constituentErr: any) {
+        dbService.logEvent("WARN", `Constituent stocks snapshot refresh failed at ${timeStr}: ${constituentErr?.message ?? constituentErr}`);
       }
     }
 

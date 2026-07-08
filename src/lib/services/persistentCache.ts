@@ -1,7 +1,40 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getIstDate } from "../market-hours";
 
 const CACHE_DIR = path.join(process.cwd(), "eod_cache");
+const lastWarnedMap = new Map<string, { dateStr: string; timestamp: number }>();
+
+function getIstDateStr(timestamp: number): string {
+  const ist = getIstDate(timestamp);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${ist.getFullYear()}-${pad(ist.getMonth() + 1)}-${pad(ist.getDate())}`;
+}
+
+export function warnIfStale(cacheKey: string, data: any): any {
+  if (!data) return data;
+  const ts = data.cachedAt || data.updatedAt;
+  if (!ts) return data;
+
+  const now = Date.now();
+  const todayIstStr = getIstDateStr(now);
+  const dataIstStr = getIstDateStr(ts);
+
+  if (todayIstStr !== dataIstStr) {
+    const lastWarned = lastWarnedMap.get(cacheKey);
+    const shouldWarn = !lastWarned || 
+      (lastWarned.dateStr !== todayIstStr || now - lastWarned.timestamp >= 30 * 60000);
+    
+    if (shouldWarn) {
+      lastWarnedMap.set(cacheKey, { dateStr: todayIstStr, timestamp: now });
+      const ageDays = Math.max(1, Math.round((now - ts) / (24 * 60 * 60 * 1000)));
+      console.warn(
+        `WARN [cache] ${cacheKey} snapshot is stale (cached/updated ${ageDays} day(s) ago, date: ${dataIstStr}) — may show stale data`
+      );
+    }
+  }
+  return data;
+}
 
 async function ensureCacheDir() {
   try {
@@ -33,7 +66,8 @@ export async function getEodData(key: string): Promise<any | null> {
   try {
     const filePath = path.join(CACHE_DIR, `${key}.json`);
     const content = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(content);
+    const data = JSON.parse(content);
+    return warnIfStale(key, data);
   } catch (e) {
     return null;
   }
