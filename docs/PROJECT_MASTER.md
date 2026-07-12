@@ -19,6 +19,7 @@
 | **Vision** | An AI-powered index-options cockpit where a trader understands the market's mood, OI structure and key levels at a glance. |
 | **Indices in scope** | **NIFTY 50, BANK NIFTY, SENSEX** (only these three). |
 | **Architecture** | Full-stack React on TanStack Start (SSR via Nitro). Server functions fetch/normalize live broker data; client renders with TanStack Query polling. Multi-broker fallback with a hard **no-mock** rule. |
+| **Production & Deploy** | Detailed documentation of VMs, ports, Nginx proxy, build presets, and deployment scripts is maintained in [docs/PRODUCTION_INFRASTRUCTURE.md](file:///d:/Lovable%20Deshboard/indiandeshboard/docs/PRODUCTION_INFRASTRUCTURE.md). |
 
 ---
 
@@ -308,14 +309,15 @@ engine — sentiment/PCR/max-pain/S-R/buildup/VIX/smart-money/action-plan/signal
 **Read order (defined by `AGENTS.md`, the master file — do not diverge):**
 1. `AGENTS.md` — rules for all agents
 2. `docs/PROJECT_MASTER.md` (this file) — stable architecture
-3. `docs/CURRENT_TASK.md` — the active task
-4. `docs/SESSION_HANDOVER.md` — last session + files you must NOT touch
-5. `docs/CHANGELOG.md` — history (skim)
+3. `docs/PRODUCTION_INFRASTRUCTURE.md` — production architecture & deploy constraints (mandatory read before editing build, deployment, environment, broker authentication, scheduler, database, server runtime, PM2, Nginx, or production-sensitive code)
+4. `docs/CURRENT_TASK.md` — the active task
+5. `docs/SESSION_HANDOVER.md` — last session + files you must NOT touch
+6. `docs/CHANGELOG.md` — history (skim)
 
 **Then:**
-6. Open **only** the files the task needs. Do not scan the whole repo.
-7. Implement. Run `npm run build` — must be clean (exit 0).
-8. Before stopping, update **`CURRENT_TASK.md`** and **`SESSION_HANDOVER.md`**, and
+7. Open **only** the files the task needs. Do not scan the whole repo.
+8. Implement. Run `npm run build` — must be clean (exit 0).
+9. Before stopping, update **`CURRENT_TASK.md`** and **`SESSION_HANDOVER.md`**, and
    append a **`CHANGELOG.md`** entry for any completed feature.
 
 If interrupted (tokens/time/connection): still update `CURRENT_TASK.md` +
@@ -347,4 +349,4 @@ If interrupted (tokens/time/connection): still update `CURRENT_TASK.md` +
 
 *This document describes stable architecture only. For the active task see
 `CURRENT_TASK.md`; for history see `CHANGELOG.md`; for the last session see
-`SESSION_HANDOVER.md`.*
+`SESSION_HANDOVER.md`; for production/deployment see `PRODUCTION_INFRASTRUCTURE.md`.*

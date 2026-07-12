@@ -1,6 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { saveEodData, getEodData, getEodOptionChain } from "./services/persistentCache";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -170,12 +169,12 @@ function filterMonthlyExpiries(expiries: string[]): string[] {
 // chain is generated anywhere — if every real source and the EOD cache fail the
 // request errors out and the UI shows a FAIL state.
 
-import { marketDataLayer } from "./services/marketDataLayer";
 
 export const getOptionChain = createServerFn({ method: "GET" })
   .validator(z.object({ symbol: z.string().default("NIFTY"), spot: z.number().optional(), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
     return cached(`oc:${data.symbol}:${data.expiry ?? ""}`, async () => {
+      const { marketDataLayer } = await import("./services/marketDataLayer");
       return await marketDataLayer.getOptionChain(data.symbol, data.spot, data.expiry);
     });
   });
@@ -184,6 +183,7 @@ export const getCachedOptionChain = createServerFn({ method: "GET" })
   .validator(z.object({ symbol: z.string().default("NIFTY"), expiry: z.string().optional() }))
   .handler(async ({ data }) => {
     // Exact expiry file first, then fall back to the symbol's default snapshot.
+    const { getEodOptionChain } = await import("./services/persistentCache");
     const cachedVal = await getEodOptionChain(data.symbol, data.expiry);
     return cachedVal || null;
   });
@@ -234,6 +234,7 @@ function num(n: unknown, fallback = 0): number {
 async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, YahooMiniQuote>> {
   const out = new Map<string, YahooMiniQuote>();
   try {
+    const { marketDataLayer } = await import("./services/marketDataLayer");
     const quotes = await marketDataLayer.getQuotes(symbols);
     for (const q of quotes) {
       const cleanSym = q.symbol.replace(".NS", "").replace(".BO", "");
@@ -306,11 +307,13 @@ export async function fetchFnoStocks(): Promise<FnoResponse> {
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
     const result: FnoResponse = { data: stocks, source: "nse", updatedAt: now };
+    const { saveEodData } = await import("./services/persistentCache");
     await saveEodData("fno_stocks", result);
     return result;
   } catch (err) {
     // Real data only: serve the last saved EOD snapshot, else return empty so the
     // UI shows a clear "no data / failed" state instead of fabricated stocks.
+    const { getEodData } = await import("./services/persistentCache");
     const cachedData = await getEodData("fno_stocks");
     if (cachedData) {
       return {
@@ -1014,10 +1017,12 @@ export async function fetchFnoScreener(): Promise<ScreenerResponse> {
     });
     const result: ScreenerResponse = { data: rows, source: stocksResp.source, updatedAt: Date.now() };
     if (stocksResp.source !== "fallback" && !stocksResp.isEod) {
+      const { saveEodData } = await import("./services/persistentCache");
       await saveEodData("fno_screener", result);
     }
     return result;
   } catch (err) {
+    const { getEodData } = await import("./services/persistentCache");
     const cachedData = await getEodData("fno_screener");
     if (cachedData) {
       return {

@@ -74,7 +74,6 @@ export const SENSEX_STOCKS = [
   "TECHM.NS","TATASTEEL.NS","JSWSTEEL.NS","ADANIPORTS.NS","INDUSINDBK.NS",
 ];
 
-import { marketDataLayer } from "./services/marketDataLayer";
 import { getIndexDef, type IndexQuote } from "./services/indexRegistry";
 
 const cache = new Map<string, { at: number; data: Quote[] }>();
@@ -85,6 +84,7 @@ async function cachedQuotes(symbols: string[]): Promise<Quote[]> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.data;
   try {
+    const { marketDataLayer } = await import("./services/marketDataLayer");
     const data = await marketDataLayer.getQuotes(symbols);
     cache.set(key, { at: Date.now(), data });
     return data;
@@ -479,6 +479,7 @@ export const getIntradayBooster = createServerFn({ method: "GET" }).handler(asyn
   // on the Upstox → Yahoo quotes layer. Both are real data only.
   const idxMap = new Map<string, IndexQuote>();
   try {
+    const { marketDataLayer } = await import("./services/marketDataLayer");
     const indexQuotes = await marketDataLayer.getSectorIndices();
     for (const iq of indexQuotes) idxMap.set(iq.key, iq);
   } catch {

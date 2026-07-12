@@ -27,9 +27,10 @@
 
 1. **`AGENTS.md`** (this file) — rules for all agents
 2. **`docs/PROJECT_MASTER.md`** — stable architecture (read once, deeply)
-3. **`docs/CURRENT_TASK.md`** — the one active task
-4. **`docs/SESSION_HANDOVER.md`** — what the last session did + do-not-touch list
-5. **`docs/CHANGELOG.md`** — permanent history (skim for context)
+3. **`docs/PRODUCTION_INFRASTRUCTURE.md`** — production architecture & deploy constraints (mandatory read before editing build, deployment, environment, broker authentication, scheduler, database, server runtime, PM2, Nginx, or production-sensitive code)
+4. **`docs/CURRENT_TASK.md`** — the one active task
+5. **`docs/SESSION_HANDOVER.md`** — what the last session did + do-not-touch list
+6. **`docs/CHANGELOG.md`** — permanent history (skim for context)
 
 > Goal: understand the project in minutes without rescanning the whole repo.
 
@@ -232,5 +233,4 @@ code without explanation · leave a session without updating the living docs.
 
 ---
 
-*Master file. AI-specific bootstrap notes: `CLAUDE.md`, `GEMINI.md`. Deep
-architecture: `docs/PROJECT_MASTER.md`.*
+*Master file. AI-specific bootstrap notes: `CLAUDE.md`, `GEMINI.md`. Deep architecture: `docs/PROJECT_MASTER.md`. Production infrastructure & deployment guide: `docs/PRODUCTION_INFRASTRUCTURE.md`.*

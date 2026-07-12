@@ -99,7 +99,7 @@ export const angelOneService = {
 
     loginPromise = (async () => {
       try {
-        const clientCode = process.env.ANGEL_ONE_CLIENT_ID;
+        const clientCode = process.env.ANGEL_ONE_CLIENT_CODE;
         const mpin = process.env.ANGEL_ONE_MPIN;
         const apiKey = process.env.ANGEL_ONE_API_KEY;
         const totpSecret = process.env.ANGEL_ONE_TOTP_SECRET;
@@ -203,7 +203,7 @@ export const angelOneService = {
   async getQuotes(symbols: string[]): Promise<Quote[]> {
     const sess = await this.login();
     const apiKey = process.env.ANGEL_ONE_API_KEY!;
-    const clientCode = process.env.ANGEL_ONE_CLIENT_ID!;
+    const clientCode = process.env.ANGEL_ONE_CLIENT_CODE!;
 
     await this.loadScripMaster();
 
@@ -302,7 +302,7 @@ export const angelOneService = {
   ): Promise<OptionChain> {
     const sess = await this.login();
     const apiKey = process.env.ANGEL_ONE_API_KEY!;
-    const clientCode = process.env.ANGEL_ONE_CLIENT_ID!;
+    const clientCode = process.env.ANGEL_ONE_CLIENT_CODE!;
 
     await this.loadScripMaster();
 

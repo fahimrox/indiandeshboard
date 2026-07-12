@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-07-13 01:45 IST — Antigravity (Gemini 3.5 Flash)
+
+### Task
+Fix broker connection-status issues for Angel One and FYERS.
+
+### Files Changed
+- `src/lib/services/angelOneService.ts` (Modified)
+- `src/lib/settings.functions.ts` (Modified)
+- `src/components/DashboardShell.tsx` (Modified)
+- `docs/CHANGELOG.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+
+### What Changed
+- **Angel One Fix & Standardization**: Replaced all occurrences of `ANGEL_ONE_CLIENT_ID` with `ANGEL_ONE_CLIENT_CODE` in the runtime source code (`src/`) to standardize the client code configuration. Configured the settings check to log safe, credential-sanitized error logs and successes. Ensure cached sessions are reused when valid. Replaced regex-based credential sanitization with a safe plain-string helper (`redactSecret`) to prevent regex injection errors when environment variables contain special characters.
+- **FYERS Diagnosis & Fix**: Configured the Fyers status checker to perform a real API health check using `getOptionChain` on a dummy spot price. Improved status reporting to return detailed states that are distinguished in the UI: Missing Token, Expired Token, Invalid Token, API Connection Error, and Connected.
+- **UI Customizations**: Modified the settings popup in the top navigation bar to render colored badges and descriptive text depending on the detailed status text.
+- **Build Verification**: Ran standard (`npm run build`) and production (`NITRO_PRESET=node-server npm run build`) validations cleanly.
+
+## 2026-07-13 01:25 IST — Antigravity (Gemini 3.5 Flash)
+
+### Task
+Create production infrastructure documentation and update mandatory reading order.
+
+### Files Changed
+- `docs/PRODUCTION_INFRASTRUCTURE.md` (New)
+- `AGENTS.md` (Modified)
+- `docs/PROJECT_MASTER.md` (Modified)
+- `docs/CHANGELOG.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+
+### What Changed
+- **Created Production Infrastructure Documentation**: Documented connection of local development to GitHub, Oracle Cloud VM, PM2, Nginx, SSL, live domain, Supabase, SQLite, broker APIs, scheduler, build commands, and security rules.
+- **Updated Reading Order**: Added `docs/PRODUCTION_INFRASTRUCTURE.md` to the mandatory reading order in `AGENTS.md` and `docs/PROJECT_MASTER.md`.
+- **Referenced Deploy Rules**: Added a reference to `docs/PRODUCTION_INFRASTRUCTURE.md` in `docs/PROJECT_MASTER.md` overview.
+
+## 2026-07-09 10:50 IST — Antigravity (Gemini 3.5 Flash)
+
+### Task
+Fix unresponsive top navigation bar and browser module crashes on development server.
+
+### Files Changed
+- `src/lib/services/settings.functions.ts` (Deleted)
+- `src/lib/settings.functions.ts` (New)
+- `src/components/DashboardShell.tsx` (Modified)
+- `src/lib/nse.functions.ts` (Modified)
+- `src/lib/market.functions.ts` (Modified)
+
+### What Changed
+- **Relocated settings functions**: Moved `settings.functions.ts` to `src/lib/` as per project standards.
+- **Converted static imports to dynamic in functions**: Removed top-level static imports of server-only modules (`persistentCache` and `marketDataLayer`) in `settings.functions.ts`, `nse.functions.ts`, and `market.functions.ts`.
+- **Resolved dev-mode crash**: Isolated Node-only dependencies (`node:fs`, `node:path`) so they do not leak into the browser environment when Vite dev-server runs in non-tree-shaking development mode.
+- **Verified navigation functionality**: Verified navigation and page switching using browser subagent. Standard development HMR works cleanly without console errors.
+
 ## 2026-07-08 21:10 IST — Claude Opus 4.8
 
 ### Task

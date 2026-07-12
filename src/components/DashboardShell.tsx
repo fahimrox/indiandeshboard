@@ -42,7 +42,7 @@ import {
   getSettingsStatus,
   saveFyersTokenFn,
   type SettingsStatus,
-} from "@/lib/services/settings.functions";
+} from "@/lib/settings.functions";
 import { toast } from "sonner";
 
 type NavItem = { to: string; label: string };
@@ -430,13 +430,34 @@ export function DashboardShell({
                               <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300">
                                 <CheckCircle2 className="h-3.5 w-3.5" /> Connected
                               </span>
+                            ) : status.fyers.statusText === "Expired Token" ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-300"
+                                title={status.fyers.error}
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5" /> Expired Token
+                              </span>
+                            ) : status.fyers.statusText === "Invalid Token" ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-300"
+                                title={status.fyers.error}
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> Invalid Token
+                              </span>
+                            ) : status.fyers.statusText === "API Connection Error" ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-300"
+                                title={status.fyers.error}
+                              >
+                                <XCircle className="h-3.5 w-3.5" /> API Connection Error
+                              </span>
                             ) : (
                               <span
                                 className="inline-flex items-center gap-1 rounded bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-300"
                                 title={status.fyers.error}
                               >
                                 <XCircle className="h-3.5 w-3.5" />{" "}
-                                {status.fyers.isExpired ? "Expired" : "Error"}
+                                {status.fyers.statusText || (status.fyers.isExpired ? "Expired Token" : "Error")}
                               </span>
                             )}
                           </div>
