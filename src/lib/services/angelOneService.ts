@@ -99,7 +99,7 @@ export const angelOneService = {
 
     loginPromise = (async () => {
       try {
-        const clientCode = process.env.ANGEL_ONE_CLIENT_CODE;
+        const clientCode = process.env.ANGEL_ONE_CLIENT_CODE || process.env.ANGEL_ONE_CLIENT_ID;
         const mpin = process.env.ANGEL_ONE_MPIN;
         const apiKey = process.env.ANGEL_ONE_API_KEY;
         const totpSecret = process.env.ANGEL_ONE_TOTP_SECRET;

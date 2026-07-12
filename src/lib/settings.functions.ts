@@ -42,7 +42,7 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
 
     // 2. Angel One check
     const angelConfigured = !!(
-      process.env.ANGEL_ONE_CLIENT_CODE &&
+      (process.env.ANGEL_ONE_CLIENT_CODE || process.env.ANGEL_ONE_CLIENT_ID) &&
       process.env.ANGEL_ONE_MPIN &&
       process.env.ANGEL_ONE_API_KEY &&
       process.env.ANGEL_ONE_TOTP_SECRET
@@ -63,6 +63,7 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
         cleanMsg = redactSecret(cleanMsg, process.env.ANGEL_ONE_TOTP_SECRET);
         cleanMsg = redactSecret(cleanMsg, process.env.ANGEL_ONE_API_KEY);
         cleanMsg = redactSecret(cleanMsg, process.env.ANGEL_ONE_CLIENT_CODE);
+        cleanMsg = redactSecret(cleanMsg, process.env.ANGEL_ONE_CLIENT_ID);
         angelErr = cleanMsg;
         console.error(`Angel One health check failed: ${cleanMsg}`);
       }
@@ -146,10 +147,32 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
   }
 );
 
+function cleanFyersToken(input: string): string {
+  let cleaned = input.trim();
+  if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+    try {
+      const normalized = cleaned.replace(/'/g, '"');
+      const parsed = JSON.parse(normalized);
+      if (parsed && typeof parsed.access_token === "string") {
+        cleaned = parsed.access_token.trim();
+      } else if (parsed && typeof parsed.accessToken === "string") {
+        cleaned = parsed.accessToken.trim();
+      }
+    } catch (e) {
+      const match = cleaned.match(/['"]access_token['"]\s*:\s*['"]([^'"]+)['"]/);
+      if (match && match[1]) {
+        cleaned = match[1].trim();
+      }
+    }
+  }
+  return cleaned.replace(/\s+/g, "");
+}
+
 export const saveFyersTokenFn = createServerFn({ method: "POST" })
   .validator(z.object({ token: z.string().trim().min(1) }))
   .handler(async ({ data }) => {
     const { saveFyersToken } = await import("./services/configStore");
-    await saveFyersToken(data.token);
+    const sanitizedToken = cleanFyersToken(data.token);
+    await saveFyersToken(sanitizedToken);
     return { success: true };
   });
