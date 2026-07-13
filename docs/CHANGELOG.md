@@ -6,6 +6,98 @@
 
 ---
 
+## 2026-07-13 19:47 IST — Antigravity (Claude Sonnet 4.6 — Thinking)
+
+### Task
+Documentation-only update: record verified 13 July 2026 production state across
+all living documentation files. No application code changed.
+
+### Files Changed
+- `AGENTS.md` (Modified)
+- `docs/PRODUCTION_INFRASTRUCTURE.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+- `docs/CHANGELOG.md` (Modified — this entry)
+- `docs/PROJECT_MASTER.md` (Modified)
+- `docs/CURRENT_TASK.md` (Modified)
+
+### What Changed
+
+#### Full-Day SQLite Verification — 13 July 2026
+The Oracle VM SQLite database (`backend/database/market_data.db`) successfully
+stored a complete market session from ~09:15:10 to ~15:30:10 IST.
+
+Verified SQLite row counts:
+
+| Table | Count |
+|-------|-------|
+| `market_snapshots` | 1504 |
+| `market_breadth` | 376 |
+| `sector_strength` | 4512 |
+| `option_chain_snapshots` | 1128 |
+| `oi_activity` | 23688 |
+| `trade_signals` | 0 |
+
+Interpretation: 376 scheduler ticks; 4 market snapshot rows per tick; 3 option-chain
+snapshots per tick; 12 sector rows per tick; 21 OI activity rows per option-chain snapshot.
+`trade_signals` = 0 is expected (separate feature, not yet active).
+
+#### Supabase Schema Repair
+The following schema mismatches were fixed manually in Supabase to align with the
+current scheduler insert payload:
+
+- **`market_snapshots`** — added `change_pct`, `change_val`; aligned other missing fields
+- **`option_chain_snapshots`** — added `expiry`; aligned current snapshot fields
+- **`market_breadth`** — added `adr`
+- **`sector_strength`** — added `change_pct`, `name`; removed old `sector_name NOT NULL` blocker
+- **`oi_activity`** — `snapshot_id` changed from `bigint` → **UUID**; UUID FK added to
+  `option_chain_snapshots(id)` with `ON DELETE CASCADE`; removed `symbol NOT NULL` blocker
+
+#### UUID Relationship Correction
+`option_chain_snapshots.id` = UUID (primary key).
+`oi_activity.snapshot_id` = UUID foreign key → `option_chain_snapshots(id)` ON DELETE CASCADE.
+Do not change `oi_activity.snapshot_id` back to bigint.
+
+#### Full-Day Supabase Backfill — 13 July 2026
+The complete 13 July 2026 trading-day dataset was backfilled into Supabase and
+verified. Final Supabase counts match the SQLite counts exactly (1504 / 376 / 4512
+/ 1128 / 23688). The temporary backfill script was deleted after a successful run.
+
+#### PM2 State Saved
+PM2 process list was saved with `pm2 save` on the Oracle VM after confirming the
+`indian-dashboard` process was online.
+
+#### Documentation Updates
+- **`AGENTS.md §13`** — added the three critical collector files to the Forbidden
+  Actions table.
+- **`AGENTS.md §16`** — new "Production Data Safety" section: build command rule,
+  dual-storage architecture, critical file list, Supabase schema key relationships,
+  server/client boundary, verified production state, row counts, next-session
+  verification command, safe UI development rules.
+- **`docs/PRODUCTION_INFRASTRUCTURE.md`** — comprehensive update: Oracle VM details,
+  PM2/Nginx/SSL confirmation, dual-write architecture section, schema tables,
+  Supabase schema fixes record, full-day verification counts, verification status
+  table, next-session checklist, `CLIENT_CODE`/`CLIENT_ID` issue marked resolved.
+- **`docs/PROJECT_MASTER.md §18`** — new "Production Data Safety" section added
+  (canonical dual-storage architecture, critical files, Supabase schema rules,
+  server/client boundary).
+- **`docs/CURRENT_TASK.md`** — infrastructure status note added (IDLE preserved).
+
+### Why
+Ensure every future AI agent understands the current production data-storage setup
+and does not accidentally break the dual-write architecture, Supabase UUID
+relationships, or critical collector files.
+
+### Build / Test Result
+Build not run (documentation-only session).
+
+### Remaining / Pending
+- **Automatic Supabase dual-write verification**: must be checked on the next live
+  market session (14 July 2026 or later). Instructions in
+  `PRODUCTION_INFRASTRUCTURE.md §9`.
+- **Trade signals feature**: `trade_signals` table is empty; separate future task.
+
+---
+
 ## 2026-07-13 01:45 IST — Antigravity (Gemini 3.5 Flash)
 
 ### Task

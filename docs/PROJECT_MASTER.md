@@ -345,6 +345,58 @@ If interrupted (tokens/time/connection): still update `CURRENT_TASK.md` +
 - Add the plugins already bundled by `@lovable.dev/vite-tanstack-config`.
 - Leave a session without updating the living docs.
 
+## 18. Production Data Safety (CRITICAL)
+
+> Verified as of **13 July 2026**. See `docs/PRODUCTION_INFRASTRUCTURE.md` for the
+> full detail. This section is the canonical summary for agents reading PROJECT_MASTER.
+
+### 18.1 Dual-Storage Architecture
+
+The Oracle VM production collector writes to **two stores** on every scheduler tick:
+
+| Store | Location | Role |
+|-------|----------|------|
+| **SQLite (primary)** | `backend/database/market_data.db` | Always written, synchronous |
+| **Supabase Postgres** | Cloud (`SUPABASE_URL`) | Fire-and-forget mirror |
+
+Enable mirroring with `SUPABASE_DUAL_WRITE=true` in the environment.
+
+### 18.2 Critical Collector Files
+
+> **Never** casually rewrite, relocate, delete, rename, or refactor these files.
+
+| File | Role |
+|------|------|
+| `src/lib/services/scheduler.server.ts` | Tick orchestration + dual-write hooks |
+| `src/lib/services/supabase.server.ts` | Supabase client + insert helpers |
+| `src/lib/services/database.server.ts` | SQLite schema + all write/read helpers |
+
+Before modifying any of these: read all docs in order, understand both schemas,
+preserve dual-write (SQLite primary, Supabase fire-and-forget), run
+`NITRO_PRESET=node-server npm run build`, explain migration impact, update docs.
+
+### 18.3 Supabase Schema Key Rules
+
+- `option_chain_snapshots.id` = **UUID** primary key
+- `oi_activity.snapshot_id` = **UUID** foreign key → `option_chain_snapshots(id)`
+  with `ON DELETE CASCADE`
+- **Never change `oi_activity.snapshot_id` back to `bigint`.**
+
+### 18.4 Production Build Command (Oracle VM)
+
+```bash
+NITRO_PRESET=node-server npm run build
+```
+
+Plain `npm run build` may select the Cloudflare preset and cause 502 errors.
+
+### 18.5 Server/Client Boundary
+
+- `node:fs`, `node:path`, SQLite, Supabase service-role logic, secret access →
+  **server only** (`*.server.ts` / `*.functions.ts`)
+- Client code (`routes/**`, `features/**`) calls server functions via the query
+  layer only. Dynamic imports preserve this boundary. Do not break it.
+
 ---
 
 *This document describes stable architecture only. For the active task see

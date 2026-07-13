@@ -192,6 +192,9 @@ Never let history accumulate in `SESSION_HANDOVER.md`; never put session notes i
 | `node_modules/`, `.output/`, `.tanstack/`, `.wrangler/`, `.nitro/` | Generated/build |
 | `vite.config.ts` plugin list | Uses `@lovable.dev` config — extra plugins break the app |
 | Broker auth/session logic (`upstoxService`, `angelOneService`, `fyersService`, `configStore`) | Fragile token/login handling |
+| `src/lib/services/scheduler.server.ts` | **Production-critical collector** — dual-write orchestration |
+| `src/lib/services/supabase.server.ts` | **Production-critical collector** — Supabase insert layer |
+| `src/lib/services/database.server.ts` | **Production-critical collector** — SQLite primary store |
 
 **Never:** fabricate data · redesign the project · rewrite unrelated files · delete
 code without explanation · leave a session without updating the living docs.
@@ -230,6 +233,132 @@ code without explanation · leave a session without updating the living docs.
 - If build was not run, clearly write: `Build not run`.
 - If a fix is partial, clearly mark it as partial.
 - Future agents must read `AGENTS.md` first before editing the project.
+
+---
+
+## 16. Production Data Safety (CRITICAL — READ BEFORE ANY COLLECTOR/DB WORK)
+
+> This section documents the verified production data storage architecture as of
+> **13 July 2026**. Any AI agent touching the collector, scheduler, database, or
+> Supabase integration MUST read this section first.
+
+### 16.1 Production Build Command
+
+**Every Oracle production build MUST use:**
+
+```bash
+NITRO_PRESET=node-server npm run build
+```
+
+> ⚠️ Plain `npm run build` may select the wrong Nitro preset (Cloudflare target)
+> and will cause **502 Bad Gateway** in production. Never drop this prefix in any
+> production deployment instruction.
+
+### 16.2 Dual-Storage Architecture
+
+The Oracle VM production collector writes to **two stores simultaneously**:
+
+| Store | Location | Role |
+|-------|----------|------|
+| **SQLite (primary)** | `backend/database/market_data.db` | Local, synchronous, always written |
+| **Supabase Postgres** | Cloud (env: `SUPABASE_URL`) | Cloud mirror, async fire-and-forget |
+
+Environment flag that enables cloud mirroring:
+```env
+SUPABASE_DUAL_WRITE=true
+```
+
+**Flow during market hours (09:15 – 15:30 IST):**
+```
+Market data sources
+  → Oracle scheduler (scheduler.server.ts)
+  → SQLite local write  (always — primary)
+  → Supabase dual-write (fire-and-forget, non-blocking)
+```
+
+### 16.3 Critical Collector Files
+
+> **DO NOT** casually rewrite, relocate, delete, rename, or refactor these files.
+> They are the production data collection backbone.
+
+| File | Role |
+|------|------|
+| `src/lib/services/scheduler.server.ts` | Tick orchestration + dual-write hooks |
+| `src/lib/services/supabase.server.ts` | Supabase client + all insert helpers |
+| `src/lib/services/database.server.ts` | SQLite schema + all write/read helpers |
+
+**Before modifying any of these**, the agent MUST:
+1. Read `AGENTS.md`, `PROJECT_MASTER.md`, `PRODUCTION_INFRASTRUCTURE.md`, `SESSION_HANDOVER.md`
+2. Understand the SQLite and Supabase schemas (see `PRODUCTION_INFRASTRUCTURE.md §6`)
+3. Preserve dual-write behaviour (SQLite primary, Supabase fire-and-forget)
+4. Run build validation (`NITRO_PRESET=node-server npm run build`)
+5. Explain migration impact and update this documentation
+
+### 16.4 Supabase Schema — Key Relationships
+
+> Do not change these without a migration plan.
+
+- `option_chain_snapshots.id` is a **UUID** (not bigint)
+- `oi_activity.snapshot_id` is a **UUID** foreign key → `option_chain_snapshots(id)` with `ON DELETE CASCADE`
+- **Never change `oi_activity.snapshot_id` back to bigint.**
+
+### 16.5 Server/Client Boundary
+
+Node-only code must never enter the browser bundle. Dynamic imports are used to
+keep Node-only modules out of the client bundle. Preserve this boundary:
+
+- `node:fs`, `node:path`, SQLite, configuration stores, Supabase service-role logic
+  → server only (`*.server.ts` / `*.functions.ts`)
+- Do not add static client-side imports that pull these into React/browser code.
+
+### 16.6 Verified Production State (13 July 2026)
+
+| Item | Status |
+|------|--------|
+| Oracle app online under PM2 (`indian-dashboard`) | ✅ Confirmed |
+| SQLite full-day storage working | ✅ Confirmed |
+| Supabase schema aligned with insert payload | ✅ Confirmed |
+| Full-day Supabase backfill (13 Jul 2026) complete | ✅ Confirmed |
+| PM2 state saved (`pm2 save`) | ✅ Confirmed |
+| `SUPABASE_DUAL_WRITE=true` enabled | ✅ Confirmed |
+| Automatic Supabase dual-write during next live session | ⏳ **Pending verification** |
+
+**Verified SQLite row counts (13 July 2026 full trading day):**
+
+| Table | Count | Meaning |
+|-------|-------|---------|
+| `market_snapshots` | 1504 | 4 index rows × 376 ticks |
+| `market_breadth` | 376 | 1 per scheduler tick |
+| `sector_strength` | 4512 | 12 rows per tick |
+| `option_chain_snapshots` | 1128 | 3 per tick |
+| `oi_activity` | 23688 | 21 per option chain snapshot |
+| `trade_signals` | 0 | Separate feature — not yet active |
+
+**Same counts confirmed in Supabase** after manual backfill on 13 July 2026.
+
+### 16.7 Next Live-Session Verification
+
+After the next market open, check:
+
+```bash
+pm2 logs indian-dashboard --lines 100 --nostream | grep -Ei "supabase|error|failed"
+```
+
+If automatic rows are increasing in Supabase and no schema errors appear → mark
+dual-write verification **complete** and update `PRODUCTION_INFRASTRUCTURE.md`.
+
+### 16.8 Safe UI Development Rules
+
+UI work is allowed without touching the collector:
+- Add/remove/fix pages, charts, navigation, components, client-side bugs.
+
+But UI work **must not** accidentally break the collector, database, scheduler,
+server/client boundary, or production deployment flow.
+
+Any feature that changes stored fields must include:
+- SQLite schema review + Supabase schema review
+- Migration plan + insert mapping update
+- Historical data compatibility review + documentation update
 
 ---
 

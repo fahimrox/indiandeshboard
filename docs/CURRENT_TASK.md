@@ -65,3 +65,30 @@ updated (this file reset for the next task; handover + changelog appended).
 
 ## Next Immediate Task
 Await user instruction.
+
+---
+
+## ✅ Completed Infrastructure Subsection (13 July 2026)
+
+> This is a record of completed infrastructure work — not an active feature task.
+> The feature task above remains IDLE.
+
+### Production Storage Verification — 13 July 2026
+
+**Status: COMPLETE (documentation recorded)**
+
+The following infrastructure work was completed and documented:
+
+| Item | Result |
+|------|--------|
+| Oracle SQLite full-day collection verified | ✅ Done |
+| Supabase schema aligned with insert payload | ✅ Done |
+| `oi_activity.snapshot_id` corrected to UUID FK | ✅ Done |
+| Full 13 Jul 2026 trading-day Supabase backfill | ✅ Done |
+| PM2 state saved | ✅ Done |
+| `SUPABASE_DUAL_WRITE=true` confirmed active | ✅ Done |
+| Documentation updated (AGENTS, PRODUCTION_INFRASTRUCTURE, PROJECT_MASTER, CHANGELOG, SESSION_HANDOVER) | ✅ Done |
+
+**Pending (next trading session only):**
+- Confirm automatic Supabase dual-write is working during live market hours
+- See `docs/PRODUCTION_INFRASTRUCTURE.md §9` for the verification checklist
