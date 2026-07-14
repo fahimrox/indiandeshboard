@@ -11,19 +11,19 @@
 Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
 
 **Current Objective:**
-Complete Phase 1 (Existing storage and API audit) to lay the groundwork for historical data querying and backtesting, and proceed through the subsequent implementation phases.
+Begin Phase 2: Design and implement the historical range-query interfaces for SQLite, Supabase, and the orchestrator layer.
 
 ---
 
 ## Roadmap & Phases
 
 ### Phase 1 — Existing storage and API audit
-- [ ] Audit SQLite and Supabase schemas.
-- [ ] Inspect timestamp formats and IST/UTC handling.
-- [ ] Check duplicate prevention and unique constraints.
-- [ ] Check indexes needed for symbol and timestamp range queries.
-- [ ] Inspect the existing history and export APIs.
-- [ ] Check current retention behavior.
+- [x] Audit SQLite and Supabase schemas.
+- [x] Inspect timestamp formats and IST/UTC handling (timestamp-write modifications are explicitly deferred to prevent historical data discrepancies).
+- [x] Check duplicate prevention and unique constraints.
+- [x] Check indexes needed for symbol and timestamp range queries.
+- [x] Inspect the existing history and export APIs.
+- [x] Check current retention behavior.
 
 ### Phase 2 — Seven-trading-day historical data
 - [ ] Preserve existing live collection.
@@ -71,18 +71,22 @@ Complete Phase 1 (Existing storage and API audit) to lay the groundwork for hist
 ---
 
 ## Files Expected To Change
-*To be filled out specifically before beginning implementation code changes.*
+*To be filled out specifically before beginning Phase 2 range-query implementation.*
 
-## Files That Must NOT Be Modified
+## Files That Must NOT Be Modified (Absolute Restriction)
+- `src/lib/services/scheduler.server.ts` (production-critical collector orchestration)
 - `src/routeTree.gen.ts` (auto-generated)
-- `.env`, `.env.example`, `fyers_config.enc`
-- `angel_one_scrip_master.json`, `upstox_instruments.json`
-- `eod_cache/**`, `backend/database/**`
+- `.env`, `.env.example`, `fyers_config.enc` (secrets)
+- `angel_one_scrip_master.json`, `upstox_instruments.json` (instrument DBs)
+- `eod_cache/**`, `backend/database/**` (real data and EOD caches)
 - Generated/build dirs: `node_modules/`, `.output/`, `.tanstack/`, `.wrangler/`, `.nitro/`
 - Broker auth/session logic unless required.
-- `src/lib/services/scheduler.server.ts`
-- `src/lib/services/supabase.server.ts`
+
+## Production-Critical — Controlled Changes Only
 - `src/lib/services/database.server.ts`
+- `src/lib/services/supabase.server.ts`
+  *   **Phase 2 Rule:** May be modified *only* to add approved, read-only historical range-query methods.
+  *   **Prohibited from changing:** Existing live insert methods, table schema initialization, database unique constraints, timestamp writes, pruneData behavior, dual-write payload mappings, fire-and-forget behavior, and option-chain parent-ID fallback.
 
 ---
 

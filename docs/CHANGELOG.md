@@ -6,6 +6,54 @@
 
 ---
 
+## 2026-07-14 19:56 IST — Antigravity (Gemini)
+
+### Task
+Implement Supabase duplicate-prevention index migration and deploy robust server-side option chain parent-ID fallback resolution.
+
+### Files Changed
+- `src/lib/services/supabase.server.ts` (Modified)
+- `AGENTS.md` (Modified)
+- `docs/PRODUCTION_INFRASTRUCTURE.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+- `docs/CURRENT_TASK.md` (Modified)
+- `docs/CHANGELOG.md` (Modified — this entry)
+
+### What Changed
+
+#### Production Code Fix (Commit efcab02)
+- **File:** `src/lib/services/supabase.server.ts`
+- **Fallback Resolution:** Removed the direct `.single()` query from `option_chain_snapshots` upsert result to prevent failure when duplicates are ignored and zero rows are returned.
+- **Deduplication Lookup:** Added a safe fallback lookup matching the business keys (`trading_date`, `trading_time`, `symbol`, `expiry`) using `.maybeSingle()`.
+- **Integrity Preservation:** Child `oi_activity` inserts proceed only after a valid parent ID is resolved, keeping SQLite live collection non-blocking and fire-and-forget.
+
+#### Supabase Migration (Unique Business-Key Indexes)
+Created the following unique indexes in Supabase Postgres to prevent duplicates:
+- `uq_market_snapshots_business_key` on `market_snapshots(trading_date, trading_time, symbol)`
+- `uq_market_breadth_business_key` on `market_breadth(trading_date, trading_time)`
+- `uq_sector_strength_business_key` on `sector_strength(trading_date, trading_time, symbol)`
+- `uq_option_chain_snapshots_business_key` on `option_chain_snapshots(trading_date, trading_time, symbol, expiry)`
+- `uq_oi_activity_business_key` on `oi_activity(snapshot_id, strike)`
+
+*Excluded:* `trade_signals` (due to different time keys/schema), `system_logs` (logging duplicates is allowed by design), and `snapshot_time`-based uniqueness.
+
+#### Historical Uniqueness Analysis & Findings
+- Audited the 13 July manual backfill and confirmed it contains repeated `snapshot_time` values for some tables, proving that `snapshot_time` must not be used as a cross-history uniqueness key.
+- Established `trading_date` + `trading_time` as the canonical historical uniqueness keys.
+
+#### Validation Results
+- Verified all 5 indexes with `is_unique = true` in Supabase Postgres.
+- Duplicate audit returned 0 duplicate groups and 0 extra duplicate rows for all 5 tables.
+- Oracle VM deployed latest commit `efcab02` and PM2 process is online, listening on `127.0.0.1:3000` with Supabase dual-write active. No conflict, duplicate, or parent-ID resolution errors appeared in logs.
+
+### Why
+To enforce database-level duplicate prevention on Supabase Postgres while ensuring that conflict resolution does not cause option chain parent ID lookup failures or block the primary SQLite live collection.
+
+### Build / Test Result
+`npm run build` passed for production code commit efcab02 before the documentation-only update.
+
+---
+
 ## 2026-07-14 18:12 IST — Antigravity (Gemini)
 
 ### Task

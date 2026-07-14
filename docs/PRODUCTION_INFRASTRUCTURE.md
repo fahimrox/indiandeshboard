@@ -189,6 +189,33 @@ the current scheduler insert payload:
 | `sector_strength` | Added `change_pct`, `name`; removed old `sector_name NOT NULL` blocker |
 | `oi_activity` | `snapshot_id` changed from `bigint` → `UUID`; FK + `ON DELETE CASCADE` added; removed old `symbol NOT NULL` blocker |
 
+### 6.4 Supabase Unique Business-Key Indexes (14 July 2026)
+
+To enforce data integrity and prevent duplicate records during dual-writes, five composite unique indexes are defined on Supabase Postgres. These map to the canonical business keys (excluding `snapshot_time` which contains duplicates in 13 July historical data):
+
+| Table | Index Name | Business Key Columns |
+|-------|------------|-----------------------|
+| `market_snapshots` | `uq_market_snapshots_business_key` | `trading_date`, `trading_time`, `symbol` |
+| `market_breadth` | `uq_market_breadth_business_key` | `trading_date`, `trading_time` |
+| `sector_strength` | `uq_sector_strength_business_key` | `trading_date`, `trading_time`, `symbol` |
+| `option_chain_snapshots` | `uq_option_chain_snapshots_business_key` | `trading_date`, `trading_time`, `symbol`, `expiry` |
+| `oi_activity` | `uq_oi_activity_business_key` | `snapshot_id`, `strike` |
+
+*Excluded:* `system_logs` (logging duplicates is permitted), `trade_signals` (currently unused/different schema), and any `snapshot_time` columns.
+
+#### Option-Chain Parent-ID Fallback
+When a duplicate option chain snap arrives, Postgres ignores the insert (`ON CONFLICT DO NOTHING`) and returns zero rows. To prevent failure of child `oi_activity` insertions, `insertOptionChainSnapshot` safely queries the database for the existing row's ID using `.maybeSingle()` as a fallback when the upsert returns an empty array.
+
+#### Rollback SQL Migration
+To drop these unique indexes if needed:
+```sql
+DROP INDEX IF EXISTS uq_market_snapshots_business_key;
+DROP INDEX IF EXISTS uq_market_breadth_business_key;
+DROP INDEX IF EXISTS uq_sector_strength_business_key;
+DROP INDEX IF EXISTS uq_option_chain_snapshots_business_key;
+DROP INDEX IF EXISTS uq_oi_activity_business_key;
+```
+
 ---
 
 ## 7. Verified Full-Day Production Data (13 July 2026)

@@ -363,6 +363,13 @@ Any feature that changes stored fields must include:
 - Migration plan + insert mapping update
 - Historical data compatibility review + documentation update
 
+### 16.9 Supabase Unique Indexes & Fallback Rules
+
+- **Canonical Business Keys:** Ensure data deduplication is based strictly on the composite business keys (`trading_date`, `trading_time`, and `symbol`/`expiry`).
+- **Do NOT use `snapshot_time`** as a cross-history uniqueness key, as 13 July historical backfill rows contain repeated snapshot times.
+- **Preserve Option-Chain Fallback:** The server-side code in `supabase.server.ts` must preserve the safe parent-ID query fallback (`maybeSingle` by business keys) when duplicate upserts return zero rows.
+- **Exclude `trade_signals` & `system_logs`:** `trade_signals` lacks `trading_time` keys and is excluded from uniqueness constraints pending a future schema redesign. `system_logs` does not have or require uniqueness.
+
 ---
 
 *Master file. AI-specific bootstrap notes: `CLAUDE.md`, `GEMINI.md`. Deep architecture: `docs/PROJECT_MASTER.md`. Production infrastructure & deployment guide: `docs/PRODUCTION_INFRASTRUCTURE.md`.*
