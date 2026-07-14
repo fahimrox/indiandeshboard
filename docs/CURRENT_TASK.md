@@ -11,7 +11,7 @@
 Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
 
 **Current Objective:**
-Begin Phase 2: Design and implement the historical range-query interfaces for SQLite, Supabase, and the orchestrator layer.
+Proceed with remaining Phase 2A tasks: Implement range-query support for the other historical data domains (Option Chains, OI, Breadth, and Candles history) across SQLite, Supabase, and the orchestrator layer.
 
 ---
 
@@ -19,13 +19,15 @@ Begin Phase 2: Design and implement the historical range-query interfaces for SQ
 
 ### Phase 1 — Existing storage and API audit
 - [x] Audit SQLite and Supabase schemas.
-- [x] Inspect timestamp formats and IST/UTC handling (timestamp-write modifications are explicitly deferred to prevent historical data discrepancies).
+- [x] Inspect timestamp formats and IST/UTC handling.
 - [x] Check duplicate prevention and unique constraints.
 - [x] Check indexes needed for symbol and timestamp range queries.
 - [x] Inspect the existing history and export APIs.
 - [x] Check current retention behavior.
 
 ### Phase 2 — Seven-trading-day historical data
+- [x] Phase 2A Part 1: Complete market-history range vertical slice (Market snapshot history orchestration and GET /api/history/$symbol range integration completed).
+- [ ] Phase 2A (Remaining): Option-chain, OI, breadth, sector, and other historical range domains.
 - [ ] Preserve existing live collection.
 - [ ] Support querying by symbol/index, start date, end date, and interval.
 - [ ] Use Supabase as the main historical data source.
@@ -70,8 +72,13 @@ Begin Phase 2: Design and implement the historical range-query interfaces for SQ
 
 ---
 
-## Files Expected To Change
-*To be filled out specifically before beginning Phase 2 range-query implementation.*
+## Files Expected To Change in Remaining Phase 2A
+- `src/lib/services/database.server.ts`
+- `src/lib/services/supabase.server.ts`
+- `src/routes/api/option-history.ts`
+- `src/routes/api/oi-history.ts`
+- `src/routes/api/breadth-history.ts`
+- `src/routes/api/candles.$symbol.ts`
 
 ## Files That Must NOT Be Modified (Absolute Restriction)
 - `src/lib/services/scheduler.server.ts` (production-critical collector orchestration)
@@ -100,9 +107,9 @@ Begin Phase 2: Design and implement the historical range-query interfaces for SQ
 ---
 
 ## Acceptance Checklist
-- [ ] Works with real live + EOD/historical data; FAIL state when no data is available.
-- [ ] No mock/synthetic data introduced.
-- [ ] Existing dashboard and live caching functions work normally.
-- [ ] `npm run build` clean (exit 0).
-- [ ] Only task-related files modified.
-- [ ] Living docs (`CURRENT_TASK.md`, `SESSION_HANDOVER.md`, `CHANGELOG.md`) updated.
+- [x] Works with real live + EOD/historical data; FAIL state when no data is available.
+- [x] No mock/synthetic data introduced.
+- [x] Existing dashboard and live caching functions work normally.
+- [x] `npm run build` clean (exit 0).
+- [x] Only task-related files modified.
+- [x] Living docs (`CURRENT_TASK.md`, `SESSION_HANDOVER.md`, `CHANGELOG.md`) updated.

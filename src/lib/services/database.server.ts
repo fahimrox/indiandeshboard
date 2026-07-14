@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import Database from "better-sqlite3";
+import type { SQLiteMarketSnapshotRow } from "./historicalDataService.server";
 
 export interface DBQuote {
   symbol: string;
@@ -90,6 +91,7 @@ export interface MarketDatabase {
   
   getAvailableDates(): string[];
   getMarketHistory(symbol: string, date: string, intervalMinutes: number): any[];
+  getMarketHistoryRangeRaw(symbol: string, startDate: string, endDate: string): SQLiteMarketSnapshotRow[];
   getCandles(symbol: string, date: string, intervalMinutes: number): any[];
   getOptionHistory(symbol: string, date: string, intervalMinutes: number): any[];
   getOiHistory(snapshotId: number): any[];
@@ -370,6 +372,40 @@ class SQLiteDatabaseService implements MarketDatabase {
       ORDER BY timestamp ASC
     `);
     return query.all(symbol, date, intervalMs);
+  }
+
+  public getMarketHistoryRangeRaw(
+    symbol: string,
+    startDate: string,
+    endDate: string
+  ): SQLiteMarketSnapshotRow[] {
+    const query = this.db.prepare(`
+      SELECT
+        id,
+        timestamp,
+        trading_date,
+        trading_time,
+        symbol,
+        exchange,
+        open,
+        high,
+        low,
+        close,
+        ltp,
+        prev_close,
+        change_val,
+        change_pct,
+        volume,
+        vwap
+      FROM market_snapshots
+      WHERE symbol = ?
+        AND trading_date BETWEEN ? AND ?
+      ORDER BY
+        trading_date ASC,
+        timestamp ASC,
+        id ASC
+    `);
+    return query.all(symbol, startDate, endDate) as SQLiteMarketSnapshotRow[];
   }
 
   public getCandles(symbol: string, date: string, intervalMinutes: number): any[] {

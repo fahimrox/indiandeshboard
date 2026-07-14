@@ -10,6 +10,7 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseMarketSnapshotRow } from "./historicalDataService.server";
 
 // ── Types matching the Supabase tables ────────────────────────────────────────
 
@@ -533,3 +534,100 @@ export async function getSupabaseHealthReport(): Promise<SupabaseHealthReport> {
   };
 }
 
+export class SupabaseHistoryPaginationCappedError extends Error {
+  public readonly name = "SupabaseHistoryPaginationCappedError";
+  constructor(
+    public readonly maxRows: number,
+    public readonly symbol: string,
+    public readonly startDate: string,
+    public readonly endDate: string,
+    message?: string
+  ) {
+    super(
+      message ||
+        `Supabase history range query for symbol ${symbol} in range ${startDate} to ${endDate} was capped at ${maxRows} rows.`
+    );
+    Object.setPrototypeOf(this, SupabaseHistoryPaginationCappedError.prototype);
+  }
+}
+
+export async function getSupabaseMarketHistoryRange(
+  symbol: string,
+  startDate: string,
+  endDate: string
+): Promise<SupabaseMarketSnapshotRow[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error(
+      `Supabase read query failed: Supabase is not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY).`
+    );
+  }
+
+  const pageSize = 1000;
+  const maxRows = 15000;
+  const maxPages = maxRows / pageSize;
+  const allRows: SupabaseMarketSnapshotRow[] = [];
+
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from("market_snapshots")
+      .select("id, trading_date, trading_time, symbol, exchange, open, high, low, close, ltp, prev_close, change_val, change_pct, volume, vwap")
+      .eq("symbol", symbol)
+      .gte("trading_date", startDate)
+      .lte("trading_date", endDate)
+      .order("trading_date", { ascending: true })
+      .order("trading_time", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Supabase query failed for symbol ${symbol} in range ${startDate} to ${endDate} on page ${page + 1}: ${error.message}`
+      );
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...(data as SupabaseMarketSnapshotRow[]));
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    if (page === maxPages - 1 && data.length === pageSize) {
+      // Execute a single-row probe query at index maxRows (the 15001st row)
+      const { data: probeData, error: probeError } = await supabase
+        .from("market_snapshots")
+        .select("id")
+        .eq("symbol", symbol)
+        .gte("trading_date", startDate)
+        .lte("trading_date", endDate)
+        .order("trading_date", { ascending: true })
+        .order("trading_time", { ascending: true })
+        .order("id", { ascending: true })
+        .range(maxRows, maxRows);
+
+      if (probeError) {
+        throw new Error(
+          `Supabase query failed for symbol ${symbol} in range ${startDate} to ${endDate} on page ${maxPages + 1} (probe): ${probeError.message}`
+        );
+      }
+
+      if (probeData && probeData.length > 0) {
+        throw new SupabaseHistoryPaginationCappedError(
+          maxRows,
+          symbol,
+          startDate,
+          endDate
+        );
+      }
+    }
+  }
+
+  return allRows;
+}

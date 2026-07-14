@@ -6,6 +6,64 @@
 
 ---
 
+## 2026-07-14 22:00 IST — Antigravity (Gemini)
+
+### Task
+Phase 2A Part 1 complete — market-history vertical slice. Market snapshot history orchestration and GET /api/history/$symbol range integration completed.
+
+### Remaining Phase 2A Work
+Option-chain, OI, breadth, sector, and other historical range domains.
+
+### Files Changed
+- `src/lib/services/historicalDataService.server.ts` (NEW)
+- `src/lib/services/database.server.ts` (Modified)
+- `src/lib/services/supabase.server.ts` (Modified)
+- `src/routes/api/history.$symbol.ts` (Modified)
+- `docs/CHANGELOG.md` (Modified — this entry)
+- `docs/CURRENT_TASK.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+
+### What Changed
+
+#### Shared Historical Types and Normalization helpers (NEW)
+- **File:** `src/lib/services/historicalDataService.server.ts`
+- Added normalized data type `HistoricalMarketSnapshot` mapping SQLite/Supabase snapshots into a unified API-compatible camelCase format.
+- Implemented robust host-independent `getTodayIstString` using `Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata" })`.
+- Added date range validation (`validateDateRange`) capping requests to 14 days, and interval parsing (`parseInterval`) accommodating suffix modifiers (e.g. `5m`).
+- Created timezone-agnostic `parseIstToUtcEpoch` calculating epoch milliseconds while validating valid calendar dates (rejecting `2026-02-30`).
+- Created memory-based downsampling function `sampleMarketSnapshots` grouping ticks to nearest interval boundaries starting from `09:15` IST.
+
+#### Read-Only SQLite Range Query
+- **File:** `src/lib/services/database.server.ts`
+- Added read-only method `getMarketHistoryRangeRaw` returning raw database rows sorted by `trading_date ASC, timestamp ASC, id ASC`.
+
+#### Paginated Supabase Range Query with Probe Check
+- **File:** `src/lib/services/supabase.server.ts`
+- Added `getSupabaseMarketHistoryRange` retrieving rows up to a 15,000 safety threshold.
+- If the 15th page is full, it executes an index-level single-row probe query `.range(15000, 15000)`. It throws `SupabaseHistoryPaginationCappedError` if additional rows exist, preventing silent truncation.
+
+#### Historical Range Orchestration
+- **File:** `src/lib/services/historicalDataService.server.ts`
+- Implemented `getHistoricalMarketHistory` incorporating symbol normalisation, a 3-second timeout race on Supabase requests, and SQLite fallbacks.
+- Segregated three control flow paths:
+  1. *Supabase succeeds with rows*: Uses Supabase data, sets source `supabase`.
+  2. *Supabase succeeds with 0 rows*: Queries SQLite once, returning `sqlite` source.
+  3. *Supabase fails/times out*: Logs warning, queries SQLite once. Throws combined details on failure.
+- Chronological sorting is applied before deduplication (keeping the first occurrence of `trading_date` + `trading_time` + `symbol`) and downsampling.
+
+#### Upgraded GET /api/history/$symbol
+- **File:** `src/routes/api/history.$symbol.ts`
+- Upgraded to support range queries (`startDate` & `endDate`) while maintaining legacy single-date parameter support (`date`).
+- Returns data source in `X-Data-Source`, `X-Requested-Start-Date`, `X-Requested-End-Date`, and `X-Actual-Dates` headers.
+
+### Why
+To build the foundation of Phase 2 historical data, providing a robust, error-tolerant range query interface for market indices.
+
+### Build / Test Result
+`npm run build` completed successfully (Exit code 0). Tested all 7 API endpoints against local dev server and verified correct responses/headers.
+
+---
+
 ## 2026-07-14 19:56 IST — Antigravity (Gemini)
 
 ### Task
