@@ -182,20 +182,50 @@ export async function insertOptionChainSnapshot(
   if (!supabase) return null;
 
   try {
+    // 1. Perform upsert without .single() to handle zero returned rows safely
     const { data, error } = await supabase
       .from("option_chain_snapshots")
       .upsert(snapshot, { ignoreDuplicates: true })
-      .select("id")
-      .single();
+      .select("id");
 
     if (error) {
       console.error(
-        "[supabase.server] insertOptionChainSnapshot error:",
+        "[supabase.server] insertOptionChainSnapshot upsert error:",
         error.message
       );
       return null;
     }
-    return (data as { id: number } | null)?.id ?? null;
+
+    // 2. If row was inserted, return its ID
+    if (data && data.length > 0) {
+      return data[0].id;
+    }
+
+    // 3. Fallback: If returned data is empty (ignored duplicate), resolve the ID of the existing row
+    const { data: existing, error: queryError } = await supabase
+      .from("option_chain_snapshots")
+      .select("id")
+      .eq("trading_date", snapshot.trading_date)
+      .eq("trading_time", snapshot.trading_time)
+      .eq("symbol", snapshot.symbol)
+      .eq("expiry", snapshot.expiry)
+      .maybeSingle();
+
+    if (queryError) {
+      console.error(
+        `[supabase.server] insertOptionChainSnapshot fallback lookup error: ${queryError.message}`
+      );
+      return null;
+    }
+
+    if (!existing) {
+      console.error(
+        `[supabase.server] insertOptionChainSnapshot parent-ID resolution error: No existing row found for key ${snapshot.trading_date} ${snapshot.trading_time} ${snapshot.symbol} ${snapshot.expiry}`
+      );
+      return null;
+    }
+
+    return existing.id;
   } catch (err) {
     console.error("[supabase.server] insertOptionChainSnapshot exception:", err);
     return null;
