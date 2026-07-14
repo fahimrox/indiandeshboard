@@ -28,6 +28,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
 import { Route as ApiSupabaseTestRouteImport } from './routes/api/supabase-test'
 import { Route as ApiSupabaseHealthRouteImport } from './routes/api/supabase-health'
+import { Route as ApiSectorHistoryRouteImport } from './routes/api/sector-history'
 import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
 import { Route as ApiOiHistoryRouteImport } from './routes/api/oi-history'
 import { Route as ApiMarketHistoryRouteImport } from './routes/api/market-history'
@@ -132,6 +133,11 @@ const ApiSupabaseHealthRoute = ApiSupabaseHealthRouteImport.update({
   path: '/api/supabase-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSectorHistoryRoute = ApiSectorHistoryRouteImport.update({
+  id: '/api/sector-history',
+  path: '/api/sector-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOptionHistoryRoute = ApiOptionHistoryRouteImport.update({
   id: '/api/option-history',
   path: '/api/option-history',
@@ -196,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -255,6 +263,7 @@ export interface FileRoutesById {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
@@ -286,6 +295,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
     | '/sector/$key'
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
     | '/sector/$key'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
     | '/sector/$key'
@@ -374,6 +386,7 @@ export interface RootRouteChildren {
   ApiMarketHistoryRoute: typeof ApiMarketHistoryRoute
   ApiOiHistoryRoute: typeof ApiOiHistoryRoute
   ApiOptionHistoryRoute: typeof ApiOptionHistoryRoute
+  ApiSectorHistoryRoute: typeof ApiSectorHistoryRoute
   ApiSupabaseHealthRoute: typeof ApiSupabaseHealthRoute
   ApiSupabaseTestRoute: typeof ApiSupabaseTestRoute
   SectorKeyRoute: typeof SectorKeyRoute
@@ -515,6 +528,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSupabaseHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sector-history': {
+      id: '/api/sector-history'
+      path: '/api/sector-history'
+      fullPath: '/api/sector-history'
+      preLoaderRoute: typeof ApiSectorHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/option-history': {
       id: '/api/option-history'
       path: '/api/option-history'
@@ -609,6 +629,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketHistoryRoute: ApiMarketHistoryRoute,
   ApiOiHistoryRoute: ApiOiHistoryRoute,
   ApiOptionHistoryRoute: ApiOptionHistoryRoute,
+  ApiSectorHistoryRoute: ApiSectorHistoryRoute,
   ApiSupabaseHealthRoute: ApiSupabaseHealthRoute,
   ApiSupabaseTestRoute: ApiSupabaseTestRoute,
   SectorKeyRoute: SectorKeyRoute,

@@ -5,7 +5,13 @@
 // ──────────────────────────────────────────────────────────────────────────────
 
 import { dbService } from "./database.server";
-import { getSupabaseMarketHistoryRange } from "./supabase.server";
+import {
+  getSupabaseMarketHistoryRange,
+  getSupabaseOptionHistoryRange,
+  getSupabaseOiActivityHistoryRange,
+  getSupabaseBreadthHistoryRange,
+  getSupabaseSectorStrengthHistoryRange,
+} from "./supabase.server";
 
 
 export interface HistoricalMarketSnapshot {
@@ -97,6 +103,223 @@ export interface SupabaseMarketSnapshotRow {
   vwap: number;
 }
 
+
+
+
+
+export interface HistoricalSectorStrengthRow {
+  id?: number | string;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+}
+
+export interface SQLiteSectorStrengthHistoryRow {
+  id: number;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+}
+
+export interface SupabaseSectorStrengthHistorySourceRow {
+  id?: number | string;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  name: string;
+  price: number;
+  change_pct: number;
+}
+
+export interface HistoricalSectorStrengthHistoryResult {
+  data: HistoricalSectorStrengthRow[];
+  metadata: HistoricalSourceMetadata;
+}
+export interface HistoricalMarketBreadthRow {
+  id?: number | string;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  advance: number;
+  decline: number;
+  unchanged: number;
+  adr: number;
+  india_vix: number;
+}
+
+export interface SQLiteMarketBreadthHistoryRow {
+  id: number;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  advance: number;
+  decline: number;
+  unchanged: number;
+  adr: number;
+  india_vix: number;
+}
+
+export interface SupabaseMarketBreadthHistorySourceRow {
+  id?: number | string;
+  trading_date: string;
+  trading_time: string;
+  advance: number;
+  decline: number;
+  unchanged: number;
+  adr: number;
+  india_vix: number;
+}
+
+export interface HistoricalMarketBreadthHistoryResult {
+  data: HistoricalMarketBreadthRow[];
+  metadata: HistoricalSourceMetadata;
+}
+export interface HistoricalOiActivityRow {
+  id?: number | string;
+  snapshot_id: number | string;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  strike: number;
+  ce_ltp: number;
+  ce_oi: number;
+  ce_oi_chg: number;
+  ce_vol: number;
+  ce_signal: string;
+  pe_ltp: number;
+  pe_oi: number;
+  pe_oi_chg: number;
+  pe_vol: number;
+  pe_signal: string;
+}
+
+export interface SQLiteOiActivityHistoryRow {
+  id: number;
+  snapshot_id: number;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  strike: number;
+  ce_ltp: number;
+  ce_oi: number;
+  ce_oi_chg: number;
+  ce_vol: number;
+  ce_signal: string;
+  pe_ltp: number;
+  pe_oi: number;
+  pe_oi_chg: number;
+  pe_vol: number;
+  pe_signal: string;
+}
+
+export interface SupabaseOiActivityHistorySourceRow {
+  id?: number | string;
+  snapshot_id: number | string;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  strike: number;
+  ce_ltp: number;
+  ce_oi: number;
+  ce_oi_chg: number;
+  ce_vol: number;
+  ce_signal: string;
+  pe_ltp: number;
+  pe_oi: number;
+  pe_oi_chg: number;
+  pe_vol: number;
+  pe_signal: string;
+}
+
+export interface HistoricalOiActivityHistoryResult {
+  data: HistoricalOiActivityRow[];
+  metadata: HistoricalSourceMetadata;
+}
+export interface HistoricalOptionChainSnapshot {
+  id?: number | string;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  spot_price: number;
+  pcr: number;
+  max_pain: number;
+  atm_strike: number;
+  total_ce_oi: number;
+  total_pe_oi: number;
+  total_ce_oi_chg: number;
+  total_pe_oi_chg: number;
+  total_ce_vol: number;
+  total_pe_vol: number;
+  max_ce_oi_strike: number;
+  max_pe_oi_strike: number;
+  support_levels: string;
+  resistance_levels: string;
+}
+
+export interface SQLiteOptionChainSnapshotRow {
+  id: number;
+  timestamp: number;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  spot_price: number;
+  pcr: number;
+  max_pain: number;
+  atm_strike: number;
+  total_ce_oi: number;
+  total_pe_oi: number;
+  total_ce_oi_chg: number;
+  total_pe_oi_chg: number;
+  total_ce_vol: number;
+  total_pe_vol: number;
+  max_ce_oi_strike: number;
+  max_pe_oi_strike: number;
+  support_levels: string;
+  resistance_levels: string;
+}
+
+export interface SupabaseOptionChainSnapshotRow {
+  id?: number | string;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  spot_price: number;
+  pcr: number;
+  max_pain: number;
+  atm_strike: number;
+  total_ce_oi: number;
+  total_pe_oi: number;
+  total_ce_oi_chg: number;
+  total_pe_oi_chg: number;
+  total_ce_vol: number;
+  total_pe_vol: number;
+  max_ce_oi_strike: number;
+  max_pe_oi_strike: number;
+  support_levels: string;
+  resistance_levels: string;
+}
+
+export interface HistoricalOptionHistoryResult {
+  data: HistoricalOptionChainSnapshot[];
+  metadata: HistoricalSourceMetadata;
+}
 /**
  * Returns today's YYYY-MM-DD string in IST timezone (Asia/Kolkata).
  * Uses Intl.DateTimeFormat to ensure it is independent of the host machine timezone.
@@ -454,6 +677,599 @@ export function sampleMarketSnapshots(
   });
 }
 
+
+
+
+
+export function normalizeSQLiteSectorStrengthRow(
+  row: SQLiteSectorStrengthHistoryRow
+): HistoricalSectorStrengthRow {
+  return {
+    id: row.id,
+    timestamp: Number(row.timestamp),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    name: String(row.name ?? ""),
+    price: Number(row.price) || 0,
+    change_pct: Number(row.change_pct) || 0,
+  };
+}
+
+export function normalizeSupabaseSectorStrengthRow(
+  row: SupabaseSectorStrengthHistorySourceRow
+): HistoricalSectorStrengthRow {
+  return {
+    id: row.id,
+    timestamp: parseIstToUtcEpoch(
+      row.trading_date,
+      row.trading_time
+    ),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    name: String(row.name ?? ""),
+    price: Number(row.price) || 0,
+    change_pct: Number(row.change_pct) || 0,
+  };
+}
+
+export function sampleSectorStrengthSnapshots(
+  rows: HistoricalSectorStrengthRow[],
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60
+): HistoricalSectorStrengthRow[] {
+  const anchorSeconds = 9 * 3600 + 15 * 60;
+  const intervalSeconds = intervalMinutes * 60;
+  const validRows: HistoricalSectorStrengthRow[] = [];
+
+  for (const row of rows) {
+    if (!/^\d{2}:\d{2}:\d{2}$/.test(row.trading_time)) {
+      continue;
+    }
+
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      !Number.isInteger(second) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      continue;
+    }
+
+    const secondsFromMidnight =
+      hour * 3600 + minute * 60 + second;
+
+    if (secondsFromMidnight < anchorSeconds) {
+      continue;
+    }
+
+    validRows.push(row);
+  }
+
+  validRows.sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.symbol !== b.symbol) {
+      return a.symbol.localeCompare(b.symbol);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const buckets =
+    new Map<string, HistoricalSectorStrengthRow>();
+
+  for (const row of validRows) {
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const secondsFromMidnight =
+      Number(hourText) * 3600 +
+      Number(minuteText) * 60 +
+      Number(secondText);
+
+    const bucketIndex = Math.floor(
+      (secondsFromMidnight - anchorSeconds) / intervalSeconds
+    );
+
+    const key =
+      `${row.trading_date}_${row.symbol}_${bucketIndex}`;
+
+    buckets.set(key, row);
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.symbol !== b.symbol) {
+      return a.symbol.localeCompare(b.symbol);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+}
+export function normalizeSQLiteBreadthRow(
+  row: SQLiteMarketBreadthHistoryRow
+): HistoricalMarketBreadthRow {
+  return {
+    id: row.id,
+    timestamp: Number(row.timestamp),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    advance: Number(row.advance) || 0,
+    decline: Number(row.decline) || 0,
+    unchanged: Number(row.unchanged) || 0,
+    adr: Number(row.adr) || 0,
+    india_vix: Number(row.india_vix) || 0,
+  };
+}
+
+export function normalizeSupabaseBreadthRow(
+  row: SupabaseMarketBreadthHistorySourceRow
+): HistoricalMarketBreadthRow {
+  return {
+    id: row.id,
+    timestamp: parseIstToUtcEpoch(
+      row.trading_date,
+      row.trading_time
+    ),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    advance: Number(row.advance) || 0,
+    decline: Number(row.decline) || 0,
+    unchanged: Number(row.unchanged) || 0,
+    adr: Number(row.adr) || 0,
+    india_vix: Number(row.india_vix) || 0,
+  };
+}
+
+export function sampleBreadthSnapshots(
+  rows: HistoricalMarketBreadthRow[],
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60
+): HistoricalMarketBreadthRow[] {
+  const anchorSeconds = 9 * 3600 + 15 * 60;
+  const intervalSeconds = intervalMinutes * 60;
+  const validRows: HistoricalMarketBreadthRow[] = [];
+
+  for (const row of rows) {
+    if (!/^\d{2}:\d{2}:\d{2}$/.test(row.trading_time)) {
+      continue;
+    }
+
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      !Number.isInteger(second) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      continue;
+    }
+
+    const secondsFromMidnight =
+      hour * 3600 + minute * 60 + second;
+
+    if (secondsFromMidnight < anchorSeconds) {
+      continue;
+    }
+
+    validRows.push(row);
+  }
+
+  validRows.sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const buckets =
+    new Map<string, HistoricalMarketBreadthRow>();
+
+  for (const row of validRows) {
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const secondsFromMidnight =
+      Number(hourText) * 3600 +
+      Number(minuteText) * 60 +
+      Number(secondText);
+
+    const bucketIndex = Math.floor(
+      (secondsFromMidnight - anchorSeconds) / intervalSeconds
+    );
+
+    const key = `${row.trading_date}_${bucketIndex}`;
+
+    buckets.set(key, row);
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+}
+export function normalizeSQLiteOiActivityRow(
+  row: SQLiteOiActivityHistoryRow
+): HistoricalOiActivityRow {
+  return {
+    id: row.id,
+    snapshot_id: Number(row.snapshot_id),
+    timestamp: Number(row.timestamp),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    expiry: row.expiry,
+    strike: Number(row.strike) || 0,
+    ce_ltp: Number(row.ce_ltp) || 0,
+    ce_oi: Number(row.ce_oi) || 0,
+    ce_oi_chg: Number(row.ce_oi_chg) || 0,
+    ce_vol: Number(row.ce_vol) || 0,
+    ce_signal: String(row.ce_signal ?? ""),
+    pe_ltp: Number(row.pe_ltp) || 0,
+    pe_oi: Number(row.pe_oi) || 0,
+    pe_oi_chg: Number(row.pe_oi_chg) || 0,
+    pe_vol: Number(row.pe_vol) || 0,
+    pe_signal: String(row.pe_signal ?? ""),
+  };
+}
+
+export function normalizeSupabaseOiActivityRow(
+  row: SupabaseOiActivityHistorySourceRow
+): HistoricalOiActivityRow {
+  return {
+    id: row.id,
+    snapshot_id: row.snapshot_id,
+    timestamp: parseIstToUtcEpoch(
+      row.trading_date,
+      row.trading_time
+    ),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    expiry: row.expiry,
+    strike: Number(row.strike) || 0,
+    ce_ltp: Number(row.ce_ltp) || 0,
+    ce_oi: Number(row.ce_oi) || 0,
+    ce_oi_chg: Number(row.ce_oi_chg) || 0,
+    ce_vol: Number(row.ce_vol) || 0,
+    ce_signal: String(row.ce_signal ?? ""),
+    pe_ltp: Number(row.pe_ltp) || 0,
+    pe_oi: Number(row.pe_oi) || 0,
+    pe_oi_chg: Number(row.pe_oi_chg) || 0,
+    pe_vol: Number(row.pe_vol) || 0,
+    pe_signal: String(row.pe_signal ?? ""),
+  };
+}
+
+export function sampleOiActivitySnapshots(
+  rows: HistoricalOiActivityRow[],
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60
+): HistoricalOiActivityRow[] {
+  const anchorSeconds = 9 * 3600 + 15 * 60;
+  const intervalSeconds = intervalMinutes * 60;
+
+  const orderedRows = rows
+    .filter((row) => {
+      if (!/^\d{2}:\d{2}:\d{2}$/.test(row.trading_time)) {
+        return false;
+      }
+
+      const [hourText, minuteText, secondText] =
+        row.trading_time.split(":");
+
+      const hour = Number(hourText);
+      const minute = Number(minuteText);
+      const second = Number(secondText);
+
+      if (
+        !Number.isInteger(hour) ||
+        !Number.isInteger(minute) ||
+        !Number.isInteger(second) ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59 ||
+        second < 0 ||
+        second > 59
+      ) {
+        return false;
+      }
+
+      const secondsFromMidnight =
+        hour * 3600 + minute * 60 + second;
+
+      return secondsFromMidnight >= anchorSeconds;
+    })
+    .sort((a, b) => {
+      if (a.trading_date !== b.trading_date) {
+        return a.trading_date.localeCompare(b.trading_date);
+      }
+      if (a.trading_time !== b.trading_time) {
+        return a.trading_time.localeCompare(b.trading_time);
+      }
+      if (a.expiry !== b.expiry) {
+        return a.expiry.localeCompare(b.expiry);
+      }
+      if (a.strike !== b.strike) {
+        return a.strike - b.strike;
+      }
+
+      const aId = String(a.id ?? "");
+      const bId = String(b.id ?? "");
+
+      return aId.localeCompare(
+        bId,
+        undefined,
+        { numeric: true, sensitivity: "base" }
+      );
+    });
+
+  const selectedSnapshotKeys = new Map<string, string>();
+
+  for (const row of orderedRows) {
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const secondsFromMidnight =
+      Number(hourText) * 3600 +
+      Number(minuteText) * 60 +
+      Number(secondText);
+
+    const bucketIndex = Math.floor(
+      (secondsFromMidnight - anchorSeconds) / intervalSeconds
+    );
+
+    const bucketKey =
+      `${row.trading_date}_${row.symbol}_${row.expiry}_${bucketIndex}`;
+
+    const snapshotKey =
+      `${row.trading_date}_${row.trading_time}_${row.symbol}_${row.expiry}`;
+
+    selectedSnapshotKeys.set(bucketKey, snapshotKey);
+  }
+
+  const selectedSnapshots =
+    new Set(selectedSnapshotKeys.values());
+
+  return orderedRows.filter((row) => {
+    const snapshotKey =
+      `${row.trading_date}_${row.trading_time}_${row.symbol}_${row.expiry}`;
+
+    return selectedSnapshots.has(snapshotKey);
+  });
+}
+export function normalizeSQLiteOptionRow(
+  row: SQLiteOptionChainSnapshotRow
+): HistoricalOptionChainSnapshot {
+  return {
+    id: row.id,
+    timestamp: Number(row.timestamp),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    expiry: row.expiry,
+    spot_price: Number(row.spot_price) || 0,
+    pcr: Number(row.pcr) || 0,
+    max_pain: Number(row.max_pain) || 0,
+    atm_strike: Number(row.atm_strike) || 0,
+    total_ce_oi: Number(row.total_ce_oi) || 0,
+    total_pe_oi: Number(row.total_pe_oi) || 0,
+    total_ce_oi_chg: Number(row.total_ce_oi_chg) || 0,
+    total_pe_oi_chg: Number(row.total_pe_oi_chg) || 0,
+    total_ce_vol: Number(row.total_ce_vol) || 0,
+    total_pe_vol: Number(row.total_pe_vol) || 0,
+    max_ce_oi_strike: Number(row.max_ce_oi_strike) || 0,
+    max_pe_oi_strike: Number(row.max_pe_oi_strike) || 0,
+    support_levels: String(row.support_levels ?? "[]"),
+    resistance_levels: String(row.resistance_levels ?? "[]"),
+  };
+}
+
+export function normalizeSupabaseOptionRow(
+  row: SupabaseOptionChainSnapshotRow
+): HistoricalOptionChainSnapshot {
+  return {
+    id: row.id,
+    timestamp: parseIstToUtcEpoch(row.trading_date, row.trading_time),
+    trading_date: row.trading_date,
+    trading_time: row.trading_time,
+    symbol: row.symbol,
+    expiry: row.expiry,
+    spot_price: Number(row.spot_price) || 0,
+    pcr: Number(row.pcr) || 0,
+    max_pain: Number(row.max_pain) || 0,
+    atm_strike: Number(row.atm_strike) || 0,
+    total_ce_oi: Number(row.total_ce_oi) || 0,
+    total_pe_oi: Number(row.total_pe_oi) || 0,
+    total_ce_oi_chg: Number(row.total_ce_oi_chg) || 0,
+    total_pe_oi_chg: Number(row.total_pe_oi_chg) || 0,
+    total_ce_vol: Number(row.total_ce_vol) || 0,
+    total_pe_vol: Number(row.total_pe_vol) || 0,
+    max_ce_oi_strike: Number(row.max_ce_oi_strike) || 0,
+    max_pe_oi_strike: Number(row.max_pe_oi_strike) || 0,
+    support_levels: String(row.support_levels ?? "[]"),
+    resistance_levels: String(row.resistance_levels ?? "[]"),
+  };
+}
+
+export function sampleOptionChainSnapshots(
+  rows: HistoricalOptionChainSnapshot[],
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60
+): HistoricalOptionChainSnapshot[] {
+  const anchorSeconds = 9 * 3600 + 15 * 60;
+  const intervalSeconds = intervalMinutes * 60;
+  const validRows: HistoricalOptionChainSnapshot[] = [];
+
+  for (const row of rows) {
+    if (!/^\d{2}:\d{2}:\d{2}$/.test(row.trading_time)) {
+      continue;
+    }
+
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      !Number.isInteger(second) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      continue;
+    }
+
+    const secondsFromMidnight =
+      hour * 3600 + minute * 60 + second;
+
+    if (secondsFromMidnight < anchorSeconds) {
+      continue;
+    }
+
+    validRows.push(row);
+  }
+
+  validRows.sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(b.expiry);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const buckets =
+    new Map<string, HistoricalOptionChainSnapshot>();
+
+  for (const row of validRows) {
+    const [hourText, minuteText, secondText] =
+      row.trading_time.split(":");
+
+    const secondsFromMidnight =
+      Number(hourText) * 3600 +
+      Number(minuteText) * 60 +
+      Number(secondText);
+
+    const bucketIndex = Math.floor(
+      (secondsFromMidnight - anchorSeconds) / intervalSeconds
+    );
+
+    const key =
+      `${row.trading_date}_${row.symbol}_${row.expiry}_${bucketIndex}`;
+
+    buckets.set(key, row);
+  }
+
+  return Array.from(buckets.values()).sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(b.expiry);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+}
 export interface HistoricalMarketHistoryResult {
   data: HistoricalMarketSnapshot[];
   metadata: HistoricalSourceMetadata;
@@ -589,6 +1405,641 @@ export async function getHistoricalMarketHistory(
     dateSet.add(row.trading_date);
   }
   const actualDates = Array.from(dateSet).sort();
+
+  return {
+    data: sampled,
+    metadata: {
+      source,
+      requestedRange: {
+        startDate,
+        endDate,
+      },
+      actualDates,
+    },
+  };
+}
+export async function getHistoricalOptionHistory(
+  symbol: string,
+  startDate: string,
+  endDate: string,
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60,
+  expiry?: string
+): Promise<HistoricalOptionHistoryResult> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedExpiry = expiry?.trim();
+
+  if (!normalizedSymbol) {
+    throw new Error(
+      "Symbol parameter is required and cannot be empty."
+    );
+  }
+
+  let rawRows: any[] = [];
+  let source: HistoricalDataSource = "supabase";
+  let supabaseFailed = false;
+  let supabaseError: any = null;
+  let supabaseRows: any[] = [];
+
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            "Supabase option-chain range query timed out after 3000ms"
+          )
+        );
+      }, 3000);
+    });
+
+    const supabasePromise = getSupabaseOptionHistoryRange(
+      normalizedSymbol,
+      startDate,
+      endDate,
+      normalizedExpiry
+    );
+
+    supabasePromise.catch(() => {});
+
+    supabaseRows = await Promise.race([
+      supabasePromise,
+      timeoutPromise,
+    ]);
+  } catch (err: any) {
+    supabaseFailed = true;
+    supabaseError = err;
+
+    console.warn(
+      `[historicalDataService] Supabase option-chain range query failed or timed out for symbol ${normalizedSymbol} in range ${startDate} to ${endDate}. Falling back to SQLite. Error: ${err.message || err}`
+    );
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const readSQLiteRows = (): any[] => {
+    const rows = dbService.getOptionHistoryRangeRaw(
+      normalizedSymbol,
+      startDate,
+      endDate
+    );
+
+    if (!normalizedExpiry) {
+      return rows;
+    }
+
+    return rows.filter(
+      (row) => String(row.expiry) === normalizedExpiry
+    );
+  };
+
+  if (supabaseFailed) {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Historical option-chain range query failed on both Supabase and SQLite. Supabase error: ${supabaseError?.message || supabaseError}. SQLite error: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  } else if (supabaseRows.length > 0) {
+    rawRows = supabaseRows;
+    source = "supabase";
+  } else {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Supabase returned no matching option-chain rows. SQLite fallback failed: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  }
+
+  let normalized: HistoricalOptionChainSnapshot[];
+
+  if (source === "supabase") {
+    normalized = rawRows.map((row) =>
+      normalizeSupabaseOptionRow(row)
+    );
+  } else {
+    normalized = rawRows.map((row) =>
+      normalizeSQLiteOptionRow(row)
+    );
+  }
+
+  normalized.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(b.expiry);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const seen = new Set<string>();
+  const deduplicated: HistoricalOptionChainSnapshot[] = [];
+
+  for (const row of normalized) {
+    const key =
+      `${row.trading_date}_${row.trading_time}_${row.symbol}_${row.expiry}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(row);
+    }
+  }
+
+  const sampled = sampleOptionChainSnapshots(
+    deduplicated,
+    intervalMinutes
+  );
+
+  const actualDates = Array.from(
+    new Set(sampled.map((row) => row.trading_date))
+  ).sort();
+
+  return {
+    data: sampled,
+    metadata: {
+      source,
+      requestedRange: {
+        startDate,
+        endDate,
+      },
+      actualDates,
+    },
+  };
+}
+export async function getHistoricalOiActivityHistory(
+  symbol: string,
+  startDate: string,
+  endDate: string,
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60,
+  expiry?: string
+): Promise<HistoricalOiActivityHistoryResult> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedExpiry = expiry?.trim();
+
+  if (!normalizedSymbol) {
+    throw new Error(
+      "Symbol parameter is required and cannot be empty."
+    );
+  }
+
+  let rawRows: any[] = [];
+  let source: HistoricalDataSource = "supabase";
+  let supabaseFailed = false;
+  let supabaseError: any = null;
+  let supabaseRows: any[] = [];
+
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            "Supabase OI-activity range query timed out after 10000ms"
+          )
+        );
+      }, 10000);
+    });
+
+    const supabasePromise =
+      getSupabaseOiActivityHistoryRange(
+        normalizedSymbol,
+        startDate,
+        endDate,
+        normalizedExpiry,
+        intervalMinutes
+      );
+
+    supabasePromise.catch(() => {});
+
+    supabaseRows = await Promise.race([
+      supabasePromise,
+      timeoutPromise,
+    ]);
+  } catch (err: any) {
+    supabaseFailed = true;
+    supabaseError = err;
+
+    console.warn(
+      `[historicalDataService] Supabase OI-activity range query failed or timed out for symbol ${normalizedSymbol} in range ${startDate} to ${endDate}. Falling back to SQLite. Error: ${err.message || err}`
+    );
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const readSQLiteRows = (): any[] =>
+    dbService.getOiActivityHistoryRangeRaw(
+      normalizedSymbol,
+      startDate,
+      endDate,
+      normalizedExpiry
+    );
+
+  if (supabaseFailed) {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Historical OI-activity range query failed on both Supabase and SQLite. Supabase error: ${supabaseError?.message || supabaseError}. SQLite error: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  } else if (supabaseRows.length > 0) {
+    rawRows = supabaseRows;
+    source = "supabase";
+  } else {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Supabase returned no matching OI-activity rows. SQLite fallback failed: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  }
+
+  let normalized: HistoricalOiActivityRow[];
+
+  if (source === "supabase") {
+    normalized = rawRows.map((row) =>
+      normalizeSupabaseOiActivityRow(row)
+    );
+  } else {
+    normalized = rawRows.map((row) =>
+      normalizeSQLiteOiActivityRow(row)
+    );
+  }
+
+  normalized.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(b.expiry);
+    }
+    if (a.strike !== b.strike) {
+      return a.strike - b.strike;
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const seen = new Set<string>();
+  const deduplicated: HistoricalOiActivityRow[] = [];
+
+  for (const row of normalized) {
+    const key =
+      `${row.trading_date}_${row.trading_time}_${row.symbol}_${row.expiry}_${row.strike}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(row);
+    }
+  }
+
+  const sampled = sampleOiActivitySnapshots(
+    deduplicated,
+    intervalMinutes
+  );
+
+  const actualDates = Array.from(
+    new Set(sampled.map((row) => row.trading_date))
+  ).sort();
+
+  return {
+    data: sampled,
+    metadata: {
+      source,
+      requestedRange: {
+        startDate,
+        endDate,
+      },
+      actualDates,
+    },
+  };
+}
+export async function getHistoricalBreadthHistory(
+  startDate: string,
+  endDate: string,
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60
+): Promise<HistoricalMarketBreadthHistoryResult> {
+  let rawRows: any[] = [];
+  let source: HistoricalDataSource = "supabase";
+  let supabaseFailed = false;
+  let supabaseError: any = null;
+  let supabaseRows: any[] = [];
+
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            "Supabase market-breadth range query timed out after 3000ms"
+          )
+        );
+      }, 3000);
+    });
+
+    const supabasePromise =
+      getSupabaseBreadthHistoryRange(
+        startDate,
+        endDate
+      );
+
+    supabasePromise.catch(() => {});
+
+    supabaseRows = await Promise.race([
+      supabasePromise,
+      timeoutPromise,
+    ]);
+  } catch (err: any) {
+    supabaseFailed = true;
+    supabaseError = err;
+
+    console.warn(
+      `[historicalDataService] Supabase market-breadth range query failed or timed out in range ${startDate} to ${endDate}. Falling back to SQLite. Error: ${err.message || err}`
+    );
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const readSQLiteRows = (): any[] =>
+    dbService.getBreadthHistoryRangeRaw(
+      startDate,
+      endDate
+    );
+
+  if (supabaseFailed) {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Historical market-breadth range query failed on both Supabase and SQLite. Supabase error: ${supabaseError?.message || supabaseError}. SQLite error: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  } else if (supabaseRows.length > 0) {
+    rawRows = supabaseRows;
+    source = "supabase";
+  } else {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Supabase returned no matching market-breadth rows. SQLite fallback failed: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  }
+
+  let normalized: HistoricalMarketBreadthRow[];
+
+  if (source === "supabase") {
+    normalized = rawRows.map((row) =>
+      normalizeSupabaseBreadthRow(row)
+    );
+  } else {
+    normalized = rawRows.map((row) =>
+      normalizeSQLiteBreadthRow(row)
+    );
+  }
+
+  normalized.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const seen = new Set<string>();
+  const deduplicated: HistoricalMarketBreadthRow[] = [];
+
+  for (const row of normalized) {
+    const key =
+      `${row.trading_date}_${row.trading_time}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(row);
+    }
+  }
+
+  const sampled = sampleBreadthSnapshots(
+    deduplicated,
+    intervalMinutes
+  );
+
+  const actualDates = Array.from(
+    new Set(sampled.map((row) => row.trading_date))
+  ).sort();
+
+  return {
+    data: sampled,
+    metadata: {
+      source,
+      requestedRange: {
+        startDate,
+        endDate,
+      },
+      actualDates,
+    },
+  };
+}
+export async function getHistoricalSectorStrengthHistory(
+  startDate: string,
+  endDate: string,
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60,
+  symbol?: string
+): Promise<HistoricalSectorStrengthHistoryResult> {
+  const normalizedSymbol = symbol?.trim().toUpperCase();
+
+  let rawRows: any[] = [];
+  let source: HistoricalDataSource = "supabase";
+  let supabaseFailed = false;
+  let supabaseError: any = null;
+  let supabaseRows: any[] = [];
+
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            "Supabase sector-strength range query timed out after 3000ms"
+          )
+        );
+      }, 3000);
+    });
+
+    const supabasePromise =
+      getSupabaseSectorStrengthHistoryRange(
+        startDate,
+        endDate,
+        normalizedSymbol
+      );
+
+    supabasePromise.catch(() => {});
+
+    supabaseRows = await Promise.race([
+      supabasePromise,
+      timeoutPromise,
+    ]);
+  } catch (err: any) {
+    supabaseFailed = true;
+    supabaseError = err;
+
+    console.warn(
+      `[historicalDataService] Supabase sector-strength range query failed or timed out in range ${startDate} to ${endDate}. Falling back to SQLite. Error: ${err.message || err}`
+    );
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  const readSQLiteRows = (): any[] =>
+    dbService.getSectorStrengthHistoryRangeRaw(
+      startDate,
+      endDate,
+      normalizedSymbol
+    );
+
+  if (supabaseFailed) {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Historical sector-strength range query failed on both Supabase and SQLite. Supabase error: ${supabaseError?.message || supabaseError}. SQLite error: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  } else if (supabaseRows.length > 0) {
+    rawRows = supabaseRows;
+    source = "supabase";
+  } else {
+    try {
+      rawRows = readSQLiteRows();
+      source = "sqlite";
+    } catch (sqliteErr: any) {
+      throw new Error(
+        `Supabase returned no matching sector-strength rows. SQLite fallback failed: ${sqliteErr.message || sqliteErr}`
+      );
+    }
+  }
+
+  let normalized: HistoricalSectorStrengthRow[];
+
+  if (source === "supabase") {
+    normalized = rawRows.map((row) =>
+      normalizeSupabaseSectorStrengthRow(row)
+    );
+  } else {
+    normalized = rawRows.map((row) =>
+      normalizeSQLiteSectorStrengthRow(row)
+    );
+  }
+
+  normalized.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
+    if (a.trading_date !== b.trading_date) {
+      return a.trading_date.localeCompare(b.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return a.trading_time.localeCompare(b.trading_time);
+    }
+    if (a.symbol !== b.symbol) {
+      return a.symbol.localeCompare(b.symbol);
+    }
+
+    const aId = String(a.id ?? "");
+    const bId = String(b.id ?? "");
+
+    return aId.localeCompare(
+      bId,
+      undefined,
+      { numeric: true, sensitivity: "base" }
+    );
+  });
+
+  const seen = new Set<string>();
+  const deduplicated: HistoricalSectorStrengthRow[] = [];
+
+  for (const row of normalized) {
+    const key =
+      `${row.trading_date}_${row.trading_time}_${row.symbol}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduplicated.push(row);
+    }
+  }
+
+  const sampled = sampleSectorStrengthSnapshots(
+    deduplicated,
+    intervalMinutes
+  );
+
+  const actualDates = Array.from(
+    new Set(sampled.map((row) => row.trading_date))
+  ).sort();
 
   return {
     data: sampled,

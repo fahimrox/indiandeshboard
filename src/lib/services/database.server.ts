@@ -94,8 +94,21 @@ export interface MarketDatabase {
   getMarketHistoryRangeRaw(symbol: string, startDate: string, endDate: string): SQLiteMarketSnapshotRow[];
   getCandles(symbol: string, date: string, intervalMinutes: number): any[];
   getOptionHistory(symbol: string, date: string, intervalMinutes: number): any[];
+  getOptionHistoryRangeRaw(symbol: string, startDate: string, endDate: string): any[];
   getOiHistory(snapshotId: number): any[];
+  getOiActivityHistoryRangeRaw(
+    symbol: string,
+    startDate: string,
+    endDate: string,
+    expiry?: string
+  ): any[];
   getBreadthHistory(date: string, intervalMinutes: number): any[];
+  getBreadthHistoryRangeRaw(startDate: string, endDate: string): any[];
+  getSectorStrengthHistoryRangeRaw(
+    startDate: string,
+    endDate: string,
+    symbol?: string
+  ): any[];
   
   backupDatabase(dateStr: string): Promise<string>;
   pruneData(retentionDays: number): number;
@@ -439,11 +452,113 @@ class SQLiteDatabaseService implements MarketDatabase {
     return query.all(symbol, date, intervalMs);
   }
 
+  public getOptionHistoryRangeRaw(
+    symbol: string,
+    startDate: string,
+    endDate: string
+  ): any[] {
+    const query = this.db.prepare(`
+      SELECT *
+      FROM option_chain_snapshots
+      WHERE symbol = ?
+        AND trading_date BETWEEN ? AND ?
+      ORDER BY
+        trading_date ASC,
+        trading_time ASC,
+        expiry ASC,
+        id ASC
+    `);
+
+    return query.all(symbol, startDate, endDate);
+  }
+
   public getOiHistory(snapshotId: number): any[] {
     const query = this.db.prepare(`
       SELECT * FROM oi_activity WHERE snapshot_id = ? ORDER BY strike ASC
     `);
     return query.all(snapshotId);
+  }
+
+  public getOiActivityHistoryRangeRaw(
+    symbol: string,
+    startDate: string,
+    endDate: string,
+    expiry?: string
+  ): any[] {
+    const expiryFilter = expiry?.trim();
+
+    if (expiryFilter) {
+      const query = this.db.prepare(`
+        SELECT
+          oi.id,
+          oi.snapshot_id,
+          snapshots.timestamp,
+          snapshots.trading_date,
+          snapshots.trading_time,
+          snapshots.symbol,
+          snapshots.expiry,
+          oi.strike,
+          oi.ce_ltp,
+          oi.ce_oi,
+          oi.ce_oi_chg,
+          oi.ce_vol,
+          oi.ce_signal,
+          oi.pe_ltp,
+          oi.pe_oi,
+          oi.pe_oi_chg,
+          oi.pe_vol,
+          oi.pe_signal
+        FROM oi_activity AS oi
+        INNER JOIN option_chain_snapshots AS snapshots
+          ON snapshots.id = oi.snapshot_id
+        WHERE snapshots.symbol = ?
+          AND snapshots.trading_date BETWEEN ? AND ?
+          AND snapshots.expiry = ?
+        ORDER BY
+          snapshots.trading_date ASC,
+          snapshots.trading_time ASC,
+          snapshots.expiry ASC,
+          oi.strike ASC,
+          oi.id ASC
+      `);
+
+      return query.all(symbol, startDate, endDate, expiryFilter);
+    }
+
+    const query = this.db.prepare(`
+      SELECT
+        oi.id,
+        oi.snapshot_id,
+        snapshots.timestamp,
+        snapshots.trading_date,
+        snapshots.trading_time,
+        snapshots.symbol,
+        snapshots.expiry,
+        oi.strike,
+        oi.ce_ltp,
+        oi.ce_oi,
+        oi.ce_oi_chg,
+        oi.ce_vol,
+        oi.ce_signal,
+        oi.pe_ltp,
+        oi.pe_oi,
+        oi.pe_oi_chg,
+        oi.pe_vol,
+        oi.pe_signal
+      FROM oi_activity AS oi
+      INNER JOIN option_chain_snapshots AS snapshots
+        ON snapshots.id = oi.snapshot_id
+      WHERE snapshots.symbol = ?
+        AND snapshots.trading_date BETWEEN ? AND ?
+      ORDER BY
+        snapshots.trading_date ASC,
+        snapshots.trading_time ASC,
+        snapshots.expiry ASC,
+        oi.strike ASC,
+        oi.id ASC
+    `);
+
+    return query.all(symbol, startDate, endDate);
   }
 
   public getBreadthHistory(date: string, intervalMinutes: number): any[] {
@@ -455,6 +570,60 @@ class SQLiteDatabaseService implements MarketDatabase {
       ORDER BY timestamp ASC
     `);
     return query.all(date, intervalMs);
+  }
+
+  public getBreadthHistoryRangeRaw(
+    startDate: string,
+    endDate: string
+  ): any[] {
+    const query = this.db.prepare(`
+      SELECT *
+      FROM market_breadth
+      WHERE trading_date BETWEEN ? AND ?
+      ORDER BY
+        trading_date ASC,
+        trading_time ASC,
+        id ASC
+    `);
+
+    return query.all(startDate, endDate);
+  }
+
+  public getSectorStrengthHistoryRangeRaw(
+    startDate: string,
+    endDate: string,
+    symbol?: string
+  ): any[] {
+    const normalizedSymbol = symbol?.trim().toUpperCase();
+
+    if (normalizedSymbol) {
+      const query = this.db.prepare(`
+        SELECT *
+        FROM sector_strength
+        WHERE trading_date BETWEEN ? AND ?
+          AND symbol = ?
+        ORDER BY
+          trading_date ASC,
+          trading_time ASC,
+          symbol ASC,
+          id ASC
+      `);
+
+      return query.all(startDate, endDate, normalizedSymbol);
+    }
+
+    const query = this.db.prepare(`
+      SELECT *
+      FROM sector_strength
+      WHERE trading_date BETWEEN ? AND ?
+      ORDER BY
+        trading_date ASC,
+        trading_time ASC,
+        symbol ASC,
+        id ASC
+    `);
+
+    return query.all(startDate, endDate);
   }
 
   public async backupDatabase(dateStr: string): Promise<string> {

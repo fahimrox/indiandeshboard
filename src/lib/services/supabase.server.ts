@@ -74,6 +74,39 @@ export type SupabaseOiActivity = {
   pe_vol: number;
   pe_signal: string;
 };
+export type SupabaseOptionChainHistoryRow =
+  SupabaseOptionChainSnapshot & {
+    id: number;
+  };
+
+export type SupabaseOiActivityHistoryRow = {
+  id: number;
+  snapshot_id: number | string;
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+  strike: number;
+  ce_ltp: number;
+  ce_oi: number;
+  ce_oi_chg: number;
+  ce_vol: number;
+  ce_signal: string;
+  pe_ltp: number;
+  pe_oi: number;
+  pe_oi_chg: number;
+  pe_vol: number;
+  pe_signal: string;
+};
+
+export type SupabaseMarketBreadthHistoryRow = SupabaseMarketBreadth & {
+  id: number;
+};
+
+export type SupabaseSectorStrengthHistoryRow =
+  SupabaseSectorStrength & {
+    id: number;
+  };
 
 // ── Lazy singleton Supabase client ─────────────────────────────────────────────
 // Initialised once on first use. Returns null if env vars are missing so the
@@ -551,6 +584,721 @@ export class SupabaseHistoryPaginationCappedError extends Error {
   }
 }
 
+
+
+
+
+export async function getSupabaseSectorStrengthHistoryRange(
+  startDate: string,
+  endDate: string,
+  symbol?: string
+): Promise<SupabaseSectorStrengthHistoryRow[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error(
+      "Supabase read query failed: Supabase is not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
+    );
+  }
+
+  const normalizedSymbol = symbol?.trim().toUpperCase();
+  const pageSize = 1000;
+  const maxRows = 50000;
+  const maxPages = maxRows / pageSize;
+  const allRows: SupabaseSectorStrengthHistoryRow[] = [];
+
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from("sector_strength")
+      .select(
+        "id, trading_date, trading_time, symbol, name, price, change_pct"
+      )
+      .gte("trading_date", startDate)
+      .lte("trading_date", endDate);
+
+    if (normalizedSymbol) {
+      query = query.eq("symbol", normalizedSymbol);
+    }
+
+    const { data, error } = await query
+      .order("trading_date", { ascending: true })
+      .order("trading_time", { ascending: true })
+      .order("symbol", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Supabase sector-strength query failed in range ${startDate} to ${endDate} on page ${page + 1}: ${error.message}`
+      );
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...(data as SupabaseSectorStrengthHistoryRow[]));
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    if (page === maxPages - 1 && data.length === pageSize) {
+      let probeQuery = supabase
+        .from("sector_strength")
+        .select("id")
+        .gte("trading_date", startDate)
+        .lte("trading_date", endDate);
+
+      if (normalizedSymbol) {
+        probeQuery = probeQuery.eq("symbol", normalizedSymbol);
+      }
+
+      const { data: probeData, error: probeError } = await probeQuery
+        .order("trading_date", { ascending: true })
+        .order("trading_time", { ascending: true })
+        .order("symbol", { ascending: true })
+        .order("id", { ascending: true })
+        .range(maxRows, maxRows);
+
+      if (probeError) {
+        throw new Error(
+          `Supabase sector-strength query failed in range ${startDate} to ${endDate} on page ${maxPages + 1} (probe): ${probeError.message}`
+        );
+      }
+
+      if (probeData && probeData.length > 0) {
+        throw new SupabaseHistoryPaginationCappedError(
+          maxRows,
+          normalizedSymbol || "ALL_SECTORS",
+          startDate,
+          endDate,
+          `Supabase sector-strength range query in range ${startDate} to ${endDate} was capped at ${maxRows} rows.`
+        );
+      }
+    }
+  }
+
+  return allRows;
+}
+export async function getSupabaseBreadthHistoryRange(
+  startDate: string,
+  endDate: string
+): Promise<SupabaseMarketBreadthHistoryRow[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error(
+      "Supabase read query failed: Supabase is not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
+    );
+  }
+
+  const pageSize = 1000;
+  const maxRows = 15000;
+  const maxPages = maxRows / pageSize;
+  const allRows: SupabaseMarketBreadthHistoryRow[] = [];
+
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    const { data, error } = await supabase
+      .from("market_breadth")
+      .select(
+        "id, trading_date, trading_time, advance, decline, unchanged, adr, india_vix"
+      )
+      .gte("trading_date", startDate)
+      .lte("trading_date", endDate)
+      .order("trading_date", { ascending: true })
+      .order("trading_time", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Supabase market-breadth query failed in range ${startDate} to ${endDate} on page ${page + 1}: ${error.message}`
+      );
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...(data as SupabaseMarketBreadthHistoryRow[]));
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    if (page === maxPages - 1 && data.length === pageSize) {
+      const { data: probeData, error: probeError } = await supabase
+        .from("market_breadth")
+        .select("id")
+        .gte("trading_date", startDate)
+        .lte("trading_date", endDate)
+        .order("trading_date", { ascending: true })
+        .order("trading_time", { ascending: true })
+        .order("id", { ascending: true })
+        .range(maxRows, maxRows);
+
+      if (probeError) {
+        throw new Error(
+          `Supabase market-breadth query failed in range ${startDate} to ${endDate} on page ${maxPages + 1} (probe): ${probeError.message}`
+        );
+      }
+
+      if (probeData && probeData.length > 0) {
+        throw new SupabaseHistoryPaginationCappedError(
+          maxRows,
+          "MARKET_BREADTH",
+          startDate,
+          endDate,
+          `Supabase market-breadth range query in range ${startDate} to ${endDate} was capped at ${maxRows} rows.`
+        );
+      }
+    }
+  }
+
+  return allRows;
+}
+export async function getSupabaseOiActivityHistoryRange(
+  symbol: string,
+  startDate: string,
+  endDate: string,
+  expiry?: string,
+  intervalMinutes: 1 | 3 | 5 | 15 | 30 | 60 = 1
+): Promise<SupabaseOiActivityHistoryRow[]> {
+  const supabase = getSupabaseClient();
+
+  if (!supabase) {
+    throw new Error(
+      "Supabase read query failed: Supabase is not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
+    );
+  }
+
+  const normalizedSymbol =
+    symbol.trim().toUpperCase();
+  const normalizedExpiry = expiry?.trim();
+
+  if (!normalizedSymbol) {
+    throw new Error(
+      "Supabase OI-activity query requires a non-empty symbol."
+    );
+  }
+
+  const snapshotPageSize = 1000;
+  const snapshotMaxRows = 15000;
+
+  const snapshots: Array<{
+    id: string;
+    trading_date: string;
+    trading_time: string;
+    symbol: string;
+    expiry: string;
+  }> = [];
+
+  /*
+   * Phase 1:
+   * Fetch lightweight option snapshot metadata first.
+   */
+  for (
+    let from = 0;
+    from < snapshotMaxRows;
+    from += snapshotPageSize
+  ) {
+    const to = from + snapshotPageSize - 1;
+
+    let query = supabase
+      .from("option_chain_snapshots")
+      .select(
+        "id,trading_date,trading_time,symbol,expiry"
+      )
+      .eq("symbol", normalizedSymbol)
+      .gte("trading_date", startDate)
+      .lte("trading_date", endDate)
+      .order("trading_date", {
+        ascending: true,
+      })
+      .order("trading_time", {
+        ascending: true,
+      })
+      .order("expiry", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (normalizedExpiry) {
+      query = query.eq(
+        "expiry",
+        normalizedExpiry
+      );
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(
+        `Supabase option snapshot lookup failed for OI history, symbol ${normalizedSymbol}, range ${startDate} to ${endDate}: ${error.message}`
+      );
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    for (const row of data as any[]) {
+      snapshots.push({
+        id: String(row.id),
+        trading_date: String(
+          row.trading_date
+        ),
+        trading_time: String(
+          row.trading_time
+        ),
+        symbol: String(row.symbol),
+        expiry: String(row.expiry),
+      });
+    }
+
+    if (data.length < snapshotPageSize) {
+      break;
+    }
+
+    if (
+      from + snapshotPageSize >=
+        snapshotMaxRows &&
+      data.length === snapshotPageSize
+    ) {
+      throw new SupabaseHistoryPaginationCappedError(
+        snapshotMaxRows,
+        normalizedSymbol,
+        startDate,
+        endDate,
+        `Supabase option snapshot lookup for OI history was capped at ${snapshotMaxRows} rows.`
+      );
+    }
+  }
+
+  if (snapshots.length === 0) {
+    return [];
+  }
+
+  /*
+   * Phase 2:
+   * Select the latest parent snapshot in each interval bucket.
+   */
+  const anchorSeconds =
+    9 * 3600 + 15 * 60;
+  const intervalSeconds =
+    intervalMinutes * 60;
+
+  const selectedByBucket = new Map<
+    string,
+    (typeof snapshots)[number]
+  >();
+
+  for (const snapshot of snapshots) {
+    if (
+      !/^\d{2}:\d{2}:\d{2}$/.test(
+        snapshot.trading_time
+      )
+    ) {
+      continue;
+    }
+
+    const [
+      hourText,
+      minuteText,
+      secondText,
+    ] = snapshot.trading_time.split(":");
+
+    const hour = Number(hourText);
+    const minute = Number(minuteText);
+    const second = Number(secondText);
+
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      !Number.isInteger(second) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59 ||
+      second < 0 ||
+      second > 59
+    ) {
+      continue;
+    }
+
+    const secondsFromMidnight =
+      hour * 3600 +
+      minute * 60 +
+      second;
+
+    if (
+      secondsFromMidnight <
+      anchorSeconds
+    ) {
+      continue;
+    }
+
+    const bucketIndex = Math.floor(
+      (secondsFromMidnight -
+        anchorSeconds) /
+        intervalSeconds
+    );
+
+    const bucketKey =
+      `${snapshot.trading_date}_${snapshot.symbol}_${snapshot.expiry}_${bucketIndex}`;
+
+    selectedByBucket.set(
+      bucketKey,
+      snapshot
+    );
+  }
+
+  const selectedSnapshots = Array.from(
+    selectedByBucket.values()
+  ).sort((a, b) => {
+    if (
+      a.trading_date !== b.trading_date
+    ) {
+      return a.trading_date.localeCompare(
+        b.trading_date
+      );
+    }
+
+    if (
+      a.trading_time !== b.trading_time
+    ) {
+      return a.trading_time.localeCompare(
+        b.trading_time
+      );
+    }
+
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(
+        b.expiry
+      );
+    }
+
+    return a.id.localeCompare(
+      b.id,
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base",
+      }
+    );
+  });
+
+  if (
+    selectedSnapshots.length === 0
+  ) {
+    return [];
+  }
+
+  const snapshotById = new Map(
+    selectedSnapshots.map(
+      (snapshot) => [
+        snapshot.id,
+        snapshot,
+      ]
+    )
+  );
+
+  const selectedIds =
+    selectedSnapshots.map(
+      (snapshot) => snapshot.id
+    );
+
+  /*
+   * Phase 3:
+   * Fetch strike-level OI rows only for selected snapshots.
+   */
+  const idChunkSize = 100;
+  const oiPageSize = 1000;
+  const maxRows = 500000;
+
+  const allRows:
+    SupabaseOiActivityHistoryRow[] = [];
+
+  for (
+    let chunkStart = 0;
+    chunkStart < selectedIds.length;
+    chunkStart += idChunkSize
+  ) {
+    const idChunk = selectedIds.slice(
+      chunkStart,
+      chunkStart + idChunkSize
+    );
+
+    for (
+      let from = 0;
+      from < maxRows;
+      from += oiPageSize
+    ) {
+      const to =
+        from + oiPageSize - 1;
+
+      const { data, error } =
+        await supabase
+          .from("oi_activity")
+          .select(`
+            id,
+            snapshot_id,
+            strike,
+            ce_ltp,
+            ce_oi,
+            ce_oi_chg,
+            ce_vol,
+            ce_signal,
+            pe_ltp,
+            pe_oi,
+            pe_oi_chg,
+            pe_vol,
+            pe_signal
+          `)
+          .in(
+            "snapshot_id",
+            idChunk
+          )
+          .order("snapshot_id", {
+            ascending: true,
+          })
+          .order("strike", {
+            ascending: true,
+          })
+          .order("id", {
+            ascending: true,
+          })
+          .range(from, to);
+
+      if (error) {
+        throw new Error(
+          `Supabase OI-activity query failed for symbol ${normalizedSymbol}, range ${startDate} to ${endDate}: ${error.message}`
+        );
+      }
+
+      if (
+        !data ||
+        data.length === 0
+      ) {
+        break;
+      }
+
+      for (
+        const rawRow of data as any[]
+      ) {
+        const snapshotId = String(
+          rawRow.snapshot_id
+        );
+
+        const parent =
+          snapshotById.get(snapshotId);
+
+        if (!parent) {
+          continue;
+        }
+
+        allRows.push({
+          id: String(rawRow.id),
+          snapshot_id: snapshotId,
+          trading_date:
+            parent.trading_date,
+          trading_time:
+            parent.trading_time,
+          symbol: parent.symbol,
+          expiry: parent.expiry,
+          strike:
+            Number(rawRow.strike) || 0,
+          ce_ltp:
+            Number(rawRow.ce_ltp) || 0,
+          ce_oi:
+            Number(rawRow.ce_oi) || 0,
+          ce_oi_chg:
+            Number(rawRow.ce_oi_chg) ||
+            0,
+          ce_vol:
+            Number(rawRow.ce_vol) || 0,
+          ce_signal: String(
+            rawRow.ce_signal ?? ""
+          ),
+          pe_ltp:
+            Number(rawRow.pe_ltp) || 0,
+          pe_oi:
+            Number(rawRow.pe_oi) || 0,
+          pe_oi_chg:
+            Number(rawRow.pe_oi_chg) ||
+            0,
+          pe_vol:
+            Number(rawRow.pe_vol) || 0,
+          pe_signal: String(
+            rawRow.pe_signal ?? ""
+          ),
+        });
+      }
+
+      if (
+        allRows.length > maxRows
+      ) {
+        throw new SupabaseHistoryPaginationCappedError(
+          maxRows,
+          normalizedSymbol,
+          startDate,
+          endDate,
+          `Supabase OI-activity range query for symbol ${normalizedSymbol} in range ${startDate} to ${endDate} exceeded ${maxRows} rows.`
+        );
+      }
+
+      if (
+        data.length < oiPageSize
+      ) {
+        break;
+      }
+    }
+  }
+
+  allRows.sort((a, b) => {
+    if (
+      a.trading_date !== b.trading_date
+    ) {
+      return a.trading_date.localeCompare(
+        b.trading_date
+      );
+    }
+
+    if (
+      a.trading_time !== b.trading_time
+    ) {
+      return a.trading_time.localeCompare(
+        b.trading_time
+      );
+    }
+
+    if (a.expiry !== b.expiry) {
+      return a.expiry.localeCompare(
+        b.expiry
+      );
+    }
+
+    if (a.strike !== b.strike) {
+      return a.strike - b.strike;
+    }
+
+    return String(
+      a.id ?? ""
+    ).localeCompare(
+      String(b.id ?? ""),
+      undefined,
+      {
+        numeric: true,
+        sensitivity: "base",
+      }
+    );
+  });
+
+  return allRows;
+}
+export async function getSupabaseOptionHistoryRange(
+  symbol: string,
+  startDate: string,
+  endDate: string,
+  expiry?: string
+): Promise<SupabaseOptionChainHistoryRow[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    throw new Error(
+      "Supabase read query failed: Supabase is not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
+    );
+  }
+
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedExpiry = expiry?.trim();
+  const pageSize = 1000;
+  const maxRows = 15000;
+  const maxPages = maxRows / pageSize;
+  const allRows: SupabaseOptionChainHistoryRow[] = [];
+
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+
+    let query = supabase
+      .from("option_chain_snapshots")
+      .select(
+        "id, trading_date, trading_time, symbol, expiry, spot_price, pcr, max_pain, atm_strike, total_ce_oi, total_pe_oi, total_ce_oi_chg, total_pe_oi_chg, total_ce_vol, total_pe_vol, max_ce_oi_strike, max_pe_oi_strike, support_levels, resistance_levels"
+      )
+      .eq("symbol", normalizedSymbol)
+      .gte("trading_date", startDate)
+      .lte("trading_date", endDate);
+
+    if (normalizedExpiry) {
+      query = query.eq("expiry", normalizedExpiry);
+    }
+
+    const { data, error } = await query
+      .order("trading_date", { ascending: true })
+      .order("trading_time", { ascending: true })
+      .order("expiry", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(
+        `Supabase option-chain query failed for symbol ${normalizedSymbol} in range ${startDate} to ${endDate} on page ${page + 1}: ${error.message}`
+      );
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    allRows.push(...(data as SupabaseOptionChainHistoryRow[]));
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    if (page === maxPages - 1 && data.length === pageSize) {
+      let probeQuery = supabase
+        .from("option_chain_snapshots")
+        .select("id")
+        .eq("symbol", normalizedSymbol)
+        .gte("trading_date", startDate)
+        .lte("trading_date", endDate);
+
+      if (normalizedExpiry) {
+        probeQuery = probeQuery.eq("expiry", normalizedExpiry);
+      }
+
+      const { data: probeData, error: probeError } = await probeQuery
+        .order("trading_date", { ascending: true })
+        .order("trading_time", { ascending: true })
+        .order("expiry", { ascending: true })
+        .order("id", { ascending: true })
+        .range(maxRows, maxRows);
+
+      if (probeError) {
+        throw new Error(
+          `Supabase option-chain query failed for symbol ${normalizedSymbol} in range ${startDate} to ${endDate} on page ${maxPages + 1} (probe): ${probeError.message}`
+        );
+      }
+
+      if (probeData && probeData.length > 0) {
+        throw new SupabaseHistoryPaginationCappedError(
+          maxRows,
+          normalizedSymbol,
+          startDate,
+          endDate,
+          `Supabase option-chain range query for symbol ${normalizedSymbol} in range ${startDate} to ${endDate} was capped at ${maxRows} rows.`
+        );
+      }
+    }
+  }
+
+  return allRows;
+}
 export async function getSupabaseMarketHistoryRange(
   symbol: string,
   startDate: string,

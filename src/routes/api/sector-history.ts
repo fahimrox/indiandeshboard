@@ -1,100 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { dbService } from "../../lib/services/database.server";
 import {
   validateDateRange,
   parseInterval,
-  getHistoricalOiActivityHistory,
+  getHistoricalSectorStrengthHistory,
 } from "../../lib/services/historicalDataService.server";
 
-export const Route = createFileRoute("/api/oi-history")({
+export const Route = createFileRoute("/api/sector-history")({
   server: {
     handlers: {
       GET: async ({ request }) => {
         try {
           const url = new URL(request.url);
-          const snapshotIdParam =
-            url.searchParams.get("snapshotId");
-
-          // Preserve the existing snapshot-specific API contract.
-          if (snapshotIdParam !== null) {
-            const trimmedSnapshotId =
-              snapshotIdParam.trim();
-
-            if (!/^\d+$/.test(trimmedSnapshotId)) {
-              return new Response(
-                JSON.stringify({
-                  success: false,
-                  error:
-                    "snapshotId must be a positive integer.",
-                }),
-                {
-                  status: 400,
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
-              );
-            }
-
-            const snapshotId =
-              Number(trimmedSnapshotId);
-
-            if (
-              !Number.isSafeInteger(snapshotId) ||
-              snapshotId <= 0
-            ) {
-              return new Response(
-                JSON.stringify({
-                  success: false,
-                  error:
-                    "snapshotId must be a positive safe integer.",
-                }),
-                {
-                  status: 400,
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                }
-              );
-            }
-
-            const activity =
-              dbService.getOiHistory(snapshotId);
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                snapshotId,
-                data: activity,
-              }),
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Data-Source": "sqlite",
-                },
-              }
-            );
-          }
-
-          const symbol =
-            (url.searchParams.get("symbol") || "NIFTY")
-              .trim()
-              .toUpperCase();
-
-          if (!symbol) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: "Symbol parameter is required.",
-              }),
-              {
-                status: 400,
-                headers: {
-                  "Content-Type": "application/json",
-                },
-              }
-            );
-          }
 
           const dateParam =
             url.searchParams.get("date");
@@ -104,8 +20,8 @@ export const Route = createFileRoute("/api/oi-history")({
             url.searchParams.get("endDate");
           const intervalParam =
             url.searchParams.get("interval");
-          const expiryParam =
-            url.searchParams.get("expiry")?.trim() ||
+          const symbolParam =
+            url.searchParams.get("symbol")?.trim().toUpperCase() ||
             undefined;
 
           const rangeResult = validateDateRange(
@@ -148,23 +64,21 @@ export const Route = createFileRoute("/api/oi-history")({
           }
 
           const result =
-            await getHistoricalOiActivityHistory(
-              symbol,
+            await getHistoricalSectorStrengthHistory(
               rangeResult.startDate,
               rangeResult.endDate,
               intervalResult.minutes,
-              expiryParam
+              symbolParam
             );
 
           const responseBody: Record<string, any> = {
             success: true,
-            symbol,
             interval: intervalResult.minutes,
             data: result.data,
           };
 
-          if (expiryParam) {
-            responseBody.expiry = expiryParam;
+          if (symbolParam) {
+            responseBody.symbol = symbolParam;
           }
 
           if (rangeResult.isSingleDate) {
@@ -199,7 +113,7 @@ export const Route = createFileRoute("/api/oi-history")({
               success: false,
               error:
                 err.message ||
-                "An unexpected error occurred while fetching OI historical data.",
+                "An unexpected error occurred while fetching sector-strength historical data.",
             }),
             {
               status: 500,
