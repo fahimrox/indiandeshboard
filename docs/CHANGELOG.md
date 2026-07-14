@@ -6,6 +6,51 @@
 
 ---
 
+## 2026-07-14 18:12 IST — Antigravity (Gemini)
+
+### Task
+Documentation-only update to record the official completion of the automatic Supabase dual-write live verification milestone and transition the project to the Historical Data and Backtesting phase.
+
+### Files Changed
+- `AGENTS.md` (Modified)
+- `docs/PRODUCTION_INFRASTRUCTURE.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+- `docs/CURRENT_TASK.md` (Modified)
+- `docs/CHANGELOG.md` (Modified — this entry)
+
+### What Changed
+
+#### Live Production Verification Complete (14 July 2026, 18:01 IST)
+- Verified automatic Supabase dual-write during live market hours from **09:15:03 to 15:30:03 IST** on 14 July 2026.
+- Confirmed a full trading session was continuously captured and saved to both local SQLite and Supabase Postgres without errors. No fresh Supabase schema or insert errors appeared in PM2 logs.
+- The previous status "pending live verification" has been marked as **verified complete** / **closed** in all documentation files.
+- The verified 14 July full-session automatic dual-write counts are restricted to the following four tables:
+  - `market_snapshots`: 1504
+  - `market_breadth`: 376
+  - `sector_strength`: 4512
+  - `option_chain_snapshots`: 1128
+
+#### Historical Milestones Preserved
+- The 13 July manual backfill milestone (with counts for `market_snapshots`, `market_breadth`, `sector_strength`, `option_chain_snapshots`, `oi_activity`, and `trade_signals`) remains historically separate from this 14 July automatic live dual-write verification.
+
+#### Shift to Historical Data and Backtesting Phase
+- Reset the active task in `CURRENT_TASK.md` to target: "Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline."
+- Defined detailed roadmap phases:
+  - **Phase 1**: Existing storage and API audit
+  - **Phase 2**: Seven-trading-day historical data
+  - **Phase 3**: Date-range charts
+  - **Phase 4**: Backtesting pipeline
+  - **Phase 5**: Validation
+- Handed over the current status in `SESSION_HANDOVER.md` to transition from live verification to the upcoming audit and implementation phases.
+
+### Why
+To document the successful verification of the dual-write infrastructure and outline the scope and phases for the upcoming Historical Data & Backtesting work.
+
+### Build / Test Result
+Build not run (documentation-only session).
+
+---
+
 ## 2026-07-13 19:47 IST — Antigravity (Claude Sonnet 4.6 — Thinking)
 
 ### Task

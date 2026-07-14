@@ -321,7 +321,6 @@ keep Node-only modules out of the client bundle. Preserve this boundary:
 | Full-day Supabase backfill (13 Jul 2026) complete | ✅ Confirmed |
 | PM2 state saved (`pm2 save`) | ✅ Confirmed |
 | `SUPABASE_DUAL_WRITE=true` enabled | ✅ Confirmed |
-| Automatic Supabase dual-write during next live session | ⏳ **Pending verification** |
 
 **Verified SQLite row counts (13 July 2026 full trading day):**
 
@@ -336,16 +335,20 @@ keep Node-only modules out of the client bundle. Preserve this boundary:
 
 **Same counts confirmed in Supabase** after manual backfill on 13 July 2026.
 
-### 16.7 Next Live-Session Verification
+### 16.7 Automatic Live Dual-Write Verification (14 July 2026)
 
-After the next market open, check:
+The pending live verification is officially **verified complete** (closed) as of **14 July 2026, 18:01 IST**.
 
-```bash
-pm2 logs indian-dashboard --lines 100 --nostream | grep -Ei "supabase|error|failed"
-```
+During the live session from **09:15:03 to 15:30:03 IST**, the scheduler saved ticks continuously to local SQLite and automatically dual-wrote them to Supabase. No fresh Supabase schema or insert errors appeared in PM2 logs.
 
-If automatic rows are increasing in Supabase and no schema errors appear → mark
-dual-write verification **complete** and update `PRODUCTION_INFRASTRUCTURE.md`.
+**Verified 14 July 2026 automatic dual-write counts:**
+
+| Table | Count | Meaning |
+|-------|-------|---------|
+| `market_snapshots` | 1504 | 4 index rows × 376 ticks |
+| `market_breadth` | 376 | 1 per scheduler tick |
+| `sector_strength` | 4512 | 12 rows per tick |
+| `option_chain_snapshots` | 1128 | 3 per tick |
 
 ### 16.8 Safe UI Development Rules
 

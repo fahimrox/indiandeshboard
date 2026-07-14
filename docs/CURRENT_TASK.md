@@ -5,33 +5,73 @@
 
 ---
 
-## Status: IDLE — no feature in progress
+## Status: ACTIVE — Historical Data and Backtesting Phase
 
-**Next AI:** take the user's next instruction and fill the template below before
-starting work.
+**Current Feature:**
+Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
+
+**Current Objective:**
+Complete Phase 1 (Existing storage and API audit) to lay the groundwork for historical data querying and backtesting, and proceed through the subsequent implementation phases.
 
 ---
 
-## Current Feature
-_None — awaiting assignment._
+## Roadmap & Phases
 
-## Current Objective
-_TBD_
+### Phase 1 — Existing storage and API audit
+- [ ] Audit SQLite and Supabase schemas.
+- [ ] Inspect timestamp formats and IST/UTC handling.
+- [ ] Check duplicate prevention and unique constraints.
+- [ ] Check indexes needed for symbol and timestamp range queries.
+- [ ] Inspect the existing history and export APIs.
+- [ ] Check current retention behavior.
+
+### Phase 2 — Seven-trading-day historical data
+- [ ] Preserve existing live collection.
+- [ ] Support querying by symbol/index, start date, end date, and interval.
+- [ ] Use Supabase as the main historical data source.
+- [ ] Allow Oracle SQLite as a local fallback or sync source.
+- [ ] Do not create mock historical records.
+
+### Phase 3 — Date-range charts
+- [ ] Add selectable trading dates.
+- [ ] Add intraday range filters.
+- [ ] Show clear loading, empty-data, market-closed, and error states.
+- [ ] Preserve the current dashboard design.
+
+### Phase 4 — Backtesting pipeline
+- [ ] Replay historical market snapshots chronologically.
+- [ ] Prevent future-data leakage.
+- [ ] Store strategy inputs, signals, entries, exits, P&L, and performance metrics.
+- [ ] Keep backtesting isolated from live trading and production collection.
+- [ ] No order placement features.
+
+### Phase 5 — Validation
+- [ ] Verify row counts per trading day.
+- [ ] Verify no timestamp gaps or duplicates.
+- [ ] Verify Supabase and SQLite consistency.
+- [ ] Run build and type checking.
+
+---
 
 ## Functional Requirements
-- _TBD_
+- Preserve the existing live market data collection architecture without disruption.
+- Retrieve and serve historical data from Supabase, falling back to local SQLite as needed.
+- No mock data or synthetic data under any circumstances. Clear error/FAIL states when no data exists.
+- Ensure chronological accuracy in the backtest replay engine, completely preventing look-ahead bias (future-data leakage).
 
 ## UI Requirements
-- Match the existing design language (dark theme, oklch tokens, Tailwind v4).
-- Reuse `src/components/ui/*` and the `DashboardShell` layout.
+- Add date selection controls and range filters to the dashboard without redesigning the core layout.
+- Maintain premium look and feel (dark theme, oklch theme tokens, Tailwind v4).
+- Show appropriate loaders, closed-market labels, empty states, and connection error pills.
 
 ## Data Requirements
-- Real data only (live during market hours, EOD when closed). **Never mock.**
-- Use the existing query layer (`src/lib/dashboard-query.ts`) + `marketDataLayer`.
-- Surface a **FAIL** state when no real data is available.
+- Real data only.
+- Leverage the existing orchestrator (`marketDataLayer.ts`) and query cache hooks (`dashboard-query.ts`).
+
+---
 
 ## Files Expected To Change
-- _TBD (list before editing)_
+*To be filled out specifically before beginning implementation code changes.*
 
 ## Files That Must NOT Be Modified
 - `src/routeTree.gen.ts` (auto-generated)
@@ -39,56 +79,26 @@ _TBD_
 - `angel_one_scrip_master.json`, `upstox_instruments.json`
 - `eod_cache/**`, `backend/database/**`
 - Generated/build dirs: `node_modules/`, `.output/`, `.tanstack/`, `.wrangler/`, `.nitro/`
-- Broker auth/session logic unless the task IS an auth fix (see PROJECT_MASTER).
+- Broker auth/session logic unless required.
+- `src/lib/services/scheduler.server.ts`
+- `src/lib/services/supabase.server.ts`
+- `src/lib/services/database.server.ts`
 
-## Dependencies
-- _TBD_
+---
 
 ## Current Blockers
 - None.
 
 ## Risks
-- Cloudflare deploy has no persistent FS/SQLite — EOD/history persistence is
-  Node/Bun-only. Consider this for any storage-related task.
-
-## Acceptance Checklist
-- [ ] Feature works with real live + EOD data
-- [ ] Existing features still work
-- [ ] No mock/synthetic data introduced
-- [ ] `npm run build` clean (exit 0)
-- [ ] Only task-related files changed
-- [ ] `CURRENT_TASK.md`, `SESSION_HANDOVER.md`, `CHANGELOG.md` updated
-
-## Definition of Done
-Feature meets acceptance checklist, build is clean, and all three living docs are
-updated (this file reset for the next task; handover + changelog appended).
-
-## Next Immediate Task
-Await user instruction.
+- Storage capacity constraints and index performance on the VM database for larger queries.
+- Ensuring timezones (IST vs. UTC) are correctly aligned between SQLite (stored locally, usually local/UTC) and Supabase Postgres (stored in UTC/timestamptz).
 
 ---
 
-## ✅ Completed Infrastructure Subsection (13 July 2026)
-
-> This is a record of completed infrastructure work — not an active feature task.
-> The feature task above remains IDLE.
-
-### Production Storage Verification — 13 July 2026
-
-**Status: COMPLETE (documentation recorded)**
-
-The following infrastructure work was completed and documented:
-
-| Item | Result |
-|------|--------|
-| Oracle SQLite full-day collection verified | ✅ Done |
-| Supabase schema aligned with insert payload | ✅ Done |
-| `oi_activity.snapshot_id` corrected to UUID FK | ✅ Done |
-| Full 13 Jul 2026 trading-day Supabase backfill | ✅ Done |
-| PM2 state saved | ✅ Done |
-| `SUPABASE_DUAL_WRITE=true` confirmed active | ✅ Done |
-| Documentation updated (AGENTS, PRODUCTION_INFRASTRUCTURE, PROJECT_MASTER, CHANGELOG, SESSION_HANDOVER) | ✅ Done |
-
-**Pending (next trading session only):**
-- Confirm automatic Supabase dual-write is working during live market hours
-- See `docs/PRODUCTION_INFRASTRUCTURE.md §9` for the verification checklist
+## Acceptance Checklist
+- [ ] Works with real live + EOD/historical data; FAIL state when no data is available.
+- [ ] No mock/synthetic data introduced.
+- [ ] Existing dashboard and live caching functions work normally.
+- [ ] `npm run build` clean (exit 0).
+- [ ] Only task-related files modified.
+- [ ] Living docs (`CURRENT_TASK.md`, `SESSION_HANDOVER.md`, `CHANGELOG.md`) updated.

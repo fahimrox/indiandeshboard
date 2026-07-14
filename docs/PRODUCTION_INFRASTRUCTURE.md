@@ -235,38 +235,28 @@ The temporary backfill script was deleted after a successful run.
 | Full-day Supabase backfill (13 Jul 2026) complete | ✅ Confirmed |
 | PM2 state saved (`pm2 save`) | ✅ Confirmed |
 | `SUPABASE_DUAL_WRITE=true` active in production | ✅ Confirmed |
-| Automatic Supabase dual-write during live market session | ⏳ **Pending verification** |
-
-> The pending item is not a setup failure. The architecture is operational, but
-> automatic dual-write during a live market session must be confirmed on the next
-> trading day.
+| Automatic Supabase dual-write during live market session | ✅ Confirmed (14 July 2026) |
 
 ---
 
-## 9. Next Live-Session Verification Checklist
+## 9. Automatic Live Dual-Write Verification Milestone (14 July 2026)
 
-After market open (09:15 IST) on the next trading day:
+The pending live verification is officially **closed** and marked as **verified complete** on **14 July 2026, 18:01 IST**.
 
-1. **Check PM2 logs for Supabase activity:**
-   ```bash
-   pm2 logs indian-dashboard --lines 100 --nostream | grep -Ei "supabase|error|failed"
-   ```
+During the live trading session from **09:15:03 to 15:30:03 IST**, the scheduler saved ticks continuously to local SQLite and automatically dual-wrote them to Supabase Postgres.
 
-2. **Check Supabase for new rows** (use a date-wise count query in the Supabase
-   SQL editor):
-   ```sql
-   SELECT DATE(created_at) AS day, COUNT(*) AS rows
-   FROM market_breadth
-   GROUP BY 1 ORDER BY 1 DESC LIMIT 5;
-   ```
+**Verification Results:**
+1. **PM2 logs check:** Confirmed that no fresh Supabase schema or insert errors appeared in PM2 logs.
+2. **Database consistency:** Automatic row counts in Supabase matched the local SQLite database exactly for the four verified metrics:
 
-3. **Success criteria:**
-   - Rows increasing with today's date
-   - No schema errors in PM2 logs
-   - `snapshot_id` values are UUIDs (not integers) in `oi_activity`
+| Table | 14 July Count | Meaning |
+|-------|---------------|---------|
+| `market_snapshots` | 1504 | 4 index rows × 376 ticks |
+| `market_breadth` | 376 | 1 per scheduler tick |
+| `sector_strength` | 4512 | 12 rows per tick |
+| `option_chain_snapshots` | 1128 | 3 per tick |
 
-4. **After success:** Update this file to mark the pending item ✅ Confirmed and
-   add a CHANGELOG entry.
+*(Note: Schema design, including the `oi_activity.snapshot_id` foreign key relationship being UUID-based, was verified previously during the 13 July schema alignment milestone).*
 
 ---
 
