@@ -6,6 +6,56 @@
 
 ---
 
+## 2026-07-15 00:45 IST — Antigravity (Gemini)
+
+### Task
+Phase 2A complete — historical data integration. Fully implemented, production-verified, and deployed the entire historical range backend query infrastructure across all data domains.
+
+### Files Changed
+- `src/lib/services/database.server.ts` (Modified)
+- `src/lib/services/historicalDataService.server.ts` (Modified)
+- `src/lib/services/supabase.server.ts` (Modified)
+- `src/routeTree.gen.ts` (Modified)
+- `src/routes/api/breadth-history.ts` (Modified)
+- `src/routes/api/market-history.ts` (Modified)
+- `src/routes/api/oi-history.ts` (Modified)
+- `src/routes/api/option-history.ts` (Modified)
+- `src/routes/api/sector-history.ts` (Modified)
+- `docs/CHANGELOG.md` (Modified — this entry)
+- `docs/CURRENT_TASK.md` (Modified)
+- `docs/SESSION_HANDOVER.md` (Modified)
+
+### What Changed
+
+#### Database & Supabase Range Query Support Completed
+- **Files:** `src/lib/services/database.server.ts`, `src/lib/services/supabase.server.ts`
+- Added read-only range query methods for Option Chains (`getOptionHistoryRangeRaw` / `getSupabaseOptionHistoryRange`), OI Activity (`getOiActivityHistoryRangeRaw` / `getSupabaseOiActivityHistoryRange`), Market Breadth (`getBreadthHistoryRangeRaw` / `getSupabaseBreadthHistoryRange`), and Sector Strength (`getSectorStrengthHistoryRangeRaw` / `getSupabaseSectorStrengthHistoryRange`).
+- Implemented paginated Supabase calls matching the safety-cap limits (15,000 threshold with index-level probe) and SQLite fallbacks.
+
+#### Historical Orchestration Completed
+- **File:** `src/lib/services/historicalDataService.server.ts`
+- Added custom interfaces (`HistoricalOptionChainSnapshot`, `HistoricalOiActivityRow`, `HistoricalMarketBreadthRow`, `HistoricalSectorStrengthRow`) and their normalized mappings.
+- Added daily interval sampling algorithms that respect the `09:15` IST trading hour start boundary, daily resets, and custom symbols.
+- Set up domain-specific orchestrators (`getHistoricalOptionHistory`, `getHistoricalOiActivityHistory`, `getHistoricalBreadthHistory`, `getHistoricalSectorStrengthHistory`) with 3-second Supabase timeout races and clean event loop clearing.
+
+#### API Route Upgrades Completed
+- **Files:** `src/routes/api/*`
+- Refactored history routes (`breadth-history.ts`, `market-history.ts`, `oi-history.ts`, `option-history.ts`, `sector-history.ts`) to fully support range parameters (`startDate` & `endDate`) with strict date-handling validation.
+- Added custom headers indicating data source lineage (`X-Data-Source: supabase`/`sqlite`) and date ranges.
+
+#### Production Verification & Deployment
+- Successfully completed production Nitro builds using preset `NITRO_PRESET=node-server`.
+- Deployed code commit `ddb92ac` to Oracle production VM under PM2 process `indian-dashboard`.
+- Verified live scheduler execution, Angel One auto-login, and live API responses returning `HTTP 200` with Supabase data lineage headers.
+
+### Why
+To complete the backend historical range-query infrastructure, enabling option chain, OI, market breadth, and sector strength historical visualization and backtesting in subsequent phases.
+
+### Build / Test Result
+All builds passed successfully (Exit code 0). Checked all 5 range routes locally and in production.
+
+---
+
 ## 2026-07-14 22:00 IST — Antigravity (Gemini)
 
 ### Task

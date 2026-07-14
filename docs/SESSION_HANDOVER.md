@@ -1,7 +1,7 @@
 # Latest AI Session Handover
 
 ## Session
-- Date/Time: 2026-07-14 22:00 IST
+- Date/Time: 2026-07-15 00:45 IST
 - AI Agent: Antigravity (Gemini)
 - User: Fahim
 - Project: Indian Dashboard / Bazaar Mood (indiandeshboard)
@@ -10,29 +10,38 @@
 
 ## Completed Work
 
-### Phase 2A Part 1 complete — market-history vertical slice
-- **Status: Market snapshot history orchestration and GET /api/history/$symbol range integration completed**
-- **Shared Utilities & Helpers:** Implemented independent `getTodayIstString` (Asia/Kolkata), strict ISO date calendar validation (rejecting `2026-02-30`), and robust chronological sorting (handling invalid timestamps via non-finite fallbacks), deduplication, and downsampling in `src/lib/services/historicalDataService.server.ts`.
-- **SQLite Range Query:** Added `getMarketHistoryRangeRaw` read-only method to `SQLiteDatabaseService` in `src/lib/services/database.server.ts`.
-- **Supabase Paginated Range Query:** Added `getSupabaseMarketHistoryRange` to `src/lib/services/supabase.server.ts` with 1,000-page limits up to 15,000 max rows, performing a single-row index probe at `.range(15000, 15000)` to detect additional rows and throw a pagination capped error.
-- **Historical Orchestration:** Added `getHistoricalMarketHistory` to manage symbol validation, Supabase-first 3-second timeout races, clear timeout cleanup, and separate success, empty, and failure control flow paths for SQLite fallback queries.
-- **Route Upgraded:** Refactored `src/routes/api/history.$symbol.ts` to support both legacy single-date parameter query inputs and new multi-date range parameters, returning normalized datasets along with metadata headers (`X-Data-Source`, `X-Requested-Start-Date`, `X-Requested-End-Date`, `X-Actual-Dates`). Added verification checks to prevent using both `date` and `startDate`/`endDate` range params concurrently.
+### Phase 2A — Historical Data Integration (Backend) Completed
+- **Status: Verified complete & deployed to production**
+- **Historical Range Backend Integration:** Fully implemented the backend range-query capabilities for all historical domains across SQLite, Supabase, and the orchestrator layer.
+- **Supported Data Domains & APIs:**
+  - Market History: `/api/market-history` (mapped via `getHistoricalMarketHistory` / `getMarketHistoryRangeRaw` / `getSupabaseMarketHistoryRange`).
+  - Option Chain History: `/api/option-history` (mapped via `getHistoricalOptionHistory` / `getOptionHistoryRangeRaw` / `getSupabaseOptionHistoryRange`).
+  - OI Activity History: `/api/oi-history` (mapped via `getHistoricalOiActivityHistory` / `getOiActivityHistoryRangeRaw` / `getSupabaseOiActivityHistoryRange`).
+  - Market Breadth History: `/api/breadth-history` (mapped via `getHistoricalBreadthHistory` / `getBreadthHistoryRangeRaw` / `getSupabaseBreadthHistoryRange`).
+  - Sector Strength History: `/api/sector-history` (mapped via `getHistoricalSectorStrengthHistory` / `getSectorStrengthHistoryRangeRaw` / `getSupabaseSectorStrengthHistoryRange`).
+- **Data Lineage & Downsampling:** Added downsampling support respecting the `09:15` IST trading hour start boundary, daily resets, and custom symbols.
+- **Production Verification:** Successfully completed production builds on the Oracle VM (`NITRO_PRESET=node-server`), PM2 process `indian-dashboard` is active and running with scheduler enabled, and live queries successfully return `x-data-source: supabase` responses.
 
 ---
 
 ## Current Status & Transition
-- Phase 2A Part 1 has been fully implemented, hardened, and verified under local runtime execution.
-- Remaining Phase 2A work: option-chain, OI, breadth, sector, and other historical range domains.
+- Phase 2A backend range queries and API routes are 100% completed, verified, and live in production.
+- We are ready to transition to **Phase 2B: Frontend historical chart integration**.
 
 ---
 
 ## Files Changed (this session)
-- `src/lib/services/historicalDataService.server.ts` (NEW — historical types, orchestrator, validation, downsampling)
-- `src/lib/services/database.server.ts` (Modified — SQLite raw range query method)
-- `src/lib/services/supabase.server.ts` (Modified — Supabase range query and pagination cap error)
-- `src/routes/api/history.$symbol.ts` (Modified — API route handler upgrade)
-- `docs/CHANGELOG.md` (Modified — recorded milestone)
-- `docs/CURRENT_TASK.md` (Modified — roadmap checklist updated)
+- `src/lib/services/database.server.ts` (Modified)
+- `src/lib/services/historicalDataService.server.ts` (Modified)
+- `src/lib/services/supabase.server.ts` (Modified)
+- `src/routeTree.gen.ts` (Modified)
+- `src/routes/api/breadth-history.ts` (Modified)
+- `src/routes/api/market-history.ts` (Modified)
+- `src/routes/api/oi-history.ts` (Modified)
+- `src/routes/api/option-history.ts` (Modified)
+- `src/routes/api/sector-history.ts` (Modified)
+- `docs/CHANGELOG.md` (Modified)
+- `docs/CURRENT_TASK.md` (Modified)
 - `docs/SESSION_HANDOVER.md` (Modified — this file)
 
 ---
@@ -45,11 +54,12 @@
 ---
 
 ## Build Status
-`npm run build` compiled successfully (Exit code 0) for the current changes.
+`npm run build` compiled successfully (Exit code 0) for the production node-server preset.
 
 ---
 
 ## Next Actions (for the next session)
-1. **Phase 2A: Remaining Historical Range Queries**
-   - Implement read-only range query methods for Option Chains, F&O scans, and Breadth snapshots in `database.server.ts` and `supabase.server.ts`.
-   - Add range handler integration in the orchestrator layer and wire up the remaining historical API endpoints (`/api/option-history`, `/api/oi-history`, `/api/breadth-history`, `/api/candles.$symbol`).
+1. **Phase 2B: Frontend Historical Chart Integration**
+   - Design and build the frontend interface integrating the newly completed backend history APIs.
+   - Implement date selection controls and range filters on the dashboard.
+   - Incorporate loaders, closed-market labels, empty states, and connection error indicators.

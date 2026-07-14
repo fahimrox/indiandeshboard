@@ -11,7 +11,7 @@
 Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
 
 **Current Objective:**
-Proceed with remaining Phase 2A tasks: Implement range-query support for the other historical data domains (Option Chains, OI, Breadth, and Candles history) across SQLite, Supabase, and the orchestrator layer.
+Proceed to Phase 2B: Frontend historical chart integration (selectable trading dates, range selectors, loaders/states, and ECharts integrations).
 
 ---
 
@@ -26,13 +26,13 @@ Proceed with remaining Phase 2A tasks: Implement range-query support for the oth
 - [x] Check current retention behavior.
 
 ### Phase 2 — Seven-trading-day historical data
-- [x] Phase 2A Part 1: Complete market-history range vertical slice (Market snapshot history orchestration and GET /api/history/$symbol range integration completed).
-- [ ] Phase 2A (Remaining): Option-chain, OI, breadth, sector, and other historical range domains.
-- [ ] Preserve existing live collection.
-- [ ] Support querying by symbol/index, start date, end date, and interval.
-- [ ] Use Supabase as the main historical data source.
-- [ ] Allow Oracle SQLite as a local fallback or sync source.
-- [ ] Do not create mock historical records.
+- [x] Phase 2A: Complete historical range query backend integration (market-history, option-history, OI activity, breadth, sector strength, with robust validation and dual-source orchestration).
+- [ ] Phase 2B: Frontend historical chart integration (selectable trading dates, intraday range filters, ECharts/Recharts integration, and UI state indicators).
+- [x] Preserve existing live collection.
+- [x] Support querying by symbol/index, start date, end date, and interval.
+- [x] Use Supabase as the main historical data source.
+- [x] Allow Oracle SQLite as a local fallback or sync source.
+- [x] Do not create mock historical records.
 
 ### Phase 3 — Date-range charts
 - [ ] Add selectable trading dates.
@@ -72,13 +72,11 @@ Proceed with remaining Phase 2A tasks: Implement range-query support for the oth
 
 ---
 
-## Files Expected To Change in Remaining Phase 2A
-- `src/lib/services/database.server.ts`
-- `src/lib/services/supabase.server.ts`
-- `src/routes/api/option-history.ts`
-- `src/routes/api/oi-history.ts`
-- `src/routes/api/breadth-history.ts`
-- `src/routes/api/candles.$symbol.ts`
+## Files Expected To Change in Phase 2B
+- `src/routes/index.tsx`
+- `src/features/oi-analysis/`
+- `src/components/DashboardShell.tsx`
+- `src/lib/dashboard-query.ts`
 
 ## Files That Must NOT Be Modified (Absolute Restriction)
 - `src/lib/services/scheduler.server.ts` (production-critical collector orchestration)
