@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
-import { candlesQuery, optionChainQuery, eodOiSnapshotQuery } from "@/lib/dashboard-query";
+import { candlesQuery, cepeVolQuery, optionChainQuery, eodOiSnapshotQuery } from "@/lib/dashboard-query";
 import { CHART_INDICES, CHART_STOCKS, resolveTypedSymbol, type ChartSymbol } from "@/lib/chartSymbols";
 import { isMarketOpenIst } from "@/lib/market-hours";
 import { Search, X, Eye, EyeOff, Database } from "lucide-react";
@@ -25,7 +25,6 @@ function rgba(hex: string, a: number): string {
 
 type OiCtx = {
   mode: "oi" | "change";
-  isLive: boolean;
   callColor: string;
   putColor: string;
   maxOI: number;
@@ -34,55 +33,137 @@ type OiCtx = {
 };
 type OiRowData = { callOI: number; putOI: number; callChg: number; putChg: number };
 
-// Dhan-style OI bars: Call (top) + Put (bottom) stacked per strike, square, thick.
-// OI mode (and always when market is closed) → SOLID bars, length = OI,
-// right-anchored (grow left from the axis). Change-in-OI mode (live only) →
-// bars diverge from a centre line: building grows left, draining grows right
-// (toward axis) and is shown hollow/outlined.
-function buildOiRowHtml(r: OiRowData, ctx: OiCtx, cDelta: number, pDelta: number): string {
-  const H = 9, GAP = 2;
-  const { mode, isLive, callColor, putColor, maxOI, maxChg, MAXW } = ctx;
-  const norm = (v: number, max: number) => Math.max(8, Math.sqrt(Math.abs(v) / Math.max(1, max)) * MAXW);
-  // same-colour diagonal hatch (bright + faded stripes of the bar's own colour)
-  const hatchOf = (hex: string) =>
-    `repeating-linear-gradient(45deg,${rgba(hex, 1)} 0,${rgba(hex, 1)} 3px,${rgba(hex, 0.4)} 3px,${rgba(hex, 0.4)} 6px)`;
+const INTRADAY_SECONDS: Record<string, number> = {
+  "1m": 60,
+  "2m": 120,
+  "3m": 180,
+  "5m": 300,
+  "15m": 900,
+  "30m": 1800,
+  "1h": 3600,
+};
 
-  // ── Change-in-OI mode (live only): diverge from a centre line ──
-  if (mode === "change" && isLive) {
+type ChartVolumePoint = { time: number; value: number; color: string };
+
+function buildChartVolumeData(
+  candles: Array<{ time: number; open: number; close: number; volume: number }>,
+  optionVolume: Array<{ time: number; ceVol: number; peVol: number }>,
+  timeframe: string
+): { source: "native" | "options" | "none"; points: ChartVolumePoint[] } {
+  if (!candles.length) return { source: "none", points: [] };
+
+  if (candles.some((c) => c.volume > 0)) {
+    return {
+      source: "native",
+      points: candles.map((c) => ({
+        time: c.time,
+        value: c.volume,
+        color: c.close >= c.open ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)",
+      })),
+    };
+  }
+
+  const bucketSeconds = INTRADAY_SECONDS[timeframe];
+  if (!bucketSeconds || optionVolume.length < 2) {
+    return { source: "none", points: [] };
+  }
+
+  const candlesByBucket = new Map<number, (typeof candles)[number]>();
+  for (const candle of candles) {
+    candlesByBucket.set(Math.floor(candle.time / bucketSeconds), candle);
+  }
+
+  const volumeByBucket = new Map<number, number>();
+  let previous: { ceVol: number; peVol: number } | null = null;
+
+  for (const point of [...optionVolume].sort((a, b) => a.time - b.time)) {
+    if (!previous) {
+      if (point.ceVol > 0 || point.peVol > 0) {
+        previous = { ceVol: point.ceVol, peVol: point.peVol };
+      }
+      continue;
+    }
+
+    const incrementalVolume =
+      Math.max(0, point.ceVol - previous.ceVol) +
+      Math.max(0, point.peVol - previous.peVol);
+    previous = { ceVol: point.ceVol, peVol: point.peVol };
+
+    if (incrementalVolume <= 0) continue;
+    const bucket = Math.floor(point.time / bucketSeconds);
+    volumeByBucket.set(bucket, (volumeByBucket.get(bucket) ?? 0) + incrementalVolume);
+  }
+
+  const points: ChartVolumePoint[] = [];
+  for (const [bucket, value] of volumeByBucket) {
+    const candle = candlesByBucket.get(bucket);
+    if (!candle) continue;
+    points.push({
+      time: candle.time,
+      value,
+      color: candle.close >= candle.open ? "rgba(34,197,94,0.55)" : "rgba(239,68,68,0.55)",
+    });
+  }
+
+  points.sort((a, b) => a.time - b.time);
+  return { source: points.length ? "options" : "none", points };
+}
+
+// Dhan-style OI bars: Call (top) + Put (bottom), right-anchored per strike.
+// The server supplies the final saved refresh delta; during market hours the
+// client replaces it with the observed delta between consecutive live payloads.
+function buildOiRowHtml(r: OiRowData, ctx: OiCtx, cDelta: number, pDelta: number): string {
+  const H = 10, GAP = 0;
+  const { mode, callColor, putColor, maxOI, maxChg, MAXW } = ctx;
+  const norm = (v: number, max: number) =>
+    v === 0
+      ? 0
+      : Math.min(MAXW, Math.max(8, Math.sqrt(Math.abs(v) / Math.max(1, max)) * MAXW));
+  // Compact same-colour hatch: visible as a texture without looking detached.
+  const hatchOf = (hex: string) =>
+    `repeating-linear-gradient(45deg,${rgba(hex, 1)} 0,${rgba(hex, 1)} 2px,${rgba(hex, 0.46)} 2px,${rgba(hex, 0.46)} 4px)`;
+
+  const callDelta = cDelta || r.callChg;
+  const putDelta = pDelta || r.putChg;
+
+  // ── Change-in-OI mode: diverge from a centre line ──
+  if (mode === "change") {
     const center = MAXW / 2;
     const seg = (top: number, chg: number, color: string) => {
       const w = norm(chg, maxChg);
+      if (!w) return "";
       const building = chg >= 0;
       const bg = building
-        ? `background:${rgba(color, 0.92)};`
+        ? `background:${hatchOf(color)};`
         : `background:${rgba(color, 0.16)};border:1px solid ${rgba(color, 0.85)};box-sizing:border-box;`;
       const rightOff = building ? center : Math.max(0, center - w);
       return `<div style="position:absolute;top:${top}px;height:${H}px;right:${rightOff}px;width:${w}px;${bg}"></div>`;
     };
     const line = `<div style="position:absolute;top:0;height:${H * 2 + GAP}px;right:${center}px;width:1px;background:rgba(255,255,255,0.25);"></div>`;
-    return line + seg(0, r.callChg, callColor) + seg(H + GAP, r.putChg, putColor);
+    return line + seg(0, callDelta, callColor) + seg(H + GAP, putDelta, putColor);
   }
 
   // ── OI mode ──
-  // EOD (market closed) → plain SOLID bars (no hatched/draining).
-  // LIVE → solid OI body + the recent OI-change shown on the left tip:
-  //   building (OI↑) = hatched, draining (OI↓) = hollow outline + dimmer body.
-  // `delta` = OI change since the LAST refresh (incremental) — building (↑) shows
-  // a same-colour hatched tip, draining (↓) a hollow outlined tip. No recent
-  // change → plain solid bar (which is why most bars stay solid, like the broker).
+  // Match the broker profile: a flat muted body, a same-colour hatched building
+  // inset, and a sharp chart-background hollow box for draining OI.
   const bar = (top: number, oi: number, delta: number, color: string) => {
     const w = norm(oi, maxOI);
+    if (!w) return "";
     const building = delta >= 0;
     let inner = "";
-    if (isLive && oi && delta) {
-      const cw = Math.max(2, Math.min(w, norm(Math.abs(delta), maxOI)));
+    if (delta) {
+      const rawChangeWidth = norm(Math.abs(delta), maxOI);
+      const cw = Math.min(
+        w,
+        Math.max(5, Math.min(rawChangeWidth, w * 0.36))
+      );
       inner = building
-        ? `<div style="position:absolute;top:0;left:0;height:100%;width:${cw}px;background:${hatchOf(color)};"></div>`
-        : `<div style="position:absolute;top:0;left:0;height:100%;width:${cw}px;background:#0b0f17;border:1px solid ${rgba(color, 0.95)};box-sizing:border-box;"></div>`;
+        ? `<div style="position:absolute;inset:0 auto 0 0;width:${cw}px;background:${hatchOf(color)};"></div>`
+        : `<div style="position:absolute;inset:0 auto 0 0;width:${cw}px;background:#0b0f17;border:1px solid ${rgba(color, 0.9)};box-sizing:border-box;"></div>`;
     }
-    return `<div style="position:absolute;top:${top}px;right:0;height:${H}px;width:${w}px;background:${rgba(color, 0.9)};overflow:hidden;">${inner}</div>`;
+    return `<div style="position:absolute;top:${top}px;right:0;height:${H}px;width:${w}px;background:${rgba(color, 0.72)};overflow:hidden;">${inner}</div>`;
   };
-  return bar(0, r.callOI, cDelta, callColor) + bar(H + GAP, r.putOI, pDelta, putColor);
+  return bar(0, r.callOI, callDelta, callColor) + bar(H + GAP, r.putOI, putDelta, putColor);
 }
 
 export default function ChartLabPage() {
@@ -100,7 +181,6 @@ export default function ChartLabPage() {
   const showOIRef = useRef(true);
   const rafRef = useRef(0);
   const prevSymTfRef = useRef("");
-  const lastRenderedSymRef = useRef(""); // tracks which yahoo symbol is currently in the chart series
 
   // ── Queries ────────────────────────────────────────────────────────────────
   const marketOpen = isMarketOpenIst();
@@ -120,7 +200,10 @@ export default function ChartLabPage() {
     enabled: !!sym.optSym,
   });
 
-
+  const { data: cepeVol = [] } = useQuery({
+    ...cepeVolQuery(sym.optSym ?? "NIFTY", today),
+    enabled: !!sym.optSym,
+  });
 
   // ── Determine which OI data to use: live → EOD snapshot → nothing ──────────
   // GPT's correct logic: market open → live, closed → last saved snapshot
@@ -128,13 +211,15 @@ export default function ChartLabPage() {
     if (!sym.optSym) return null;
 
     // If live OI has rows → use it
-    if (liveOc?.rows?.length) {
+    if (marketOpen && liveOc?.rows?.length) {
       return liveOc.rows.map((r: any) => ({
         strike: r.strike,
         callOI: r.ce?.oi ?? 0,
         putOI: r.pe?.oi ?? 0,
-        callChg: r.ce?.oiChg ?? 0,
-        putChg: r.pe?.oiChg ?? 0,
+        // Exchange oiChg is a session/day change, not a refresh delta.
+        // Live refresh deltas are calculated below from consecutive payloads.
+        callChg: 0,
+        putChg: 0,
         callVol: r.ce?.volume ?? 0,
         putVol: r.pe?.volume ?? 0,
       }));
@@ -146,29 +231,43 @@ export default function ChartLabPage() {
     }
 
     return null;
-  }, [liveOc, eodOi, sym.optSym]);
+  }, [liveOc, eodOi, marketOpen, sym.optSym]);
 
   const oiIsEod = !marketOpen || (!liveOc?.rows?.length && !!eodOi?.rows?.length);
+  const activeOiSource: "live" | "eod" | "none" =
+    marketOpen && liveOc?.rows?.length
+      ? "live"
+      : eodOi?.rows?.length
+        ? "eod"
+        : "none";
 
   // ── Chart refs ─────────────────────────────────────────────────────────────
   const chartElRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const strikeAxisRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const candleRef = useRef<any>(null);
   const volRef = useRef<any>(null);
-  const barNodesRef = useRef<{ strike: number; el: HTMLDivElement }[]>([]);
+  const barNodesRef = useRef<
+    { strike: number; el: HTMLDivElement; labelEl: HTMLDivElement }[]
+  >([]);
+  const ltpAxisLabelRef = useRef<HTMLDivElement | null>(null);
+  const lastPriceRef = useRef(0);
+  const lastPriceUpRef = useRef(true);
   // Per-refresh OI delta tracking (for the incremental hatched/hollow accent)
   const prevOiRef = useRef<Map<number, { c: number; p: number }>>(new Map());
   const deltaRef = useRef<Map<number, { c: number; p: number }>>(new Map());
   const lastRowsRef = useRef<unknown>(null);
+  const lastOiSourceRef = useRef<"live" | "eod" | "none">("none");
 
   useEffect(() => { showOIRef.current = showOI; }, [showOI]);
 
-  // ── Create chart (once) ────────────────────────────────────────────────────
+  // ── Create chart (fresh instance per symbol) ───────────────────────────────
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let disposed = false;
+    prevSymTfRef.current = "";
     (async () => {
       const LWC = await import("lightweight-charts");
       if (disposed || !chartElRef.current) return;
@@ -203,6 +302,7 @@ export default function ChartLabPage() {
         upColor: UP, downColor: DOWN,
         borderVisible: false,
         wickUpColor: UP, wickDownColor: DOWN,
+        priceLineStyle: LWC.LineStyle.Dashed,
         priceScaleId: "right",
       });
 
@@ -240,22 +340,7 @@ export default function ChartLabPage() {
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── Clear chart series when symbol changes (before new data arrives) ─────────
-  // This is critical: keepPreviousData means the old symbol's candles stay in
-  // `cd` while the new fetch is pending. Without clearing, LWC gets old-symbol
-  // timestamps written, then new-symbol timestamps written — which can cause
-  // internal state conflicts that silently swallow the second setData.
-  useEffect(() => {
-    if (!ready) return;
-    try { candleRef.current?.setData([]); } catch { /* noop */ }
-    try { volRef.current?.setData([]); } catch { /* noop */ }
-    prevSymTfRef.current = "";
-    lastRenderedSymRef.current = "";
-    console.debug("[ChartLab] symbol changed →", sym.yahoo, "| cleared series");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sym.yahoo]); // intentionally only on symbol change, not ready
+  }, [sym.yahoo]);
 
   // ── Apply candle data ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -264,13 +349,7 @@ export default function ChartLabPage() {
 
     // Guard: with keepPreviousData the response might still carry the *previous*
     // symbol's data while the new fetch is loading. Never apply stale data.
-    if (cd.symbol !== sym.yahoo) {
-      console.debug("[ChartLab] skipping stale data — cd.symbol:", cd.symbol, "sym.yahoo:", sym.yahoo);
-      return;
-    }
-
-    console.debug("[ChartLab] setData →", cd.symbol, "candles:", cd.candles.length,
-      "first:", cd.candles[0]?.time, "last:", cd.candles[cd.candles.length - 1]?.time);
+    if (cd.symbol !== sym.yahoo) return;
 
     try {
       candle.setData(
@@ -279,7 +358,6 @@ export default function ChartLabPage() {
           open: c.open, high: c.high, low: c.low, close: c.close,
         }))
       );
-      lastRenderedSymRef.current = cd.symbol;
     } catch (e) { console.warn("[ChartLab] candle setData error:", e); }
 
     // Re-fit whenever the symbol+tf combination changes and correct data arrives.
@@ -290,22 +368,21 @@ export default function ChartLabPage() {
     }
   }, [cd, ready, sym.yahoo, tf]);
 
-  // ── Apply volume histogram (candle traded volume, green up / red down) ──────
+  const chartVolume = useMemo(
+    () => buildChartVolumeData(cd?.candles ?? [], cepeVol, tf),
+    [cd?.candles, cepeVol, tf]
+  );
+
+  // ── Apply volume histogram (cash volume, or real CE+PE activity for indices) ──
   useEffect(() => {
     const vol = volRef.current;
-    if (!ready || !vol || !cd?.candles?.length) return;
+    if (!ready || !vol) return;
     // Same stale-data guard as candle series
-    if (cd.symbol !== sym.yahoo) return;
+    if (cd?.symbol !== sym.yahoo) return;
     try {
-      vol.setData(
-        cd.candles.map((c) => ({
-          time: c.time as any,
-          value: c.volume,
-          color: c.close >= c.open ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)",
-        }))
-      );
+      vol.setData(chartVolume.points.map((point) => ({ ...point, time: point.time as any })));
     } catch (e) { console.warn("[ChartLab] volume setData error:", e); }
-  }, [cd, ready, sym.yahoo]);
+  }, [cd?.symbol, chartVolume.points, ready, sym.yahoo]);
 
   // ── Volume visibility ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -317,9 +394,22 @@ export default function ChartLabPage() {
   useEffect(() => {
     if (!ready) return;
     const layer = overlayRef.current;
-    if (!layer) return;
+    const strikeAxis = strikeAxisRef.current;
+    if (!layer || !strikeAxis) return;
     layer.innerHTML = "";
+    strikeAxis.innerHTML = "";
+    strikeAxis.style.display = "none";
     barNodesRef.current = [];
+    ltpAxisLabelRef.current = null;
+
+    // Never compare the first live payload with an EOD/cache snapshot.
+    // A source transition starts a fresh consecutive-refresh sequence.
+    if (lastOiSourceRef.current !== activeOiSource) {
+      prevOiRef.current = new Map();
+      deltaRef.current = new Map();
+      lastRowsRef.current = null;
+      lastOiSourceRef.current = activeOiSource;
+    }
 
     const rows = activeOiRows;
     if (!rows?.length) return;
@@ -340,10 +430,17 @@ export default function ChartLabPage() {
       lastRowsRef.current = activeOiRows;
     }
 
-    const MAXW = 280;
+    const chartWidth = chartElRef.current?.clientWidth ?? 1200;
+    const MAXW = Math.min(600, Math.max(280, chartWidth - 80));
     const maxOI = Math.max(1, ...rows.flatMap((r) => [r.callOI, r.putOI]));
-    const maxChg = Math.max(1, ...rows.flatMap((r) => [Math.abs(r.callChg), Math.abs(r.putChg)]));
-    const ctx: OiCtx = { mode: oiMode, isLive: !oiIsEod, callColor, putColor, maxOI, maxChg, MAXW };
+    const maxChg = Math.max(
+      1,
+      ...rows.flatMap((r) => {
+        const delta = deltaRef.current.get(r.strike) ?? { c: 0, p: 0 };
+        return [Math.abs(delta.c || r.callChg), Math.abs(delta.p || r.putChg)];
+      })
+    );
+    const ctx: OiCtx = { mode: oiMode, callColor, putColor, maxOI, maxChg, MAXW };
 
     for (const r of rows) {
       const dl = deltaRef.current.get(r.strike) ?? { c: 0, p: 0 };
@@ -352,15 +449,28 @@ export default function ChartLabPage() {
         "position:absolute;height:20px;display:none;pointer-events:none;transform:translateY(-50%);";
       row.innerHTML = buildOiRowHtml(r, ctx, dl.c, dl.p);
       layer.appendChild(row);
-      barNodesRef.current.push({ strike: r.strike, el: row });
+
+      const strikeLabel = document.createElement("div");
+      strikeLabel.textContent = String(r.strike);
+      strikeLabel.style.cssText =
+        "position:absolute;left:0;width:100%;display:none;transform:translateY(-50%);padding-right:6px;text-align:right;font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:#d8e4ee;line-height:18px;white-space:nowrap;";
+      strikeAxis.appendChild(strikeLabel);
+      barNodesRef.current.push({ strike: r.strike, el: row, labelEl: strikeLabel });
     }
-  }, [activeOiRows, ready, oiMode, callColor, putColor, oiIsEod]);
+
+    const ltpLabel = document.createElement("div");
+    ltpLabel.style.cssText =
+      "position:absolute;right:0;z-index:2;display:none;transform:translateY(-50%);padding:2px 5px;font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;color:white;line-height:16px;white-space:nowrap;";
+    strikeAxis.appendChild(ltpLabel);
+    ltpAxisLabelRef.current = ltpLabel;
+  }, [activeOiRows, activeOiSource, ready, oiMode, callColor, putColor, oiIsEod]);
 
   // Reset per-refresh delta tracking when the symbol changes
   useEffect(() => {
     prevOiRef.current = new Map();
     deltaRef.current = new Map();
     lastRowsRef.current = null;
+    lastOiSourceRef.current = "none";
   }, [sym.optSym]);
 
   // ── rAF: reposition OI bars each frame ────────────────────────────────────
@@ -373,18 +483,45 @@ export default function ChartLabPage() {
     const visible = showOIRef.current;
     let axisW = 60;
     try { axisW = chart.priceScale("right").width() || 60; } catch { /* noop */ }
+    axisW = Math.max(68, axisW);
     const h = chartElRef.current?.clientHeight ?? 0;
+    const strikeAxis = strikeAxisRef.current;
+    if (strikeAxis) {
+      strikeAxis.style.display = visible ? "block" : "none";
+      strikeAxis.style.width = `${axisW}px`;
+    }
 
-    for (const { strike, el } of barNodesRef.current) {
-      if (!visible) { el.style.display = "none"; continue; }
+    for (const { strike, el, labelEl } of barNodesRef.current) {
+      if (!visible) {
+        el.style.display = "none";
+        labelEl.style.display = "none";
+        continue;
+      }
       let y: number | null = null;
       try { y = candle.priceToCoordinate(strike); } catch { /* noop */ }
-      if (y == null || y < 4 || y > h - 4) {
+      if (y == null || y < 12 || y > h - 12) {
         el.style.display = "none";
+        labelEl.style.display = "none";
       } else {
         el.style.display = "block";
         el.style.top = `${y}px`;
         el.style.right = `${axisW + 2}px`;
+        labelEl.style.display = "block";
+        labelEl.style.top = `${y}px`;
+      }
+    }
+
+    const ltpLabel = ltpAxisLabelRef.current;
+    if (ltpLabel) {
+      let ltpY: number | null = null;
+      try { ltpY = candle.priceToCoordinate(lastPriceRef.current); } catch { /* noop */ }
+      if (!visible || !lastPriceRef.current || ltpY == null || ltpY < 10 || ltpY > h - 10) {
+        ltpLabel.style.display = "none";
+      } else {
+        ltpLabel.style.display = "block";
+        ltpLabel.style.top = `${ltpY}px`;
+        ltpLabel.style.background = lastPriceUpRef.current ? UP : DOWN;
+        ltpLabel.textContent = lastPriceRef.current.toFixed(2);
       }
     }
   }, []);
@@ -396,6 +533,8 @@ export default function ChartLabPage() {
   const chg = ltp - prevClose;
   const chgPct = prevClose ? (chg / prevClose) * 100 : 0;
   const up = chg >= 0;
+  lastPriceRef.current = ltp;
+  lastPriceUpRef.current = last ? last.close >= last.open : up;
 
   // ── Symbol picker filter ───────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -418,7 +557,7 @@ export default function ChartLabPage() {
 
   return (
     <DashboardShell>
-      <div className="flex flex-col gap-2">
+      <div className="-mt-3 flex h-[calc(100dvh-124px)] min-h-0 flex-col gap-1 overflow-hidden">
         {/* ── Toolbar ── */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Symbol picker */}
@@ -531,11 +670,14 @@ export default function ChartLabPage() {
 
         {/* ── Chart + OI overlay ── */}
         <div
-          className="relative min-h-[380px] overflow-hidden rounded-xl border border-[#1c2636] bg-[#0b0f17]"
-          style={{ height: "calc(100vh - 210px)" }}
+          className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-[#1c2636] bg-[#0b0f17]"
         >
           <div ref={chartElRef} className="h-full w-full" />
           <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-[3] overflow-hidden" />
+          <div
+            ref={strikeAxisRef}
+            className="pointer-events-none absolute bottom-0 right-0 top-0 z-[4] hidden border-l border-[#1c2636] bg-[#0b0f17]"
+          />
 
           {/* ── OI settings panel (Dhan-style) ── */}
           <div className="absolute left-2 top-2 z-10 flex flex-col gap-1.5 rounded-lg border border-[#1c2636] bg-[#0b0f17]/92 p-1.5 text-[10px] backdrop-blur">
@@ -563,10 +705,9 @@ export default function ChartLabPage() {
                   OI
                 </button>
                 <button
-                  onClick={() => { if (!oiIsEod) setOiMode("change"); }}
-                  disabled={oiIsEod}
-                  title={oiIsEod ? "Change in OI: live market only" : "Change in OI"}
-                  className={`px-2 py-0.5 font-bold ${oiMode === "change" && !oiIsEod ? "bg-[#12223c] text-[#5aaabb]" : oiIsEod ? "cursor-not-allowed text-[#2a3a52]" : "text-[#5a7088] hover:text-[#8aa0b6]"}`}
+                  onClick={() => setOiMode("change")}
+                  title="Change in OI since the immediately preceding refresh"
+                  className={`px-2 py-0.5 font-bold ${oiMode === "change" ? "bg-[#12223c] text-[#5aaabb]" : "text-[#5a7088] hover:text-[#8aa0b6]"}`}
                 >
                   Change in OI
                 </button>
@@ -605,7 +746,12 @@ export default function ChartLabPage() {
             >
               {showCepeVol ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
               Volume
-              {sym.kind === "index" && <span className="ml-1 text-[8px] text-[#4a6070]">(index: no vol)</span>}
+              {chartVolume.source === "options" && (
+                <span className="ml-1 text-[8px] text-[#4a6070]">(CE+PE activity)</span>
+              )}
+              {sym.kind === "index" && chartVolume.source === "none" && (
+                <span className="ml-1 text-[8px] text-[#4a6070]">(no saved history)</span>
+              )}
             </button>
 
             {sym.optSym && !activeOiRows && (
@@ -629,35 +775,39 @@ export default function ChartLabPage() {
           <span className="flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-5" style={{ background: putColor }} /> Put OI
           </span>
-          {!oiIsEod && (
+          <span className="mx-1 text-[#2a3a52]">|</span>
+          {oiMode === "change" ? (
             <>
-              <span className="mx-1 text-[#2a3a52]">|</span>
-              {oiMode === "change" ? (
-                <>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5" style={{ background: callColor }} /> Building (solid)
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5 border" style={{ borderColor: callColor }} /> Draining (hollow)
-                  </span>
-                  <span className="text-[#4a6070]">· diverge from centre</span>
-                </>
-              ) : (
-                <>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5" style={{ background: `repeating-linear-gradient(45deg,${callColor} 0,${callColor} 3px,${callColor}66 3px,${callColor}66 6px)` }} /> Building (hatched)
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="inline-block h-2.5 w-5 border" style={{ borderColor: callColor, background: "#0b0f17" }} /> Draining (hollow)
-                  </span>
-                </>
-              )}
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-5" style={{ background: `repeating-linear-gradient(45deg,${callColor} 0,${callColor} 3px,${callColor}66 3px,${callColor}66 6px)` }} /> Building (hatched)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-5 border" style={{ borderColor: callColor }} /> Draining (hollow)
+              </span>
+              <span className="text-[#4a6070]">· diverge from centre</span>
+            </>
+          ) : (
+            <>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-2.5 w-5" style={{ background: `repeating-linear-gradient(45deg,${callColor} 0,${callColor} 3px,${callColor}66 3px,${callColor}66 6px)` }} /> Building (hatched)
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-5 border"
+                  style={{
+                    background: "#0b0f17",
+                    borderColor: rgba(callColor, 0.9),
+                  }}
+                /> Draining (hollow)
+              </span>
+              <span className="text-[#4a6070]">· latest refresh change</span>
             </>
           )}
           <span className="mx-1 text-[#2a3a52]">|</span>
           <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 bg-[#22c55e]" /> Volume up</span>
           <span className="flex items-center gap-1"><span className="inline-block h-2.5 w-2.5 bg-[#ef4444]" /> Volume down</span>
-          {sym.kind === "index" && <span className="text-[#3a5070]">(indices have no traded volume)</span>}
+          {chartVolume.source === "options" && <span className="text-[#3a5070]">(real CE+PE activity)</span>}
+          {sym.kind === "index" && chartVolume.source === "none" && <span className="text-[#3a5070]">(no saved index volume history)</span>}
         </div>
       </div>
     </DashboardShell>

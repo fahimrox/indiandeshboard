@@ -6,6 +6,75 @@
 
 ---
 
+## 2026-07-15 18:39 IST — Codex (GPT-5)
+
+### Task
+Correct the Chart Lab OI overlay to match the user's final supplied broker-profile screenshot.
+
+### Files Changed
+- `src/features/chart/ChartLabPage.tsx`
+- `docs/CURRENT_TASK.md`
+- `docs/SESSION_HANDOVER.md`
+- `docs/CHANGELOG.md`
+
+### What Changed
+- Replaced the red/green OI body gradients with flat muted fills and square edges.
+- Restored draining OI as a sharp chart-background hollow box with a complete same-color outline at the bar's left edge; building OI retains the same-color hatch.
+- Expanded the OI profile reach to use the available chart width up to 600px, matching the reference's long right-anchored bars.
+- Switched the candlestick last-price line to dashed styling and aligned the custom price-label color with the latest candle direction.
+- Updated the legend to describe and preview the hollow draining state accurately.
+
+### Why
+The previous gradient/open-edge inset styling visibly differed from the user's final reference, which requires flat broker-style bodies and distinct outlined draining caps.
+
+### Validation
+- Browser-verified the NIFTY EOD overlay against the supplied screenshot: flat wide bars, square corners, hollow outlined draining tips, right-side strike labels, and touching CE/PE rows.
+- Audited the full six-file change set; removed leftover Chart Lab debug logging and confirmed no mock data, synthetic data, hard-coded test values, or unrelated runtime changes were introduced.
+- `NITRO_PRESET=node-server npm run build`: ✅ exit 0.
+- Existing unrelated warnings remain: Chart Lab hydration mismatch, `LiveScanner` route code-splitting warning, and standard bundle/externalization warnings.
+
+### Remaining Risks
+- Visual proportions depend on the available chart width, but bar reach is capped at 600px to preserve the reference behavior without overflowing smaller viewports.
+- No collector, database write, broker authentication, schema, or production data files were changed.
+
+---
+
+## 2026-07-15 18:17 IST — Codex (GPT-5)
+
+### Task
+Implement and verify the Chart Lab Supabase-first EOD/latest OI read, then refine the OI profile UI to match the supplied broker-chart reference.
+
+### Files Changed
+- `src/lib/services/historicalDataService.server.ts`
+- `src/lib/chart.functions.ts`
+- `src/features/chart/ChartLabPage.tsx`
+- `docs/CURRENT_TASK.md`
+- `docs/SESSION_HANDOVER.md`
+- `docs/CHANGELOG.md`
+
+### What Changed
+- Added coherent latest-complete OI snapshot selection across matching trading date, time, symbol, and expiry, using Supabase first and SQLite as a whole-snapshot fallback.
+- Preserved the existing public Chart Lab EOD response shape and `source: "db" | "eod_cache"` contract.
+- Changed hatch/drain semantics to the immediately preceding complete refresh only; exchange/session `oiChg` is no longer treated as the latest refresh delta.
+- Kept final EOD refresh styling visible after market close by comparing the latest two same-store coherent snapshots; building OI uses same-colour hatching and draining OI uses a dim body with a hollow tip.
+- Added exact strike-only right-axis labels, responsive wider OI bars, touching CE/PE bar pairs, and a viewport-fitted chart with no page scroll.
+- Recreated the lightweight-chart instance on index changes so stale retained query data cannot leave the new symbol blank.
+- Polished OI profile rendering: draining no longer darkens the entire bar, base fills remain evenly legible, and capped open-edge change insets blend into the bar instead of looking like attached outlined boxes.
+- Reused existing real CE+PE volume history as an intraday index-volume fallback when Yahoo index candles contain no traded volume.
+
+### Validation
+- Runtime checked NIFTY, BANKNIFTY, and SENSEX Supabase lineage and isolated SQLite fallback for 2026-07-15.
+- Browser-verified NIFTY, BANKNIFTY, and SENSEX switching, visible candles, exact strike labels, no page scroll, and CE+PE activity volume.
+- Read-only runtime verification confirmed Supabase final-refresh deltas at 15:30:42 IST: NIFTY 18 CE/20 PE changed strikes, BANKNIFTY 17 CE/17 PE, and SENSEX 0/0 (correctly solid).
+- `NITRO_PRESET=node-server npm run build`: ✅ exit 0.
+- `tsc --noEmit` remains blocked by the pre-existing unrelated type error at `src/lib/services/supabase.server.ts:1105`.
+
+### Remaining Risks
+- CE+PE volume history remains on its existing SQLite reader, so local partial history produces a partial-day volume histogram.
+- Existing Chart Lab hydration mismatch and `LiveScanner` route code-splitting warning remain outside this task.
+
+---
+
 ## 2026-07-15 00:45 IST — Antigravity (Gemini)
 
 ### Task
