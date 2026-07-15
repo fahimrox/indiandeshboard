@@ -26,7 +26,6 @@ import { Route as ChartRouteImport } from './routes/chart'
 import { Route as BankniftyRouteImport } from './routes/banknifty'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SectorKeyRouteImport } from './routes/sector.$key'
-import { Route as ApiSupabaseTestRouteImport } from './routes/api/supabase-test'
 import { Route as ApiSupabaseHealthRouteImport } from './routes/api/supabase-health'
 import { Route as ApiSectorHistoryRouteImport } from './routes/api/sector-history'
 import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
@@ -123,11 +122,6 @@ const SectorKeyRoute = SectorKeyRouteImport.update({
   path: '/sector/$key',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSupabaseTestRoute = ApiSupabaseTestRouteImport.update({
-  id: '/api/supabase-test',
-  path: '/api/supabase-test',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiSupabaseHealthRoute = ApiSupabaseHealthRouteImport.update({
   id: '/api/supabase-health',
   path: '/api/supabase-health',
@@ -204,7 +198,6 @@ export interface FileRoutesByFullPath {
   '/api/option-history': typeof ApiOptionHistoryRoute
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
-  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -234,7 +227,6 @@ export interface FileRoutesByTo {
   '/api/option-history': typeof ApiOptionHistoryRoute
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
-  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -265,7 +257,6 @@ export interface FileRoutesById {
   '/api/option-history': typeof ApiOptionHistoryRoute
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
-  '/api/supabase-test': typeof ApiSupabaseTestRoute
   '/sector/$key': typeof SectorKeyRoute
   '/api/candles/$symbol': typeof ApiCandlesSymbolRoute
   '/api/history/$symbol': typeof ApiHistorySymbolRoute
@@ -297,7 +288,6 @@ export interface FileRouteTypes {
     | '/api/option-history'
     | '/api/sector-history'
     | '/api/supabase-health'
-    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -327,7 +317,6 @@ export interface FileRouteTypes {
     | '/api/option-history'
     | '/api/sector-history'
     | '/api/supabase-health'
-    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -357,7 +346,6 @@ export interface FileRouteTypes {
     | '/api/option-history'
     | '/api/sector-history'
     | '/api/supabase-health'
-    | '/api/supabase-test'
     | '/sector/$key'
     | '/api/candles/$symbol'
     | '/api/history/$symbol'
@@ -388,7 +376,6 @@ export interface RootRouteChildren {
   ApiOptionHistoryRoute: typeof ApiOptionHistoryRoute
   ApiSectorHistoryRoute: typeof ApiSectorHistoryRoute
   ApiSupabaseHealthRoute: typeof ApiSupabaseHealthRoute
-  ApiSupabaseTestRoute: typeof ApiSupabaseTestRoute
   SectorKeyRoute: typeof SectorKeyRoute
   ApiCandlesSymbolRoute: typeof ApiCandlesSymbolRoute
 }
@@ -514,13 +501,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SectorKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/supabase-test': {
-      id: '/api/supabase-test'
-      path: '/api/supabase-test'
-      fullPath: '/api/supabase-test'
-      preLoaderRoute: typeof ApiSupabaseTestRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/supabase-health': {
       id: '/api/supabase-health'
       path: '/api/supabase-health'
@@ -631,7 +611,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOptionHistoryRoute: ApiOptionHistoryRoute,
   ApiSectorHistoryRoute: ApiSectorHistoryRoute,
   ApiSupabaseHealthRoute: ApiSupabaseHealthRoute,
-  ApiSupabaseTestRoute: ApiSupabaseTestRoute,
   SectorKeyRoute: SectorKeyRoute,
   ApiCandlesSymbolRoute: ApiCandlesSymbolRoute,
 }
