@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-07-15 19:38 IST — Codex (GPT-5)
+
+### Task
+Merge the approved Chart Lab work into `main` and deploy it safely to the Oracle production server.
+
+### Files Changed
+- `docs/CHANGELOG.md`
+- `docs/SESSION_HANDOVER.md`
+
+### Deployment
+- Merged `feat/chartlab-supabase-oi-read` into `main` with merge commit `673f4436e1dd005714b38d5943788555e2f00063`; approved commits `8c4ce0a` and `35d8235` remain intact.
+- Pushed `main` and ran the existing `/home/ubuntu/deploy-indian-dashboard.sh` script on the Oracle VM.
+- The script pulled `main`, installed dependencies, built with `NITRO_PRESET=node-server`, restarted PM2 process `indian-dashboard`, and saved PM2 state.
+
+### Validation
+- Local `git diff --check HEAD~2..HEAD`: ✅ exit 0.
+- Local `NITRO_PRESET=node-server npm run build`: ✅ exit 0.
+- Oracle deployment build: ✅ exit 0 on Linux ARM64.
+- PM2: `indian-dashboard` online with zero unstable restarts; listening only on `127.0.0.1:3000`; local server HTTP 200.
+- Public smoke tests: `https://bazaarmood.com/` and `/chart` returned HTTP 200.
+- Browser-verified candles, approved OI profile, relevant strike labels, EOD snapshot data, CE+PE activity volume, and no white-screen regression.
+- Post-smoke PM2 log checkpoint added no fresh runtime error lines.
+
+### Remaining Risks / Warnings
+- Existing production browser hydration mismatch (React error #418) remains; the page recovers and renders fully.
+- Historical PM2 logs retain older stale-cache, expired-FYERS fallback, and Supabase duplicate-key warnings; no new lines appeared during the smoke test.
+- Production `npm install` reports one low-severity dependency vulnerability, and the build retains existing bundle/externalization warnings.
+- The production worktree retains its pre-existing modified `package-lock.json`; it was not changed or reverted by this deployment task.
+
+---
+
 ## 2026-07-15 18:39 IST — Codex (GPT-5)
 
 ### Task
