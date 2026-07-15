@@ -1,183 +1,205 @@
-import React, { useMemo } from "react";
+import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { EChartsOption } from "echarts";
 
+export type IndexContributionChartPoint = {
+  time: number;
+  positive: number;
+  negative: number;
+  index: number;
+};
+
+const numberFormat = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatTime(timestamp: number): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(timestamp);
+}
+
 export function IndexContributionChart({
-    times,
-    positive,
-    negative,
-    reference,
-    endpoints,
+  points,
+  indexLabel,
 }: {
-    times: string[];
-    positive: number[];
-    negative: number[];
-    reference: number[];
-    endpoints: number[];
+  points: IndexContributionChartPoint[];
+  indexLabel: string;
 }) {
-    const option: EChartsOption = useMemo(() => {
-        const x = times;
+  const option = useMemo<EChartsOption>(() => {
+    const positive = points.map((point) => [point.time, point.positive]);
+    // Plot negative contribution as a positive magnitude so the red line
+    // represents total selling pressure above the shared zero baseline.
+    const negative = points.map((point) => [point.time, Math.abs(point.negative)]);
+    const index = points.map((point) => [point.time, point.index]);
 
-        const posData = positive.map((v, i) => [x[i], v]);
-        const negData = negative.map((v, i) => [x[i], v]);
-        const refData = reference.map((v, i) => [x[i], v]);
-
-        const endPointCoords = endpoints
-            .filter((i) => i >= 0 && i < x.length)
-            .map((i) => [x[i], positive[i] ?? 0]);
-
-        return {
-            backgroundColor: "transparent",
-            animation: false,
-            grid: {
-                left: 54,
-                right: 22,
-                top: 28,
-                bottom: 38,
+    return {
+      backgroundColor: "transparent",
+      animation: false,
+      grid: { left: 68, right: 62, top: 38, bottom: 38, containLabel: false },
+      legend: {
+        show: true,
+        top: 0,
+        left: 8,
+        itemWidth: 8,
+        itemHeight: 8,
+        icon: "circle",
+        textStyle: { color: "#8b96a7", fontSize: 10 },
+        data: ["Positive Points", "Negative Points", indexLabel],
+      },
+      tooltip: {
+        trigger: "axis",
+        confine: true,
+        backgroundColor: "rgba(7, 13, 21, 0.96)",
+        borderColor: "rgba(148, 163, 184, 0.22)",
+        borderWidth: 1,
+        padding: 10,
+        textStyle: { color: "#e5e7eb", fontSize: 12 },
+        axisPointer: {
+          type: "cross",
+          lineStyle: { color: "rgba(148, 163, 184, 0.6)", type: "dashed" },
+          crossStyle: { color: "rgba(148, 163, 184, 0.6)", type: "dashed" },
+        },
+        formatter: (raw: unknown) => {
+          const params = Array.isArray(raw) ? raw : [];
+          const time = Number((params[0] as { value?: unknown[] } | undefined)?.value?.[0] ?? 0);
+          const rows = params
+            .map((item) => {
+              const param = item as { seriesName?: string; color?: string; value?: unknown[] };
+              const value = Number(param.value?.[1] ?? 0);
+              return `<div style="display:flex;align-items:center;gap:8px;margin-top:5px"><span style="width:7px;height:7px;border-radius:50%;background:${param.color}"></span><span style="color:#9ca3af">${param.seriesName}</span><strong style="margin-left:auto;color:#f3f4f6">${numberFormat.format(value)}</strong></div>`;
+            })
+            .join("");
+          return `<div style="min-width:190px"><strong>${formatTime(time)} IST</strong>${rows}</div>`;
+        },
+      },
+      xAxis: {
+        type: "time",
+        boundaryGap: false,
+        min: points[0]?.time,
+        max: points.at(-1)?.time,
+        axisLine: { lineStyle: { color: "rgba(148, 163, 184, 0.16)" } },
+        axisTick: { show: false },
+        axisLabel: {
+          color: "#8b96a7",
+          fontSize: 11,
+          hideOverlap: true,
+          formatter: (value: number) => formatTime(value),
+        },
+        splitLine: { show: true, lineStyle: { color: "rgba(148, 163, 184, 0.09)" } },
+      },
+      yAxis: [
+        {
+          type: "value",
+          name: indexLabel,
+          nameLocation: "end",
+          nameGap: 12,
+          nameTextStyle: { color: "#7f8a9b", fontSize: 11, align: "left" },
+          scale: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: "#8b96a7",
+            fontSize: 11,
+            formatter: (value: number) => numberFormat.format(value),
+          },
+          splitLine: { show: true, lineStyle: { color: "rgba(148, 163, 184, 0.1)" } },
+        },
+        {
+          type: "value",
+          name: "Contribution Points",
+          nameLocation: "end",
+          nameGap: 12,
+          nameTextStyle: { color: "#7f8a9b", fontSize: 11, align: "right" },
+          scale: true,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: "#8b96a7",
+            fontSize: 11,
+            formatter: (value: number) => numberFormat.format(value),
+          },
+          splitLine: { show: false },
+        },
+      ],
+      series: [
+        {
+          name: "Positive Points",
+          type: "line",
+          yAxisIndex: 1,
+          data: positive,
+          smooth: 0.18,
+          showSymbol: false,
+          lineStyle: { color: "#37e34c", width: 2.2 },
+          itemStyle: { color: "#37e34c" },
+          emphasis: { focus: "series" },
+          markLine: {
+            silent: true,
+            symbol: "none",
+            data: [{ yAxis: 0 }],
+            lineStyle: { color: "rgba(148, 163, 184, 0.28)", width: 1 },
+            label: { show: false },
+          },
+          z: 3,
+        },
+        {
+          name: "Negative Points",
+          type: "line",
+          yAxisIndex: 1,
+          data: negative,
+          smooth: 0.18,
+          showSymbol: false,
+          lineStyle: { color: "#ff4148", width: 2.2 },
+          itemStyle: { color: "#ff4148" },
+          emphasis: { focus: "series" },
+          z: 3,
+        },
+        {
+          name: indexLabel,
+          type: "line",
+          yAxisIndex: 0,
+          data: index,
+          smooth: 0.1,
+          showSymbol: false,
+          lineStyle: { color: "rgba(174, 181, 191, 0.72)", width: 1, type: "dotted" },
+          itemStyle: { color: "#c4c8ce" },
+          emphasis: { focus: "series" },
+          z: 2,
+        },
+      ],
+      media: [
+        {
+          query: { maxWidth: 520 },
+          option: {
+            grid: { left: 52, right: 52, top: 38, bottom: 34 },
+            legend: {
+              left: 2,
+              itemGap: 8,
+              itemWidth: 7,
+              itemHeight: 7,
+              textStyle: { fontSize: 8 },
             },
-            tooltip: {
-                trigger: "axis",
-                backgroundColor: "rgba(10, 12, 16, 0.92)",
-                borderColor: "rgba(255,255,255,0.08)",
-                borderWidth: 1,
-                textStyle: {
-                    color: "#E6E9EF",
-                    fontSize: 12,
-                },
-                axisPointer: {
-                    type: "cross",
-                    crossStyle: {
-                        color: "rgba(255,255,255,0.25)",
-                        width: 1,
-                    },
-                },
-                formatter: (params: any) => {
-                    const p = params.find((q: any) => q.seriesName === "Positive Contribution");
-                    const n = params.find((q: any) => q.seriesName === "Negative Contribution");
-                    const r = params.find((q: any) => q.seriesName === "Reference");
-                    const time = params?.[0]?.axisValue ?? "";
-                    const pv = p?.data?.[1];
-                    const nv = n?.data?.[1];
-                    const rv = r?.data?.[1];
-                    const fmt = (v: number) =>
-                        Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-                    return [
-                        `<div style="font-weight:700; margin-bottom:6px;">${time}</div>`,
-                        `<div style="display:flex; gap:10px; align-items:center; margin:4px 0;">`,
-                        `<span style="width:10px; height:10px; background:#27d48a; display:inline-block; border:1px solid rgba(255,255,255,0.15)"></span>`,
-                        `<span>Positive</span><span style="margin-left:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; color:#27d48a; font-weight:700;">${fmt(
-                            pv ?? 0
-                        )}</span>`,
-                        `</div>`,
-                        `<div style="display:flex; gap:10px; align-items:center; margin:4px 0;">`,
-                        `<span style="width:10px; height:10px; background:#ff4d4f; display:inline-block; border:1px solid rgba(255,255,255,0.15)"></span>`,
-                        `<span>Negative</span><span style="margin-left:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; color:#ff4d4f; font-weight:700;">${fmt(
-                            nv ?? 0
-                        )}</span>`,
-                        `</div>`,
-                        `<div style="display:flex; gap:10px; align-items:center; margin:4px 0;">`,
-                        `<span style="width:10px; height:10px; background:rgba(200,200,200,0.7); display:inline-block; border:1px solid rgba(255,255,255,0.15)"></span>`,
-                        `<span>Reference</span><span style="margin-left:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; color:#A9B2BF; font-weight:700;">${fmt(
-                            rv ?? 0
-                        )}</span>`,
-                        `</div>`,
-                    ].join("");
-                },
-            },
-            legend: { show: false },
-            xAxis: {
-                type: "category",
-                boundaryGap: false,
-                data: x,
-                axisLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: "rgba(230,233,239,0.70)",
-                    fontSize: 11,
-                    formatter: (value: string, idx: number) => {
-                        // show fewer labels to keep market style
-                        if (idx === 0) return value;
-                        const step = Math.max(1, Math.floor(x.length / 6));
-                        if (idx % step === 0 || idx === x.length - 1) return value;
-                        return "";
-                    },
-                },
-                splitLine: { show: true, lineStyle: { color: "rgba(255,255,255,0.06)" } },
-            },
-            yAxis: {
-                type: "value",
-                axisLine: { show: false },
-                axisTick: { show: false },
-                axisLabel: {
-                    color: "rgba(230,233,239,0.70)",
-                    fontSize: 11,
-                    formatter: (v: number) => v.toFixed(2),
-                },
-                splitLine: { show: true, lineStyle: { color: "rgba(255,255,255,0.06)" } },
-            },
-            series: [
-                {
-                    name: "Reference",
-                    type: "line",
-                    data: refData,
-                    smooth: true,
-                    showSymbol: false,
-                    lineStyle: {
-                        width: 1.5,
-                        type: "dotted",
-                        color: "rgba(160,170,190,0.75)",
-                    },
-                    emphasis: { disabled: true },
-                    z: 1,
-                },
-                {
-                    name: "Positive Contribution",
-                    type: "line",
-                    data: posData,
-                    smooth: true,
-                    showSymbol: false,
-                    lineStyle: { width: 2.2, color: "rgba(39,212,138,1)" },
-                    itemStyle: { color: "rgba(39,212,138,1)" },
-                    emphasis: { focus: "series" },
-                    z: 3,
-                },
-                {
-                    name: "Negative Contribution",
-                    type: "line",
-                    data: negData,
-                    smooth: true,
-                    showSymbol: false,
-                    lineStyle: { width: 2.2, color: "rgba(255,77,79,1)" },
-                    itemStyle: { color: "rgba(255,77,79,1)" },
-                    emphasis: { focus: "series" },
-                    z: 3,
-                },
-                // Endpoint markers (positive endpoints, to satisfy "endpoint markers" requirement)
-                {
-                    name: "Endpoints",
-                    type: "scatter",
-                    data: endPointCoords.map((p) => ({ value: p })),
-                    symbolSize: 7,
-                    itemStyle: {
-                        color: "rgba(39,212,138,1)",
-                        borderColor: "rgba(255,255,255,0.25)",
-                        borderWidth: 1,
-                    },
-                    tooltip: { show: false },
-                    z: 5,
-                },
+            yAxis: [
+              { name: "", axisLabel: { fontSize: 9 } },
+              { name: "", axisLabel: { fontSize: 9 } },
             ],
-        } satisfies EChartsOption;
-    }, [endpoints, negative, positive, reference, times]);
+          },
+        },
+      ],
+    };
+  }, [indexLabel, points]);
 
-    return (
-        <div className="w-full">
-            <ReactECharts
-                option={option}
-                style={{ height: 480, width: "100%" }}
-                opts={{ renderer: "canvas" }}
-            />
-        </div>
-    );
+  return (
+    <ReactECharts
+      option={option}
+      notMerge
+      lazyUpdate
+      style={{ height: "100%", width: "100%" }}
+      opts={{ renderer: "canvas" }}
+    />
+  );
 }

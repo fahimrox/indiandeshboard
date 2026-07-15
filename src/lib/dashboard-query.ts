@@ -2,6 +2,7 @@ import { queryOptions, keepPreviousData } from "@tanstack/react-query";
 import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail, getIntradayBooster } from "./market.functions";
 import { getFnoStocks, getOptionChain, getCachedOptionChain, getFnoScreener } from "./nse.functions";
 import { getCandles, getCepeVolHistory, getEodOiSnapshot } from "./chart.functions";
+import { getIndexContributionHistory, type IndexContributionKey } from "./index-contribution.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
 const liveInterval = (msOpen: number, msClosed = 60_000) => () =>
@@ -36,6 +37,14 @@ export const indexContributionsQuery = (index: "nifty" | "banknifty" | "sensex")
     queryFn: () => getIndexContributions({ data: { index } }),
     refetchInterval: liveInterval(15_000),
     staleTime: 8_000,
+  });
+
+export const indexContributionHistoryQuery = (index: IndexContributionKey) =>
+  queryOptions({
+    queryKey: ["index-contribution-history", index],
+    queryFn: () => getIndexContributionHistory({ data: { index } }),
+    refetchInterval: liveInterval(30_000, 5 * 60_000),
+    staleTime: 20_000,
   });
 
 export const sectorDetailQuery = (key: string) =>

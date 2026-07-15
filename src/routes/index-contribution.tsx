@@ -1,517 +1,632 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { ClientOnly, createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import ReactECharts from "echarts-for-react";
-import type { EChartsOption } from "echarts";
 import { DashboardShell } from "@/components/DashboardShell";
-import { dashboardQuery, indexContributionsQuery, quotesQuery } from "@/lib/dashboard-query";
-import { fmt } from "@/components/MarketBits";
+import {
+  IndexContributionChart,
+  type IndexContributionChartPoint,
+} from "@/components/IndexContribution/IndexContributionChart";
+import {
+  indexContributionHistoryQuery,
+  quotesQuery,
+} from "@/lib/dashboard-query";
+import type {
+  IndexContributionHistory,
+  IndexContributionKey,
+} from "@/lib/index-contribution.functions";
 import type { Quote } from "@/lib/market.functions";
 
-const ALL_INDEX_SYMBOLS = [
-  { sym: "^NSEI", label: "NIFTY 50", key: "nifty" as const },
-  { sym: "^NSEBANK", label: "BANK NIFTY", key: "banknifty" as const },
-  { sym: "^BSESN", label: "SENSEX", key: "sensex" as const },
+const INDEX_OPTIONS = [
+  { key: "nifty" as const, symbol: "^NSEI", label: "NIFTY 50", chartLabel: "NIFTY" },
+  { key: "banknifty" as const, symbol: "^NSEBANK", label: "BANK NIFTY", chartLabel: "BANKNIFTY" },
+  { key: "sensex" as const, symbol: "^BSESN", label: "SENSEX", chartLabel: "SENSEX" },
 ];
 
 const PERIODS = ["Prev", "Intraday", "3m", "5m", "15m", "1h"] as const;
-type Period = typeof PERIODS[number];
+type Period = (typeof PERIODS)[number];
 
-function generateIntradayTimes(intervalMinutes: number): string[] {
-  const t: string[] = [];
-  for (let h = 9; h <= 15; h++) {
-    const sm = h === 9 ? 15 : 0;
-    const em = h === 15 ? 30 : 55;
-    for (let m = sm; m <= em; m += intervalMinutes) {
-      t.push(`${h}:${m.toString().padStart(2, "0")}`);
-    }
-  }
-  return t;
-}
+type ContributionRow = {
+  rank: number;
+  symbol: string;
+  price: number;
+  change: number;
+  changePct: number;
+  contributionPct: number;
+  contributionPoints: number;
+};
 
-function stepsForPeriod(period: Period): number {
-  switch (period) {
-    case "Prev": return 76;
-    case "Intraday": return 76;
-    case "3m": return 125;
-    case "5m": return 76;
-    case "15m": return 25;
-    case "1h": return 7;
-  }
-}
+type ContributionView = {
+  chartPoints: IndexContributionChartPoint[];
+  positive: ContributionRow[];
+  negative: ContributionRow[];
+  totalPositive: number;
+  totalNegative: number;
+  baselineIndex: number;
+  currentIndex: number;
+  indexChange: number;
+  indexChangePct: number;
+};
 
-function labelsForPeriod(period: Period): string[] {
-  switch (period) {
-    case "Prev": return generateIntradayTimes(5);
-    case "Intraday": return generateIntradayTimes(5);
-    case "3m": return generateIntradayTimes(3);
-    case "5m": return generateIntradayTimes(5);
-    case "15m": return generateIntradayTimes(15);
-    case "1h": return generateIntradayTimes(60);
-  }
-}
+const priceFormat = new Intl.NumberFormat("en-IN", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 export const Route = createFileRoute("/index-contribution")({
   head: () => ({
     meta: [
-      { title: "Index Contribution — Live Constituent Movers | IndexMover" },
-      { name: "description", content: "See which stocks are driving each index — positive and negative contribution breakdown with live data." },
-      { property: "og:title", content: "Index Contribution — Live Constituent Movers" },
-      { property: "og:description", content: "See which stocks are driving each index — positive and negative contribution breakdown." },
+      { title: "Index Contribution - Live Index Movers | BazaarMood" },
+      {
+        name: "description",
+        content:
+          "Live NIFTY 50, BANK NIFTY and SENSEX contribution points calculated from real constituent prices and free-float index weights.",
+      },
     ],
   }),
-  loader: ({ context }) => Promise.all([
-    context.queryClient.ensureQueryData(dashboardQuery),
-    context.queryClient.ensureQueryData(indexContributionsQuery("nifty")),
-  ]),
-  component: Page,
-  errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(
+        quotesQuery(INDEX_OPTIONS.map((item) => item.symbol)),
+      ),
+      context.queryClient.ensureQueryData(indexContributionHistoryQuery("nifty")),
+    ]),
+  component: IndexContributionPage,
+  errorComponent: ({ error }) => (
+    <DashboardShell>
+      <div className="border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">
+        {error.message}
+      </div>
+    </DashboardShell>
+  ),
 });
 
-function CountdownTimer() {
-  const s = useRef(30);
-  const [v, setV] = useState(30);
-  useEffect(() => {
-    const id = setInterval(() => { s.current = s.current <= 1 ? 30 : s.current - 1; setV(s.current); }, 1000);
-    return () => clearInterval(id);
-  }, []);
-  const dash = ((30 - v) / 30) * 113;
+function baselineForPeriod(period: Period, timestamps: number[]): number {
+  const lastIndex = timestamps.length - 1;
+  if (period === "Prev") return 0;
+  if (period === "Intraday") return Math.min(1, lastIndex);
+  const minutes = period === "1h" ? 60 : Number.parseInt(period, 10);
+  const cutoff = timestamps[lastIndex] - minutes * 60;
+  for (let position = lastIndex; position >= 1; position -= 1) {
+    if (timestamps[position] <= cutoff) return position;
+  }
+  return Math.min(1, lastIndex);
+}
+
+function reconcileContributions(
+  actualIndexMove: number,
+  rows: Array<{ symbol: string; value: number }>,
+): Array<{ symbol: string; value: number }> {
+  const rawTotal = rows.reduce((sum, row) => sum + row.value, 0);
+  const residual = actualIndexMove - rawTotal;
+  if (Math.abs(residual) < 0.0001) return rows;
+
+  const hasResidualSign = (value: number) => (residual > 0 ? value > 0 : value < 0);
+  const matchingTotal = rows.reduce(
+    (sum, row) => sum + (hasResidualSign(row.value) ? Math.abs(row.value) : 0),
+    0,
+  );
+  if (matchingTotal === 0) return rows;
+
+  return rows.map((row) => ({
+    ...row,
+    value:
+      row.value +
+      (hasResidualSign(row.value)
+        ? (Math.abs(row.value) / matchingTotal) * residual
+        : 0),
+  }));
+}
+
+function buildContributionView(
+  data: IndexContributionHistory | undefined,
+  period: Period,
+): ContributionView | null {
+  if (!data || data.timestamps.length < 3 || data.indexPrices.length !== data.timestamps.length) {
+    return null;
+  }
+
+  const lastIndex = data.timestamps.length - 1;
+  const baselineIndexPosition = baselineForPeriod(period, data.timestamps);
+  const baselineIndex = data.indexPrices[baselineIndexPosition];
+  const currentIndex = data.indexPrices[lastIndex];
+  if (!Number.isFinite(baselineIndex) || baselineIndex <= 0) return null;
+
+  const calculateAt = (position: number) => {
+    const raw = data.stocks
+      .map((stock) => {
+        const baselinePrice = stock.prices[baselineIndexPosition];
+        const currentPrice = stock.prices[position];
+        if (
+          !Number.isFinite(baselinePrice) ||
+          !Number.isFinite(currentPrice) ||
+          baselinePrice <= 0
+        ) {
+          return null;
+        }
+        return {
+          symbol: stock.symbol,
+          value:
+            ((currentPrice - baselinePrice) / baselinePrice) *
+            stock.weight *
+            baselineIndex,
+        };
+      })
+      .filter((row): row is { symbol: string; value: number } => row !== null);
+
+    return reconcileContributions(data.indexPrices[position] - baselineIndex, raw);
+  };
+
+  const chartPoints: IndexContributionChartPoint[] = [];
+  for (let position = 1; position <= lastIndex; position += 1) {
+    const adjusted = calculateAt(position);
+    let positive = 0;
+    let negative = 0;
+    for (const row of adjusted) {
+      if (row.value >= 0) positive += row.value;
+      else negative += row.value;
+    }
+    chartPoints.push({
+      time: data.timestamps[position] * 1000,
+      positive,
+      negative,
+      index: data.indexPrices[position],
+    });
+  }
+
+  const currentBySymbol = new Map(
+    calculateAt(lastIndex).map((row) => [row.symbol, row.value]),
+  );
+  const grossContribution = Array.from(currentBySymbol.values()).reduce(
+    (sum, value) => sum + Math.abs(value),
+    0,
+  );
+
+  const rows = data.stocks
+    .map((stock) => {
+      const baselinePrice = stock.prices[baselineIndexPosition];
+      const price = stock.prices[lastIndex];
+      const contributionPoints = currentBySymbol.get(stock.symbol);
+      if (
+        !Number.isFinite(baselinePrice) ||
+        !Number.isFinite(price) ||
+        baselinePrice <= 0 ||
+        contributionPoints == null
+      ) {
+        return null;
+      }
+      const change = price - baselinePrice;
+      const changePct = (change / baselinePrice) * 100;
+      return {
+        rank: 0,
+        symbol: stock.symbol,
+        price,
+        change,
+        changePct,
+        contributionPct:
+          grossContribution > 0
+            ? (contributionPoints / grossContribution) * 100
+            : 0,
+        contributionPoints,
+      };
+    })
+    .filter((row): row is ContributionRow => row !== null);
+
+  const positive = rows
+    .filter((row) => row.contributionPoints >= 0)
+    .sort((left, right) => right.contributionPoints - left.contributionPoints)
+    .map((row, rank) => ({ ...row, rank: rank + 1 }));
+  const negative = rows
+    .filter((row) => row.contributionPoints < 0)
+    .sort((left, right) => left.contributionPoints - right.contributionPoints)
+    .map((row, rank) => ({ ...row, rank: rank + 1 }));
+
+  const indexChange = currentIndex - baselineIndex;
+  return {
+    chartPoints,
+    positive,
+    negative,
+    totalPositive: positive.reduce((sum, row) => sum + row.contributionPoints, 0),
+    totalNegative: negative.reduce((sum, row) => sum + row.contributionPoints, 0),
+    baselineIndex,
+    currentIndex,
+    indexChange,
+    indexChangePct: (indexChange / baselineIndex) * 100,
+  };
+}
+
+function IndexContributionPage() {
+  const [activeIndex, setActiveIndex] = useState<IndexContributionKey>("nifty");
+  const [period, setPeriod] = useState<Period>("Intraday");
+  const { data: indexQuotes } = useSuspenseQuery(
+    quotesQuery(INDEX_OPTIONS.map((item) => item.symbol)),
+  );
+  const historyQuery = useSuspenseQuery(indexContributionHistoryQuery(activeIndex));
+  const selectedIndex = INDEX_OPTIONS.find((item) => item.key === activeIndex) ?? INDEX_OPTIONS[0];
+  const view = useMemo(
+    () => buildContributionView(historyQuery.data, period),
+    [historyQuery.data, period],
+  );
+
+  const quoteMap = useMemo(() => {
+    const map = new Map<string, Quote>();
+    for (const quote of indexQuotes) map.set(quote.symbol, quote);
+    const current = historyQuery.data.indexPrices.at(-1);
+    const previous = historyQuery.data.indexPrices[0];
+    if (current != null && previous != null && previous > 0) {
+      const existing = map.get(selectedIndex.symbol);
+      map.set(selectedIndex.symbol, {
+        symbol: selectedIndex.symbol,
+        name: selectedIndex.label,
+        price: current,
+        prevClose: previous,
+        change: current - previous,
+        changePct: ((current - previous) / previous) * 100,
+        dayHigh: existing?.dayHigh ?? current,
+        dayLow: existing?.dayLow ?? current,
+        open: existing?.open ?? current,
+        marketState: existing?.marketState ?? "EOD",
+        currency: existing?.currency ?? "INR",
+        exchange: existing?.exchange ?? "Yahoo",
+      });
+    }
+    return map;
+  }, [historyQuery.data, indexQuotes, selectedIndex]);
+
   return (
-    <div className="relative w-[34px] h-[34px] flex items-center justify-center">
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
-        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
-        <circle cx="20" cy="20" r="18" fill="none" stroke="rgba(230,233,239,0.35)" strokeWidth="3" strokeDasharray="113" strokeDashoffset={dash} strokeLinecap="round" />
-      </svg>
-      <span className="text-[10px] font-mono tabular-nums text-muted-foreground">{v}</span>
+    <DashboardShell>
+      <div className="mx-auto w-full max-w-[1900px] space-y-3 font-sans">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <IndexSelector
+            activeIndex={activeIndex}
+            period={period}
+            quoteMap={quoteMap}
+            onIndexChange={setActiveIndex}
+            onPeriodChange={setPeriod}
+          />
+
+          <section className="flex min-h-[420px] min-w-0 flex-col overflow-hidden rounded-xl border border-border bg-card lg:h-[500px]">
+            <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <div>
+                <h1 className="text-sm font-semibold tracking-tight text-foreground">
+                  {selectedIndex.label} Index Contribution
+                </h1>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  {period === "Prev" ? "Previous close" : period} baseline · real 1-minute prices
+                </p>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                {view && (
+                  <span className={view.indexChange >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}>
+                    {view.indexChange >= 0 ? "+" : ""}{priceFormat.format(view.indexChange)} pts
+                  </span>
+                )}
+                <span className="grid h-9 w-9 place-items-center rounded-full border-2 border-muted-foreground/35 text-[10px]">
+                  1m
+                </span>
+              </div>
+            </div>
+
+            <div className="relative min-h-0 flex-1 p-2 sm:p-3">
+              {!view || view.chartPoints.length < 2 ? (
+                <ChartState title="No chart data available" detail="No real aligned constituent history was returned." />
+              ) : (
+                <ClientOnly
+                  fallback={(
+                    <ChartState
+                      title="Preparing chart"
+                      detail="Initializing the interactive contribution chart."
+                    />
+                  )}
+                >
+                  <IndexContributionChart
+                    points={view.chartPoints}
+                    indexLabel={selectedIndex.chartLabel}
+                  />
+                </ClientOnly>
+              )}
+            </div>
+
+            {historyQuery.data && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
+                <span>
+                  Source: Yahoo · Weight coverage {(historyQuery.data.coverage * 100).toFixed(1)}%
+                </span>
+                <span suppressHydrationWarning>
+                  Weights {formatDate(historyQuery.data.weightAsOf)} · Updated {formatTimestamp(historyQuery.data.updatedAt)} IST
+                </span>
+              </div>
+            )}
+          </section>
+        </div>
+
+        {view ? (
+          <ContributionTables
+            positive={view.positive}
+            negative={view.negative}
+            totalPositive={view.totalPositive}
+            totalNegative={view.totalNegative}
+          />
+        ) : (
+          <div className="border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+            Contributor tables will appear when verified price history is available.
+          </div>
+        )}
+      </div>
+    </DashboardShell>
+  );
+}
+
+function IndexSelector({
+  activeIndex,
+  period,
+  quoteMap,
+  onIndexChange,
+  onPeriodChange,
+}: {
+  activeIndex: IndexContributionKey;
+  period: Period;
+  quoteMap: Map<string, Quote>;
+  onIndexChange: (index: IndexContributionKey) => void;
+  onPeriodChange: (period: Period) => void;
+}) {
+  return (
+    <aside className="overflow-hidden rounded-xl border border-border bg-card lg:h-[500px]">
+      <div className="border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold text-foreground">Index Contribution</h2>
+        <div className="mt-3 grid grid-cols-6 overflow-hidden rounded-md border border-border bg-background/50">
+          {PERIODS.map((item) => (
+            <button
+              key={item}
+              type="button"
+              aria-pressed={period === item}
+              onClick={() => onPeriodChange(item)}
+              className={`min-h-8 border-r border-border px-1 text-[10px] font-semibold transition-colors last:border-r-0 ${
+                period === item
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_92px_58px] border-b border-border bg-background/30 px-4 py-2 text-[11px] text-muted-foreground">
+        <span>Index</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">Chg%</span>
+      </div>
+      <div>
+        {INDEX_OPTIONS.map((item) => {
+          const quote = quoteMap.get(item.symbol);
+          const changePct = quote?.changePct ?? 0;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              aria-pressed={activeIndex === item.key}
+              onClick={() => onIndexChange(item.key)}
+              className={`grid w-full grid-cols-[1fr_92px_58px] items-center border-b border-border/45 px-4 py-3 text-left transition-colors ${
+                activeIndex === item.key ? "bg-muted/55" : "hover:bg-muted/30"
+              }`}
+            >
+              <span className="truncate text-xs font-semibold text-foreground">{item.label}</span>
+              <span className="text-right text-xs tabular-nums text-foreground">
+                {quote ? priceFormat.format(quote.price) : "--"}
+              </span>
+              <span
+                className={`text-right text-xs font-semibold tabular-nums ${
+                  changePct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                }`}
+              >
+                {quote ? `${changePct >= 0 ? "+" : ""}${changePct.toFixed(2)}%` : "--"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+function ContributionTables({
+  positive,
+  negative,
+  totalPositive,
+  totalNegative,
+}: {
+  positive: ContributionRow[];
+  negative: ContributionRow[];
+  totalPositive: number;
+  totalNegative: number;
+}) {
+  const pairCount = Math.max(positive.length, negative.length);
+  const maxContribution = Math.max(
+    0.01,
+    ...positive.map((row) => Math.abs(row.contributionPoints)),
+    ...negative.map((row) => Math.abs(row.contributionPoints)),
+  );
+
+  return (
+    <div className="grid min-w-0 gap-3 xl:grid-cols-12">
+      <div className="xl:col-span-3">
+        <SideTable rows={positive} title="Positive Contributors" tone="positive" />
+      </div>
+
+      <section className="min-w-0 overflow-hidden rounded-xl border border-border bg-card xl:col-span-6">
+        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+          <h2 className="text-sm font-semibold text-foreground">Points Contribution</h2>
+          <div className="flex items-center gap-3 text-sm font-semibold tabular-nums">
+            <span className="text-[var(--bull)]">+{priceFormat.format(totalPositive)}</span>
+            <span className="text-[var(--bear)]">{priceFormat.format(totalNegative)}</span>
+          </div>
+        </div>
+        <div className="max-h-[510px] overflow-x-hidden overflow-y-auto [scrollbar-color:#263244_#070b11] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-corner]:bg-[#070b11] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#263244] [&::-webkit-scrollbar-track]:bg-[#070b11]">
+          <div className="w-full py-1">
+            {Array.from({ length: pairCount }, (_, index) => {
+              const positiveRow = positive[index];
+              const negativeRow = negative[index];
+              const positiveWidth = positiveRow
+                ? Math.max(3, (positiveRow.contributionPoints / maxContribution) * 100)
+                : 0;
+              const negativeWidth = negativeRow
+                ? Math.max(3, (Math.abs(negativeRow.contributionPoints) / maxContribution) * 100)
+                : 0;
+
+              return (
+                <div
+                  key={`${positiveRow?.symbol ?? "positive"}-${negativeRow?.symbol ?? "negative"}-${index}`}
+                  className="grid min-h-9 grid-cols-[minmax(88px,145px)_minmax(36px,1fr)_1px_minmax(36px,1fr)_minmax(88px,145px)] items-center gap-2 px-3 hover:bg-muted/25"
+                >
+                  <div className="flex min-w-0 items-center justify-end gap-2">
+                    {positiveRow && (
+                      <>
+                        <span className="truncate text-right text-xs text-muted-foreground">{positiveRow.symbol}</span>
+                        <span className="shrink-0 text-xs font-semibold text-[var(--bull)]">
+                          +{priceFormat.format(positiveRow.contributionPoints)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    {positiveRow && (
+                      <div
+                        className="flex h-5 items-center justify-end bg-[#37e34c] px-1.5 text-[10px] font-bold text-[#061108]"
+                        style={{ width: `${positiveWidth}%` }}
+                      >
+                        {Math.abs(positiveRow.contributionPct).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                  <div className="h-7 bg-border" />
+                  <div className="flex justify-start">
+                    {negativeRow && (
+                      <div
+                        className="flex h-5 items-center bg-[#ff3046] px-1.5 text-[10px] font-bold text-white"
+                        style={{ width: `${negativeWidth}%` }}
+                      >
+                        {Math.abs(negativeRow.contributionPct).toFixed(1)}%
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {negativeRow && (
+                      <>
+                        <span className="shrink-0 text-xs font-semibold text-[var(--bear)]">
+                          {priceFormat.format(negativeRow.contributionPoints)}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">{negativeRow.symbol}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <div className="xl:col-span-3">
+        <SideTable rows={negative} title="Negative Contributors" tone="negative" />
+      </div>
     </div>
   );
 }
 
-function generatePriceSeries(prev: number, cur: number, steps: number): number[] {
-  const diff = cur - prev;
-  const absDiff = Math.abs(diff);
-  const drift = diff / steps;
-  const baseVol = Math.max(absDiff * 0.04, Math.abs(prev) * 0.0003, 0.5);
-  const s: number[] = [prev];
-  for (let i = 1; i < steps - 1; i++) {
-    const stepDrift = drift + (Math.random() - 0.5) * baseVol * 0.5;
-    const spike = (Math.random() < 0.12 ? (Math.random() - 0.5) * baseVol * 4 : 0);
-    let v = s[i - 1] + stepDrift + (Math.random() - 0.5) * baseVol * 2 + spike;
-    const maxChg = absDiff * 1.5 + baseVol * 6;
-    const prevChg = v - s[0];
-    if (Math.abs(prevChg) > maxChg) {
-      v = s[0] + Math.sign(prevChg) * maxChg * 0.9;
-    }
-    s.push(v);
-  }
-  s.push(cur);
-  return s;
-}
-
-function generateContributionSeries(target: number, steps: number): number[] {
-  const absT = Math.abs(target);
-  const drift = target / steps;
-  const baseVol = Math.max(absT * 0.06, 0.15);
-  const s: number[] = [0];
-  for (let i = 1; i < steps - 1; i++) {
-    const stepDrift = drift + (Math.random() - 0.5) * baseVol * 0.3;
-    const spike = Math.random() < 0.08 ? (Math.random() - 0.5) * baseVol * 3 : 0;
-    let v = s[i - 1] + stepDrift + (Math.random() - 0.5) * baseVol * 1.8 + spike;
-    if (target > 0) v = Math.max(v, -absT * 0.08);
-    else if (target < 0) v = Math.min(v, absT * 0.08);
-    s.push(v);
-  }
-  s.push(target);
-  return s;
-}
-
-function Page() {
-  const [activeIndex, setActiveIndex] = useState<"nifty" | "banknifty" | "sensex">("nifty");
-  const [period, setPeriod] = useState<Period>("Intraday");
-  const { data: dash } = useSuspenseQuery(dashboardQuery);
-  const { data: allQuotes } = useSuspenseQuery(
-    quotesQuery(ALL_INDEX_SYMBOLS.map((i) => i.sym))
-  );
-  const { data } = useSuspenseQuery(indexContributionsQuery(activeIndex));
-
-  const allQuoteMap = useMemo(() => {
-    const m = new Map<string, Quote>();
-    for (const q of allQuotes) if (q) m.set(q.symbol, q);
-    return m;
-  }, [allQuotes]);
-
-  const totalPosPoints = data.positive.reduce((s, r) => s + r.contributionPoints, 0);
-  const totalNegPoints = data.negative.reduce((s, r) => s + r.contributionPoints, 0);
-
-  const times = useMemo(() => labelsForPeriod(period), [period]);
-  const steps = times.length;
-
-  const { posSeries, negSeries, idxSeries } = useMemo(() => {
-    const pos = generateContributionSeries(totalPosPoints, steps);
-    const neg = generateContributionSeries(totalNegPoints, steps);
-    const idx = data.indexQuote
-      ? generatePriceSeries(data.indexQuote.prevClose, data.indexQuote.price, steps)
-      : generatePriceSeries(100, 101, steps);
-    return { posSeries: pos, negSeries: neg, idxSeries: idx };
-  }, [totalPosPoints, totalNegPoints, data.indexQuote, steps]);
-
-  const chartOption: EChartsOption = useMemo(() => {
-    const posD = posSeries.map((v, i) => [times[i], v] as [string, number]);
-    const negD = negSeries.map((v, i) => [times[i], v] as [string, number]);
-    const idxD = idxSeries.map((v, i) => [times[i], v] as [string, number]);
-
-    const allVals = [...posSeries, ...negSeries];
-    const contribMin = Math.min(0, ...allVals);
-    const contribMax = Math.max(0, ...allVals);
-    const contribPad = Math.max(Math.abs(contribMax - contribMin) * 0.15, 5);
-
-    const idxMin = Math.min(...idxSeries);
-    const idxMax = Math.max(...idxSeries);
-    const idxPad = Math.max((idxMax - idxMin) * 0.15, 20);
-
-    return {
-      backgroundColor: "transparent",
-      animation: false,
-      grid: { left: 60, right: 60, top: 24, bottom: 36 },
-      tooltip: {
-        trigger: "axis",
-        backgroundColor: "rgba(10,12,16,0.92)",
-        borderColor: "rgba(255,255,255,0.08)",
-        borderWidth: 1,
-        textStyle: { color: "#E6E9EF", fontSize: 12 },
-        axisPointer: { type: "cross", crossStyle: { color: "rgba(255,255,255,0.25)", width: 1 } },
-        formatter: (ps: any) => {
-          const p = ps.find((q: any) => q.seriesName === "Positive");
-          const n = ps.find((q: any) => q.seriesName === "Negative");
-          const ix = ps.find((q: any) => q.seriesName === "NIFTY");
-          const t = ps?.[0]?.axisValue ?? "";
-          const f = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          return [
-            `<div style="font-weight:700;margin-bottom:6px;">${t}</div>`,
-            `<div style="display:flex;gap:10px;align-items:center;margin:4px 0;">`,
-            `<span style="width:10px;height:10px;background:#9aa0a8;display:inline-block;"></span>`,
-            `<span>NIFTY</span><span style="margin-left:auto;font-family:monospace;color:#e8eaed;font-weight:700;">${f(ix?.data?.[1] ?? 0)}</span></div>`,
-            `<div style="display:flex;gap:10px;align-items:center;margin:4px 0;">`,
-            `<span style="width:10px;height:10px;background:#27d48a;display:inline-block;"></span>`,
-            `<span>Positive</span><span style="margin-left:auto;font-family:monospace;color:#27d48a;font-weight:700;">${f(p?.data?.[1] ?? 0)}</span></div>`,
-            `<div style="display:flex;gap:10px;align-items:center;margin:4px 0;">`,
-            `<span style="width:10px;height:10px;background:#ff4d4f;display:inline-block;"></span>`,
-            `<span>Negative</span><span style="margin-left:auto;font-family:monospace;color:#ff4d4f;font-weight:700;">${f(n?.data?.[1] ?? 0)}</span></div>`,
-          ].join("");
-        },
-      },
-      legend: { show: false },
-      xAxis: {
-        type: "category",
-        boundaryGap: false,
-        data: times,
-        axisLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
-        axisTick: { show: false },
-        axisLabel: { color: "rgba(230,233,239,0.65)", fontSize: 10, interval: 5 },
-        splitLine: { show: true, lineStyle: { color: "rgba(255,255,255,0.05)" } },
-      },
-      yAxis: [
-        {
-          type: "value",
-          min: contribMin - contribPad,
-          max: contribMax + contribPad,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { color: "rgba(230,233,239,0.65)", fontSize: 10, formatter: (v: number) => v.toFixed(1) },
-          splitLine: { show: true, lineStyle: { color: "rgba(255,255,255,0.05)" } },
-          name: "Contribution Points",
-          nameTextStyle: { color: "rgba(230,233,239,0.4)", fontSize: 9 },
-        },
-        {
-          type: "value",
-          min: idxMin - idxPad,
-          max: idxMax + idxPad,
-          axisLine: { show: false },
-          axisTick: { show: false },
-          axisLabel: { color: "rgba(230,233,239,0.65)", fontSize: 10, formatter: (v: number) => v.toFixed(0) },
-          splitLine: { show: false },
-          name: "NIFTY",
-          nameTextStyle: { color: "rgba(230,233,239,0.4)", fontSize: 9 },
-        },
-      ],
-      series: [
-        {
-          name: "NIFTY",
-          type: "line",
-          yAxisIndex: 1,
-          data: idxD,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 1.5, color: "rgba(232,234,237,0.7)", type: "dashed" as const },
-          emphasis: { focus: "series" },
-          z: 1,
-        },
-        {
-          name: "Positive",
-          type: "line",
-          yAxisIndex: 0,
-          data: posD,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2.5, color: "#4ade4a" },
-          emphasis: { focus: "series" },
-          z: 3,
-        },
-        {
-          name: "Negative",
-          type: "line",
-          yAxisIndex: 0,
-          data: negD,
-          smooth: true,
-          showSymbol: false,
-          lineStyle: { width: 2.5, color: "#ff4d4f" },
-          emphasis: { focus: "series" },
-          z: 3,
-        },
-        {
-          name: "EP",
-          type: "scatter",
-          yAxisIndex: 1,
-          data: [
-            { value: idxD[0] as [string, number] },
-            { value: idxD[idxD.length - 1] as [string, number] },
-          ],
-          symbolSize: 7,
-          itemStyle: { color: "rgba(232,234,237,0.85)", borderColor: "rgba(255,255,255,0.25)", borderWidth: 1 },
-          tooltip: { show: false },
-          z: 5,
-        },
-      ],
-    } satisfies EChartsOption;
-  }, [times, posSeries, negSeries, idxSeries]);
-
+function SideTable({
+  rows,
+  title,
+  tone,
+}: {
+  rows: ContributionRow[];
+  title: string;
+  tone: "positive" | "negative";
+}) {
+  const isPositive = tone === "positive";
   return (
-    <DashboardShell title="Index Contribution" subtitle="Constituent-wise contribution breakdown" updatedAt={data.updatedAt}>
-      {/* TOP: Sidebar + Chart (2-col StockMojo) */}
-      <div className="flex flex-col lg:flex-row gap-3 mb-3">
-        {/* LEFT SIDEBAR */}
-        <div className="lg:w-[260px] lg:flex-shrink-0">
-          <div className="rounded-lg border border-border bg-card overflow-hidden flex flex-col h-[410px]">
-            <div className="px-3 py-2 border-b border-border bg-background/40 space-y-1.5 flex-shrink-0">
-              <h2 className="text-xs font-semibold text-foreground tracking-wide">Index Contribution</h2>
-              <div className="inline-flex select-none items-center overflow-hidden rounded-md border border-border bg-background/40">
-                {PERIODS.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPeriod(p)}
-                    className={`px-1.5 py-0.5 text-[9px] font-medium border-r border-border last:border-r-0 transition-colors ${
-                      p === period ? "bg-background/60 text-foreground" : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1 bg-background/20 border-b border-border text-[10px] text-muted-foreground tracking-wider flex-shrink-0">
-              <span>Index</span>
-              <div className="flex items-center gap-2">
-                <span className="w-[52px] text-right">Price</span>
-                <span className="w-[44px] text-right">Chg%</span>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto">
-              {ALL_INDEX_SYMBOLS.map(({ sym, label, key }) => {
-                const q = allQuoteMap.get(sym) ?? null;
-                const up = q ? q.changePct >= 0 : false;
-                const active = activeIndex === key;
-                return (
-                  <div
-                    key={sym}
-                    onClick={() => setActiveIndex(key)}
-                    className={`flex items-center justify-between px-3 py-1 border-b border-border/20 text-xs cursor-pointer transition-colors ${
-                      active ? "bg-background/40" : "hover:bg-card/70"
-                    }`}
-                  >
-                    <span className={`text-[11px] font-semibold uppercase tracking-wider ${active ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
-                    {q ? (
-                      <div className="flex items-center gap-2 font-mono tabular-nums">
-                        <span className="w-[52px] text-right">{fmt(q.price, 2)}</span>
-                        <span className={`w-[44px] text-right ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                          {q.changePct >= 0 ? "+" : ""}{fmt(q.changePct, 2)}%
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">—</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* CHART */}
-        <div className="flex-1 min-w-0">
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="px-3 py-2 border-b border-border bg-background/40 flex items-center justify-between">
-              <h2 className="text-xs font-semibold text-foreground tracking-wide">Index Contribution</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground select-none">Replay</span>
-                <CountdownTimer />
-              </div>
-            </div>
-            <div className="p-1">
-              {data.rows.length > 0 ? (
-                <ReactECharts option={chartOption} style={{ height: 500, width: "100%" }} opts={{ renderer: "canvas" }} />
-              ) : (
-                <div className="flex items-center justify-center h-[500px] text-xs text-muted-foreground">No chart data</div>
-              )}
-            </div>
-          </div>
-        </div>
+    <section className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-h-11 items-center justify-between border-b border-border px-4 py-2.5">
+        <h2 className={`text-sm font-semibold ${isPositive ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
+          {title}
+        </h2>
+        <span
+          className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+            isPositive
+              ? "border-emerald-500/30 bg-emerald-500/10 text-[var(--bull)]"
+              : "border-rose-500/30 bg-rose-500/10 text-[var(--bear)]"
+          }`}
+        >
+          {rows.length}
+        </span>
       </div>
-
-      {/* BOTTOM: 3-col grid (Positive | Points | Negative) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* Positive Contributors */}
-        <div className="lg:col-span-3">
-          <div className="rounded-lg border border-border bg-card overflow-hidden flex flex-col h-fit">
-            <div className="px-3 py-2 border-b border-border bg-card flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-[var(--bull)]">Positive Contributors</h3>
-              <span className="text-[10px] text-[var(--bull)] uppercase tracking-wider font-medium bg-[var(--bull)]/10 px-1.5 py-0.5 rounded border border-[var(--bull)]/20">
-                {data.positive.length}
+      <div className="grid grid-cols-[1fr_92px_62px] border-b border-border bg-background/30 px-4 py-2 text-[11px] text-muted-foreground">
+        <span>Symbol</span>
+        <span className="text-right">Price</span>
+        <span className="text-right">Chg%</span>
+      </div>
+      <div className="max-h-[478px] overflow-y-auto [scrollbar-color:#263244_#070b11] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-corner]:bg-[#070b11] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#263244] [&::-webkit-scrollbar-track]:bg-[#070b11]">
+        {rows.length === 0 ? (
+          <div className="px-4 py-8 text-center text-xs text-muted-foreground">
+            No {isPositive ? "positive" : "negative"} contributors
+          </div>
+        ) : (
+          rows.map((row) => (
+            <div
+              key={row.symbol}
+              className="grid min-h-9 grid-cols-[1fr_92px_62px] items-center border-b border-border/35 px-4 hover:bg-muted/25"
+            >
+              <span className="truncate text-xs font-semibold text-foreground">{row.symbol}</span>
+              <span className="text-right text-xs tabular-nums text-foreground">
+                {priceFormat.format(row.price)}
+              </span>
+              <span
+                className={`text-right text-xs font-semibold tabular-nums ${
+                  row.changePct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                }`}
+              >
+                {row.changePct >= 0 ? "+" : ""}{row.changePct.toFixed(2)}%
               </span>
             </div>
-            <div className="flex items-center justify-between px-3 py-1 bg-background/20 border-b border-border text-[10px] text-muted-foreground tracking-wider">
-              <span>Symbol</span>
-              <div className="flex items-center gap-2 text-right">
-                <span className="w-12">Price</span>
-                <span className="w-12">Chg%</span>
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-[520px]">
-              {data.positive.map((r) => (
-                <div key={r.symbol} className="flex items-center justify-between px-3 py-1 border-b border-border/20 hover:bg-card/70 text-xs">
-                  <span className="font-semibold">{r.symbol}</span>
-                  <div className="flex items-center gap-2 text-right font-mono tabular-nums">
-                    <span className="w-12">{fmt(r.price, 2)}</span>
-                    <span className={`w-12 ${r.changePct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                      {r.changePct >= 0 ? "+" : ""}{fmt(r.changePct, 2)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Points Contribution — Building shape layout */}
-        <div className="lg:col-span-6">
-          <div className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="px-3 py-2 border-b border-border bg-card flex flex-wrap items-center justify-between gap-1">
-              <h3 className="text-xs font-semibold text-foreground">Points Contribution</h3>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-mono font-bold tabular-nums text-[var(--bull)]">+{fmt(totalPosPoints, 2)}</span>
-                <span className="font-mono font-bold tabular-nums text-[var(--bear)]">{fmt(totalNegPoints, 2)}</span>
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-[520px]">
-              <div className="min-w-[600px]">
-                {(() => {
-                  const posSorted = [...data.positive].sort((a, b) => b.contributionPct - a.contributionPct);
-                  const negSorted = [...data.negative].sort((a, b) => Math.abs(b.contributionPct) - Math.abs(a.contributionPct));
-                  const count = Math.max(posSorted.length, negSorted.length);
-                  const pairs: { pos: typeof posSorted[0] | null; neg: typeof negSorted[0] | null }[] = [];
-                  for (let i = 0; i < count; i++) pairs.push({ pos: posSorted[i] ?? null, neg: negSorted[i] ?? null });
-                  const maxPosPct = Math.max(0.01, ...data.positive.map(r => r.contributionPct));
-                  const maxNegPct = Math.max(0.01, ...data.negative.map(r => Math.abs(r.contributionPct)));
-                  return pairs.map((pair, i) => {
-                    const gp = pair.pos ? Math.min(pair.pos.contributionPct / maxPosPct * 100, 100) : 0;
-                    const rp = pair.neg ? Math.min(Math.abs(pair.neg.contributionPct) / maxNegPct * 100, 100) : 0;
-                    return (
-                      <div key={i} className="flex items-center h-[22px] px-2 border-b border-border/10 hover:bg-card/50">
-                        <div className="w-[190px] flex-shrink-0 flex items-center justify-end gap-1.5 pr-2">
-                          {pair.pos && (
-                            <>
-                              <span className="text-[11px] font-semibold text-muted-foreground truncate">{pair.pos.symbol}</span>
-                              <span className="text-[11px] font-mono tabular-nums text-[var(--bull)] font-medium">
-                                +{fmt(pair.pos.contributionPoints, 2)}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                        <div className="flex-1 flex items-center justify-end min-w-0">
-                          {pair.pos && (
-                            <div
-                              className="bg-[var(--bull)] h-3.5 flex items-center justify-end px-1 shrink-0"
-                              style={{ width: `${Math.max(gp, 2)}%`, borderRadius: 0 }}
-                            >
-                              <span className="text-[9px] font-mono tabular-nums text-white font-bold leading-none whitespace-nowrap">
-                                {fmt(pair.pos.contributionPct, 1)}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="shrink-0 w-px h-5 mx-1 bg-border/30" />
-                        <div className="flex-1 flex items-center min-w-0">
-                          {pair.neg && (
-                            <div
-                              className="bg-[var(--bear)] h-3.5 flex items-center px-1 shrink-0"
-                              style={{ width: `${Math.max(rp, 2)}%`, borderRadius: 0 }}
-                            >
-                              <span className="text-[9px] font-mono tabular-nums text-white font-bold leading-none whitespace-nowrap">
-                                {fmt(Math.abs(pair.neg.contributionPct), 1)}%
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="w-[190px] flex-shrink-0 flex items-center gap-1.5 pl-2">
-                          {pair.neg && (
-                            <>
-                              <span className="text-[11px] font-mono tabular-nums text-[var(--bear)] font-medium">
-                                {fmt(pair.neg.contributionPoints, 2)}
-                              </span>
-                              <span className="text-[11px] font-semibold text-muted-foreground truncate">{pair.neg.symbol}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Negative Contributors */}
-        <div className="lg:col-span-3">
-          <div className="rounded-lg border border-border bg-card overflow-hidden flex flex-col h-fit">
-            <div className="px-3 py-2 border-b border-border bg-card flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-[var(--bear)]">Negative Contributors</h3>
-              <span className="text-[10px] text-[var(--bear)] uppercase tracking-wider font-medium bg-[var(--bear)]/10 px-1.5 py-0.5 rounded border border-[var(--bear)]/20">
-                {data.negative.length}
-              </span>
-            </div>
-            <div className="flex items-center justify-between px-3 py-1 bg-background/20 border-b border-border text-[10px] text-muted-foreground tracking-wider">
-              <span>Symbol</span>
-              <div className="flex items-center gap-2 text-right">
-                <span className="w-12">Price</span>
-                <span className="w-12">Chg%</span>
-              </div>
-            </div>
-            <div className="overflow-y-auto max-h-[520px]">
-              {data.negative.map((r) => (
-                <div key={r.symbol} className="flex items-center justify-between px-3 py-1 border-b border-border/20 hover:bg-card/70 text-xs">
-                  <span className="font-semibold">{r.symbol}</span>
-                  <div className="flex items-center gap-2 text-right font-mono tabular-nums">
-                    <span className="w-12">{fmt(r.price, 2)}</span>
-                    <span className={`w-12 ${r.changePct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                      {r.changePct >= 0 ? "+" : ""}{fmt(r.changePct, 2)}%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          ))
+        )}
       </div>
-    </DashboardShell>
+    </section>
   );
+}
+
+function ChartState({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="grid h-full min-h-[380px] place-items-center px-6 text-center">
+      <div className="max-w-md">
+        <div className="text-sm font-semibold text-foreground">{title}</div>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
+function formatTimestamp(timestamp: number): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(timestamp);
+}
+
+function formatDate(date: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Kolkata",
+  }).format(new Date(`${date}T00:00:00+05:30`));
 }
