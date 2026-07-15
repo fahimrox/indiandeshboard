@@ -137,9 +137,10 @@ export const getCepeVolHistory = createServerFn({ method: "GET" })
 
 // ─── EOD OI snapshot (for Chart Lab OI bars after market close) ───────────────
 // Fallback chain:
-//   1. SQLite option_chain_snapshots (latest row for today) + oi_activity (per-strike)
-//   2. eod_cache persistent JSON (getEodOptionChain)
-//   3. Returns null if nothing saved yet
+//   1. Supabase latest complete option/OI snapshot for the requested date
+//   2. SQLite latest complete option/OI snapshot for the requested date
+//   3. eod_cache persistent JSON (getEodOptionChain)
+//   4. Returns null if nothing saved yet
 //
 // This lets Chart Lab show OI bars even after market closes — using the last
 // saved snapshot. Never fetches live brokers here (caller handles live path).
@@ -147,6 +148,7 @@ export const getCepeVolHistory = createServerFn({ method: "GET" })
 export type EodOiRow = {
   strike: number;
   callOI: number; putOI: number;
+  // Change from the immediately preceding complete refresh, not day OI change.
   callChg: number; putChg: number;
   callVol: number; putVol: number;
 };
@@ -173,49 +175,40 @@ export const getEodOiSnapshot = createServerFn({ method: "GET" })
     const todayIST = istNow.toISOString().slice(0, 10);
     const date = data.date ?? todayIST;
 
-    // ── 1. Try SQLite DB ──────────────────────────────────────────────────────
+    // ── 1. Try Supabase, then SQLite as one coherent database fallback ───────
     try {
-      const { dbService } = await import("./services/database.server");
-      // Get latest snapshot row for this symbol+date
-      const snapRows: any[] = dbService.getOptionHistory(data.symbol, date, 1);
-      if (snapRows?.length) {
-        // Pick the latest snapshot
-        const snap = snapRows[snapRows.length - 1];
-        const snapshotId = snap.id as number;
+      const { getHistoricalLatestOiSnapshot } = await import(
+        "./services/historicalDataService.server"
+      );
+      const snapshot = await getHistoricalLatestOiSnapshot(
+        data.symbol,
+        date
+      );
 
-        // Get per-strike rows from oi_activity
-        const oiRows: any[] = dbService.getOiHistory(snapshotId);
-
-        if (oiRows?.length) {
-          const [hh, mm] = (snap.trading_time as string).split(":").map(Number);
-          const updatedAt = new Date(
-            `${snap.trading_date}T${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}:00+05:30`
-          ).getTime();
-
-          return {
-            symbol: data.symbol,
-            spot: Number(snap.spot_price),
-            expiry: snap.expiry,
-            updatedAt,
-            lastTimeStr: snap.trading_time,
-            source: "db",
-            rows: oiRows.map((r: any) => ({
-              strike: Number(r.strike),
-              callOI: Number(r.ce_oi ?? 0),
-              putOI: Number(r.pe_oi ?? 0),
-              callChg: Number(r.ce_oi_chg ?? 0),
-              putChg: Number(r.pe_oi_chg ?? 0),
-              callVol: Number(r.ce_vol ?? 0),
-              putVol: Number(r.pe_vol ?? 0),
-            })),
-          };
-        }
+      if (snapshot?.rows.length) {
+        return {
+          symbol: snapshot.symbol,
+          spot: snapshot.spot,
+          expiry: snapshot.expiry,
+          updatedAt: snapshot.timestamp,
+          lastTimeStr: snapshot.tradingTime,
+          source: "db",
+          rows: snapshot.rows.map((row) => ({
+            strike: row.strike,
+            callOI: row.ceOi,
+            putOI: row.peOi,
+            callChg: row.ceRefreshChg,
+            putChg: row.peRefreshChg,
+            callVol: row.ceVol,
+            putVol: row.peVol,
+          })),
+        };
       }
     } catch {
-      /* DB not available on Cloudflare — fall through */
+      /* Database reads unavailable — fall through to persistent EOD cache */
     }
 
-    // ── 2. Try eod_cache JSON ─────────────────────────────────────────────────
+    // ── 3. Try eod_cache JSON ─────────────────────────────────────────────────
     try {
       const { getEodOptionChain } = await import("./services/persistentCache");
       const cached = await getEodOptionChain(data.symbol);
@@ -233,8 +226,9 @@ export const getEodOiSnapshot = createServerFn({ method: "GET" })
             strike: r.strike,
             callOI: r.ce?.oi ?? 0,
             putOI: r.pe?.oi ?? 0,
-            callChg: r.ce?.oiChg ?? 0,
-            putChg: r.pe?.oiChg ?? 0,
+            // A single cache snapshot has no preceding refresh to compare.
+            callChg: 0,
+            putChg: 0,
             callVol: r.ce?.volume ?? 0,
             putVol: r.pe?.volume ?? 0,
           })),

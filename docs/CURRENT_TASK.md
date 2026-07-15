@@ -13,6 +13,10 @@ Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
 **Current Objective:**
 Proceed to Phase 2B: Frontend historical chart integration (selectable trading dates, range selectors, loaders/states, and ECharts integrations).
 
+**Latest Completed Vertical Slice (15 July 2026):**
+- Chart Lab EOD/latest OI now reads a coherent Supabase snapshot first with SQLite fallback.
+- Chart Lab OI profile now uses refresh-to-refresh CE/PE OI changes only, retains the final saved refresh state after market close, matches the supplied flat broker-profile styling with wide square bars and colored hollow draining tips, shows strike-only axis labels, uses available real CE+PE activity as index volume, fits the viewport without page scroll, and remains populated when switching indices.
+
 ---
 
 ## Roadmap & Phases
@@ -27,6 +31,7 @@ Proceed to Phase 2B: Frontend historical chart integration (selectable trading d
 
 ### Phase 2 — Seven-trading-day historical data
 - [x] Phase 2A: Complete historical range query backend integration (market-history, option-history, OI activity, breadth, sector strength, with robust validation and dual-source orchestration).
+- [x] Chart Lab latest EOD OI Supabase-first read and OI-profile UI vertical slice.
 - [ ] Phase 2B: Frontend historical chart integration (selectable trading dates, intraday range filters, ECharts/Recharts integration, and UI state indicators).
 - [x] Preserve existing live collection.
 - [x] Support querying by symbol/index, start date, end date, and interval.
