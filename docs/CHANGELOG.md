@@ -6,6 +6,35 @@
 
 ---
 
+## 2026-07-15 22:50 IST — Codex (GPT-5)
+
+### Task
+Merge the approved Index Contribution implementation into `main` and deploy it safely to the Oracle production server.
+
+### Files Changed
+- `docs/CHANGELOG.md`
+- `docs/SESSION_HANDOVER.md`
+
+### Deployment
+- Confirmed `feat/index-contribution-professional-ui` was clean at approved commit `1133acb93f8b78c40725a8c393a045ce817d3261`, and that `origin/main` still matched the feature branch merge base.
+- Merged without squash or rebase through merge commit `4dd97f378731f947ecaa2fdf28be90262d06fa76` and pushed `main`.
+- Ran the existing `/home/ubuntu/deploy-indian-dashboard.sh` script. It pulled `main`, installed dependencies, built with `NITRO_PRESET=node-server`, restarted PM2 process `indian-dashboard`, and saved PM2 state.
+
+### Validation
+- Local `git diff --check HEAD~2..HEAD` and merge-parent diff check: ✅ exit 0.
+- Local `NITRO_PRESET=node-server npm run build`: ✅ exit 0.
+- Oracle Linux ARM64 deployment build: ✅ exit 0.
+- PM2 `indian-dashboard`: online with zero unstable restarts; bound only to `127.0.0.1:3000`.
+- Public `https://bazaarmood.com/` and `/index-contribution`: HTTP 200.
+- Browser verified NIFTY 50, BANK NIFTY, and SENSEX selection; Prev, Intraday, 3m, 5m, 15m, and 1h controls; positive/negative contribution lines; the thin dotted index-price line; contributor tables; and dark side scrollbars.
+- Reconciliation remained exact (`0.00`) for all three indices on Intraday and for all six SENSEX periods. Unchanged values remained stable over 10.5 seconds, and browser logs contained no hydration or runtime errors.
+
+### Remaining Risks / Warnings
+- The Index Contribution client chunk is approximately 1.16 MB minified; the build reports the existing large-chunk warning.
+- The Oracle dependency audit reports one low-severity vulnerability, and existing Vite externalization/code-splitting warnings remain.
+- Production PM2 error history retains older stale-cache, expired-FYERS fallback, and Supabase duplicate-key warnings. Post-deployment requests added only market-closed stale-cache warnings; no fresh startup/runtime failure was observed.
+- The production worktree retains its pre-existing modified `package-lock.json`; it was not changed or reverted by this deployment task.
+
 ## 2026-07-15 19:38 IST — Codex (GPT-5)
 
 ### Task
