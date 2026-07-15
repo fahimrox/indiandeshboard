@@ -320,6 +320,31 @@ export interface HistoricalOptionHistoryResult {
   data: HistoricalOptionChainSnapshot[];
   metadata: HistoricalSourceMetadata;
 }
+
+export interface HistoricalLatestOiStrikeRow {
+  strike: number;
+  ceOi: number;
+  peOi: number;
+  ceOiChg: number;
+  peOiChg: number;
+  ceRefreshChg: number;
+  peRefreshChg: number;
+  ceVol: number;
+  peVol: number;
+}
+
+export interface HistoricalLatestOiSnapshot {
+  symbol: string;
+  spot: number;
+  expiry: string;
+  tradingDate: string;
+  tradingTime: string;
+  timestamp: number;
+  rows: HistoricalLatestOiStrikeRow[];
+  metadata: {
+    source: HistoricalDataSource;
+  };
+}
 /**
  * Returns today's YYYY-MM-DD string in IST timezone (Asia/Kolkata).
  * Uses Intl.DateTimeFormat to ensure it is independent of the host machine timezone.
@@ -1270,6 +1295,259 @@ export function sampleOptionChainSnapshots(
     );
   });
 }
+
+const LATEST_OI_SUPABASE_TIMEOUT_MS = 10_000;
+
+type SnapshotBusinessKeyRow = {
+  trading_date: string;
+  trading_time: string;
+  symbol: string;
+  expiry: string;
+};
+
+function getSnapshotBusinessKey(row: SnapshotBusinessKeyRow): string {
+  return [
+    row.trading_date,
+    row.trading_time,
+    row.symbol,
+    row.expiry,
+  ].join("\u0000");
+}
+
+function selectLatestCompleteOiSnapshot(
+  parentRows: HistoricalOptionChainSnapshot[],
+  oiRows: HistoricalOiActivityRow[],
+  source: HistoricalDataSource
+): HistoricalLatestOiSnapshot | null {
+  const oiRowsBySnapshot = new Map<string, HistoricalOiActivityRow[]>();
+
+  for (const row of oiRows) {
+    const key = getSnapshotBusinessKey(row);
+    const matchingRows = oiRowsBySnapshot.get(key);
+
+    if (matchingRows) {
+      matchingRows.push(row);
+    } else {
+      oiRowsBySnapshot.set(key, [row]);
+    }
+  }
+
+  const orderedParents = [...parentRows].sort((a, b) => {
+    if (a.trading_date !== b.trading_date) {
+      return b.trading_date.localeCompare(a.trading_date);
+    }
+    if (a.trading_time !== b.trading_time) {
+      return b.trading_time.localeCompare(a.trading_time);
+    }
+    if (a.symbol !== b.symbol) {
+      return b.symbol.localeCompare(a.symbol);
+    }
+    if (a.expiry !== b.expiry) {
+      return b.expiry.localeCompare(a.expiry);
+    }
+    return b.timestamp - a.timestamp;
+  });
+
+  let latestSnapshot: HistoricalLatestOiSnapshot | null = null;
+
+  for (const parent of orderedParents) {
+    const matchingRows = oiRowsBySnapshot.get(
+      getSnapshotBusinessKey(parent)
+    );
+
+    if (!matchingRows?.length) {
+      continue;
+    }
+
+    const rowsByStrike = new Map<number, HistoricalOiActivityRow>();
+    for (const row of matchingRows) {
+      rowsByStrike.set(row.strike, row);
+    }
+
+    const rows = Array.from(rowsByStrike.values())
+      .sort((a, b) => a.strike - b.strike)
+      .map((row) => ({
+        strike: row.strike,
+        ceOi: row.ce_oi,
+        peOi: row.pe_oi,
+        ceOiChg: row.ce_oi_chg,
+        peOiChg: row.pe_oi_chg,
+        ceRefreshChg: 0,
+        peRefreshChg: 0,
+        ceVol: row.ce_vol,
+        peVol: row.pe_vol,
+      }));
+
+    const snapshot: HistoricalLatestOiSnapshot = {
+      symbol: parent.symbol,
+      spot: parent.spot_price,
+      expiry: parent.expiry,
+      tradingDate: parent.trading_date,
+      tradingTime: parent.trading_time,
+      timestamp: parent.timestamp,
+      rows,
+      metadata: { source },
+    };
+
+    if (!latestSnapshot) {
+      latestSnapshot = snapshot;
+      continue;
+    }
+
+    if (
+      snapshot.tradingDate !== latestSnapshot.tradingDate ||
+      snapshot.symbol !== latestSnapshot.symbol ||
+      snapshot.expiry !== latestSnapshot.expiry ||
+      snapshot.tradingTime === latestSnapshot.tradingTime
+    ) {
+      continue;
+    }
+
+    const previousRowsByStrike = new Map(
+      snapshot.rows.map((row) => [row.strike, row] as const)
+    );
+
+    latestSnapshot.rows = latestSnapshot.rows.map((row) => {
+      const previous = previousRowsByStrike.get(row.strike);
+      return {
+        ...row,
+        ceRefreshChg: previous ? row.ceOi - previous.ceOi : 0,
+        peRefreshChg: previous ? row.peOi - previous.peOi : 0,
+      };
+    });
+
+    return latestSnapshot;
+  }
+
+  return latestSnapshot;
+}
+
+export async function getHistoricalLatestOiSnapshot(
+  symbol: string,
+  requestedDate: string,
+  expiry?: string
+): Promise<HistoricalLatestOiSnapshot | null> {
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedDate = requestedDate.trim();
+  const normalizedExpiry = expiry?.trim() || undefined;
+
+  if (!normalizedSymbol) {
+    throw new Error("Symbol parameter is required and cannot be empty.");
+  }
+  if (!normalizedDate) {
+    throw new Error("Requested trading date is required and cannot be empty.");
+  }
+
+  let supabaseError: unknown = null;
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  try {
+    const supabaseRead = Promise.all([
+      getSupabaseOptionHistoryRange(
+        normalizedSymbol,
+        normalizedDate,
+        normalizedDate,
+        normalizedExpiry
+      ),
+      getSupabaseOiActivityHistoryRange(
+        normalizedSymbol,
+        normalizedDate,
+        normalizedDate,
+        normalizedExpiry,
+        1
+      ),
+    ]);
+
+    // A timed-out network request can settle after the fallback has completed.
+    // Keep that late rejection handled without allowing it to block SQLite.
+    supabaseRead.catch(() => {});
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(
+          new Error(
+            `Supabase latest OI snapshot query timed out after ${LATEST_OI_SUPABASE_TIMEOUT_MS}ms`
+          )
+        );
+      }, LATEST_OI_SUPABASE_TIMEOUT_MS);
+    });
+
+    const [rawParentRows, rawOiRows] = await Promise.race([
+      supabaseRead,
+      timeoutPromise,
+    ]);
+
+    const supabaseSnapshot = selectLatestCompleteOiSnapshot(
+      rawParentRows.map((row) => normalizeSupabaseOptionRow(row)),
+      rawOiRows.map((row) => normalizeSupabaseOiActivityRow(row)),
+      "supabase"
+    );
+
+    if (supabaseSnapshot) {
+      return supabaseSnapshot;
+    }
+
+    supabaseError = new Error(
+      `Supabase returned no complete OI snapshot for ${normalizedSymbol} on ${normalizedDate}.`
+    );
+  } catch (error) {
+    supabaseError = error;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  if (supabaseError) {
+    const message =
+      supabaseError instanceof Error
+        ? supabaseError.message
+        : String(supabaseError);
+    console.warn(
+      `[historicalDataService] Supabase latest OI snapshot read failed or was incomplete for ${normalizedSymbol} on ${normalizedDate}. Falling back to SQLite. Error: ${message}`
+    );
+  }
+
+  try {
+    const rawParentRows = dbService.getOptionHistoryRangeRaw(
+      normalizedSymbol,
+      normalizedDate,
+      normalizedDate
+    );
+    const rawOiRows = dbService.getOiActivityHistoryRangeRaw(
+      normalizedSymbol,
+      normalizedDate,
+      normalizedDate,
+      normalizedExpiry
+    );
+
+    const filteredParentRows = normalizedExpiry
+      ? rawParentRows.filter(
+          (row) => String(row.expiry) === normalizedExpiry
+        )
+      : rawParentRows;
+
+    return selectLatestCompleteOiSnapshot(
+      filteredParentRows.map((row) => normalizeSQLiteOptionRow(row)),
+      rawOiRows.map((row) => normalizeSQLiteOiActivityRow(row)),
+      "sqlite"
+    );
+  } catch (sqliteError) {
+    const supabaseMessage =
+      supabaseError instanceof Error
+        ? supabaseError.message
+        : String(supabaseError);
+    const sqliteMessage =
+      sqliteError instanceof Error
+        ? sqliteError.message
+        : String(sqliteError);
+
+    throw new Error(
+      `Latest OI snapshot read failed on both Supabase and SQLite. Supabase error: ${supabaseMessage}. SQLite error: ${sqliteMessage}`
+    );
+  }
+}
+
 export interface HistoricalMarketHistoryResult {
   data: HistoricalMarketSnapshot[];
   metadata: HistoricalSourceMetadata;
