@@ -21,10 +21,14 @@ function SymbolSelectorBase(p: Props) {
             className="w-full appearance-none rounded-xl border border-slate-700/50 bg-slate-800/60 px-3 py-2.5 text-sm font-semibold text-slate-100 outline-none focus:border-sky-500"
           >
             {INDEX_OPTIONS.map((o) => (
-              <option key={o.id} value={o.id}>{o.label}</option>
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
             ))}
           </select>
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">&#9662;</span>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+            &#9662;
+          </span>
         </div>
       </div>
 
@@ -36,7 +40,9 @@ function SymbolSelectorBase(p: Props) {
           className="w-full rounded-xl border border-slate-700/50 bg-slate-800/60 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-sky-500"
         >
           {p.expiries.map((e) => (
-            <option key={e} value={e}>{e}</option>
+            <option key={e} value={e}>
+              {e}
+            </option>
           ))}
         </select>
       </div>

@@ -254,8 +254,12 @@ engine — sentiment/PCR/max-pain/S-R/buildup/VIX/smart-money/action-plan/signal
   Poll with market-hours-aware intervals; `placeholderData: keepPreviousData` to
   avoid layout jumps; check `isPending` (not `isLoading`) for first-load spinners.
 - **Local UI state → `useState`** (symbol, expiry, filters, toggles).
-- **Cross-cutting client caches** → module-level stores where appropriate (e.g.
-  `oiHistoryStore.ts` session buffer). No global Redux/Zustand.
+- **Cross-cutting derived history series** → build reactively with `useMemo` from
+  TanStack Query data (e.g. OI Analysis' `liveHistorySnapshots` in
+  `OIAnalysisPage.tsx`, derived from the historical option/OI queries) so React
+  recomputes on every data change. Avoid mutable module-level stores for anything
+  that feeds a memo/render — they don't trigger re-renders reliably. No global
+  Redux/Zustand.
 - **Derivations → `useMemo`**; stable callbacks → `useCallback`; heavy components
   wrapped in `memo`.
 

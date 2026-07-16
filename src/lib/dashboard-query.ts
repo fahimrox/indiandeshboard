@@ -1,12 +1,31 @@
 import { queryOptions, keepPreviousData } from "@tanstack/react-query";
-import { getDashboard, getQuotes, getIndexConstituents, getIndexContributions, getSectorDetail, getIntradayBooster } from "./market.functions";
-import { getFnoStocks, getOptionChain, getCachedOptionChain, getFnoScreener } from "./nse.functions";
+import {
+  getDashboard,
+  getQuotes,
+  getIndexConstituents,
+  getIndexContributions,
+  getSectorDetail,
+  getIntradayBooster,
+} from "./market.functions";
+import {
+  getFnoStocks,
+  getOptionChain,
+  getCachedOptionChain,
+  getFnoScreener,
+} from "./nse.functions";
 import { getCandles, getCepeVolHistory, getEodOiSnapshot } from "./chart.functions";
-import { getIndexContributionHistory, type IndexContributionKey } from "./index-contribution.functions";
+import {
+  getIndexContributionHistory,
+  type IndexContributionKey,
+} from "./index-contribution.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
-const liveInterval = (msOpen: number, msClosed = 60_000) => () =>
-  isMarketOpenIst() ? msOpen : Math.max(msClosed, Math.min(msUntilNextMarketOpenIst(), 30 * 60_000));
+const liveInterval =
+  (msOpen: number, msClosed = 60_000) =>
+  () =>
+    isMarketOpenIst()
+      ? msOpen
+      : Math.max(msClosed, Math.min(msUntilNextMarketOpenIst(), 30 * 60_000));
 
 export const dashboardQuery = queryOptions({
   queryKey: ["dashboard"],
@@ -114,4 +133,60 @@ export const cachedOptionChainQuery = (symbol: string, expiry?: string) =>
     staleTime: Infinity,
     gcTime: Infinity,
     retry: false,
+  });
+
+/**
+ * Query historical option-chain data for a specific date or date range.
+ * Returns array of historical snapshots with metadata.
+ */
+export const historicalOptionQuery = (
+  symbol: string,
+  date: string,
+  expiry?: string,
+  interval?: number,
+) =>
+  queryOptions({
+    queryKey: ["historical-option", symbol, date, expiry ?? "", interval ?? 0],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        symbol,
+        date,
+        ...(expiry && { expiry }),
+        ...(interval && interval > 0 && { interval: String(interval) }),
+      });
+      const res = await fetch(`/api/option-history?${params}`);
+      if (!res.ok) throw new Error(`Historical option fetch failed: ${res.status}`);
+      return await res.json();
+    },
+    staleTime: 5 * 60_000, // Historical data is stable, cache for 5 minutes
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+
+/**
+ * Query historical OI activity (strike-level detail) for a specific date.
+ * Returns array of strike-level OI rows with metadata.
+ */
+export const historicalOiActivityQuery = (
+  symbol: string,
+  date: string,
+  expiry?: string,
+  interval?: number,
+) =>
+  queryOptions({
+    queryKey: ["historical-oi-activity", symbol, date, expiry ?? "", interval ?? 0],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        symbol,
+        date,
+        ...(expiry && { expiry }),
+        ...(interval && interval > 0 && { interval: String(interval) }),
+      });
+      const res = await fetch(`/api/oi-history?${params}`);
+      if (!res.ok) throw new Error(`Historical OI fetch failed: ${res.status}`);
+      return await res.json();
+    },
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
   });

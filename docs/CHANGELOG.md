@@ -6,6 +6,103 @@
 
 ---
 
+## 2026-07-16 23:37 IST — Claude Sonnet 5
+
+### Task
+Complete and audit OI Analysis V2 (real historical OI analysis) on branch
+`feat/oi-analysis-real-history`, then commit the verified work locally.
+
+### Summary
+- **Historical integration:** `/oi-analysis` now wires LIVE and HISTORICAL modes to
+  the real backend option-chain and OI-activity history endpoints
+  (`/api/option-history`, `/api/oi-history`) via `historicalOptionQuery` /
+  `historicalOiActivityQuery` in `dashboard-query.ts`. No mock/synthetic OI data
+  in any path.
+- **Real time-window presets (3m/5m/10m/15m/30m/1h/2h/3h/Full Day):** Replaced a
+  non-reactive, wrongly-keyed in-memory buffer with a reactive backend snapshot
+  series (`liveHistorySnapshots`, built with `useMemo` from the historical
+  queries). Root causes fixed:
+  1. Time windows were anchored to `Date.now()` because the code read
+     non-existent fields (`optionChain.timestamp`, `snapshot_time`); corrected to
+     the real fields (`OptionChain.updatedAt`, `HistoricalOptionChainSnapshot.timestamp`,
+     both epoch ms, IST-derived via `parseIstToUtcEpoch`).
+  2. Baseline snapshots were hydrated into a mutable module-level `Map` that
+     React never re-rendered from; replaced with a `useMemo`-derived series so
+     every preset change recomputes correctly.
+  Verified against the live backend: NIFTY, expiry 21-Jul-2026, 258 real
+  snapshots, latest 15:30:28 IST; 3m baseline resolved to 15:27:28, 5m to
+  15:25:28, 15m to 15:15:28, each with distinct non-zero signed OI deltas.
+- **Chart fixes:** Responsive bar/group width that compresses to fit the
+  container (no desktop horizontal scroll at 1920/1366/1024px; scoped dark
+  scrollbar only as a last resort on narrow widths). Tooltip rewritten as a
+  fixed-position, `pointer-events-none` overlay (no more hover jitter/layout
+  shift) and simplified to Strike, Call OI, Put OI, Call ΔOI, Put ΔOI only.
+- **Visual/compactness:** Signed bars with zero baseline, hatch/drain OI-change
+  treatment, ~10-15% denser page layout, RadialGauge switched to a robust
+  centered flexbox overlay (no magic offsets).
+- **Data-trust safeguards:** Explicit stale-data guards so a symbol/date/expiry
+  change never shows the previous selection's data; honest "Insufficient
+  History" warning when no valid comparison snapshot exists (never fabricated
+  zero movement); historical no-data states disable time controls.
+- **Dead-code cleanup:** Removed `src/features/oi-analysis/oiHistoryStore.ts`
+  (superseded module-level buffer, zero remaining imports), a dead synthetic
+  linear-interpolation helper (`scaleSnapshotForWindow`, zero call sites), and a
+  duplicated inline `<style>` scrollbar block already covered by `styles.css`.
+  Updated `docs/PROJECT_MASTER.md`'s state-management section to describe the
+  reactive-series pattern instead of the removed store.
+
+### Files Changed
+- `src/features/oi-analysis/OIAnalysisPage.tsx`
+- `src/features/oi-analysis/components/BottomPanels.tsx`
+- `src/features/oi-analysis/components/ChartToolbar.tsx`
+- `src/features/oi-analysis/components/OIChart.tsx`
+- `src/features/oi-analysis/components/OISidebar.tsx`
+- `src/features/oi-analysis/components/RadialGauge.tsx`
+- `src/features/oi-analysis/components/SymbolSelector.tsx`
+- `src/features/oi-analysis/components/TimeControls.tsx`
+- `src/features/oi-analysis/hooks/useOIAnalysis.ts`
+- `src/features/oi-analysis/hooks/useTimeWindow.ts`
+- `src/features/oi-analysis/oiHistoryStore.ts` (deleted)
+- `src/features/oi-analysis/transformOptionChain.ts`
+- `src/features/oi-analysis/types.ts`
+- `src/features/oi-analysis/utils.ts`
+- `src/lib/dashboard-query.ts`
+- `src/styles.css`
+- `docs/PROJECT_MASTER.md`
+
+### Why
+Time-window presets silently showed no real change and, after market close,
+always fell back to wall-clock timing that could never match saved snapshots.
+The chart also side-scrolled and jittered on hover at common desktop widths.
+This work fixes the root causes with real backend history instead of any
+synthetic/interpolated approximation, per the project's real-data-only mandate.
+
+### Validation
+- `git diff --check`: ✅ clean (no whitespace/conflict-marker errors)
+- `npx tsc --noEmit`: 2 pre-existing, unrelated errors only —
+  `src/components/IndexContribution/IndexContributionChart.tsx` and
+  `src/lib/services/supabase.server.ts`. **Zero OI Analysis errors.**
+- `npm run build`: ✅ exit 0 (client + ssr + nitro)
+- Runtime: dev server SSR of `/oi-analysis` returned HTTP 200 with no
+  error-boundary output; `/api/option-history` and `/api/oi-history` verified
+  live against the running dev server (377 real snapshots across 3 expiries;
+  5,397 real strike-level OI rows for the active expiry). Baseline-selection
+  arithmetic for 3m/5m/15m independently reproduced against this live data with
+  correct target timestamps and distinct non-zero deltas.
+- No database schema, scheduler, or Supabase dual-write logic was touched.
+
+### Remaining Risks / Follow-ups
+- Tooltip is not clamped to the viewport edge (minor cosmetic risk near screen
+  edges).
+- `pcrOIChange` is currently computed identically to `pcr` (pre-existing
+  simplification, out of scope for this task).
+- No browser-automation click-through was available in this environment;
+  verification relied on live endpoint responses, SSR rendering, and
+  independent reproduction of the baseline-selection arithmetic rather than
+  literal UI clicks.
+- Feature branch `feat/oi-analysis-real-history` is committed locally only; not
+  merged, pushed, or deployed.
+
 ## 2026-07-15 22:50 IST — Codex (GPT-5)
 
 ### Task

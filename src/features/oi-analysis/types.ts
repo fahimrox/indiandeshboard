@@ -3,7 +3,7 @@ export type SentimentLabel = "Bullish" | "Bearish" | "Neutral";
 export type ChartMode = "OI_CHANGE_TOTAL" | "OI_CHANGE" | "TOTAL_OI";
 
 /** Data-source status shown in the chart toolbar badge. */
-export type DataStatus = "LIVE" | "EOD" | "FAIL";
+export type DataStatus = "LIVE" | "EOD" | "HISTORICAL" | "FAIL";
 
 export type IndexSymbol = "NIFTY" | "BANKNIFTY" | "MIDCPNIFTY" | "SENSEX";
 
@@ -13,8 +13,7 @@ export const INDEX_OPTIONS: ReadonlyArray<{ id: IndexSymbol; label: string }> = 
   { id: "SENSEX", label: "SENSEX" },
 ];
 
-export type TimePresetId =
-  | "3m" | "5m" | "10m" | "15m" | "30m" | "1h" | "2h" | "3h" | "all";
+export type TimePresetId = "3m" | "5m" | "10m" | "15m" | "30m" | "1h" | "2h" | "3h" | "all";
 
 export interface TimeWindow {
   preset: TimePresetId;
