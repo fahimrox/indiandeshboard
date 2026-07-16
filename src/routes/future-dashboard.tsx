@@ -1,19 +1,16 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { DashboardShell } from "@/components/DashboardShell";
 import { fmt } from "@/components/MarketBits";
 import { fnoStocksQuery } from "@/lib/dashboard-query";
 import {
-  TrendingUp,
-  TrendingDown,
-  Flame,
-  Activity,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
   Search,
-  Sparkles,
-  Layers,
+  RefreshCw,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { FnoStock } from "@/lib/nse.functions";
@@ -29,24 +26,56 @@ import { Input } from "@/components/ui/input";
 export const Route = createFileRoute("/future-dashboard")({
   head: () => ({
     meta: [
-      { title: "Future Dashboard — Live Buildup & Sentiment | Market Dashboard" },
+      { title: "F&O Market Activity — Buildup & OI | Market Dashboard" },
       {
         name: "description",
         content:
-          "Derivatives buildup dashboard. Track Price Gainers, Price Losers, Long Buildup, Short Buildup, Long Unwinding, and Short Covering with AI sentiment index impact.",
+          "Available NSE F&O OI-activity symbols: price gainers, price losers and open-interest buildup classification (long buildup, short buildup, long unwinding, short covering) from live NSE OI-spurt data. Not a complete F&O-universe snapshot.",
       },
-      { property: "og:title", content: "Future Dashboard — Live Buildup & Sentiment" },
-      { property: "og:url", content: "https://indiandeshboard.lovable.app/future-dashboard" },
+      { property: "og:title", content: "F&O Market Activity — Buildup & OI" },
+      {
+        property: "og:url",
+        content: "https://indiandeshboard.lovable.app/future-dashboard",
+      },
     ],
-    links: [{ rel: "canonical", href: "https://indiandeshboard.lovable.app/future-dashboard" }],
+    links: [
+      {
+        rel: "canonical",
+        href: "https://indiandeshboard.lovable.app/future-dashboard",
+      },
+    ],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(fnoStocksQuery),
   component: Page,
-  errorComponent: ({ error }) => <div className="p-8 text-destructive">{error.message}</div>,
+  pendingComponent: PageSkeleton,
+  errorComponent: ({ error }) => (
+    <DashboardShell title="F&O Market Activity">
+      <FailState message={error.message} />
+    </DashboardShell>
+  ),
   notFoundComponent: () => <div className="p-8">Not found</div>,
 });
 
-// Helper to format large numbers
+// ─── Buildup badge styles (real classification only) ───────────────────────────
+const BUILDUP_STYLES: Record<FnoStock["buildup"], string> = {
+  "Long Buildup": "bg-[var(--bull)]/15 text-[var(--bull)] border-[var(--bull)]/25",
+  "Short Covering": "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
+  "Short Buildup": "bg-[var(--bear)]/15 text-[var(--bear)] border-[var(--bear)]/25",
+  "Long Unwinding": "bg-amber-500/15 text-amber-300 border-amber-500/25",
+  Neutral: "bg-muted text-muted-foreground border-border",
+};
+
+function BuildupBadge({ buildup }: { buildup: FnoStock["buildup"] }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap ${BUILDUP_STYLES[buildup]}`}
+    >
+      {buildup}
+    </span>
+  );
+}
+
+// Format large numbers into Indian short scale.
 function fmtN(n: number) {
   if (!isFinite(n)) return "—";
   if (Math.abs(n) >= 1e7) return (n / 1e7).toFixed(2) + " Cr";
@@ -55,39 +84,54 @@ function fmtN(n: number) {
   return n.toLocaleString("en-IN");
 }
 
-// Generate circular initials badge
-function StockAvatar({ symbol }: { symbol: string }) {
-  const initials = symbol.slice(0, 2);
-  const charCodeSum = symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const colors = [
-    "bg-red-500/10 text-red-400 border-red-500/20",
-    "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    "bg-green-500/10 text-green-400 border-green-500/20",
-    "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
-    "bg-purple-500/10 text-purple-400 border-purple-500/20",
-    "bg-pink-500/10 text-pink-400 border-pink-500/20",
-    "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
-  ];
-  const colorClass = colors[charCodeSum % colors.length];
+// Detection time = the timestamp when the RUNNING server first observed this
+// symbol's current buildup classification. It is held across subsequent fetches
+// and re-stamped only when the buildup transitions within the same server
+// session. It resets on server restart and is NOT an exchange event / true
+// category-entry time. No fabricated time.
+function fmtTime(ts: number | null) {
+  if (!ts) return null;
+  return new Date(ts).toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
 
+const DETECTED_TOOLTIP =
+  "Session-observed time: when the server first detected this buildup state. Held until the buildup changes, resets on server restart. Not an exchange event time.";
+
+// Small clock + time chip (renders only when a real detection time exists).
+function DetectedTime({ ts, className = "" }: { ts: number | null; className?: string }) {
+  const t = fmtTime(ts);
+  if (!t) return <span className="text-muted-foreground/60">—</span>;
   return (
-    <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px] font-bold ${colorClass}`}>
-      {initials}
-    </div>
+    <span
+      title={DETECTED_TOOLTIP}
+      className={`inline-flex cursor-help items-center gap-1 text-muted-foreground ${className}`}
+    >
+      <Clock className="h-2.5 w-2.5 shrink-0" />
+      <span className="tabular-nums">{t}</span>
+    </span>
   );
 }
 
-// Stock Logo component with fallback to initials avatar
+// Stock logo with a neutral, non-derived fallback (no data simulation).
 function StockLogo({ symbol }: { symbol: string }) {
   const [imgFailed, setImgFailed] = useState(false);
   const logoUrl = `https://dharunashokkumar.github.io/indian-listed-company-logos/nse/NSE_${symbol}.svg`;
 
   if (imgFailed) {
-    return <StockAvatar symbol={symbol} />;
+    return (
+      <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40 text-[10px] font-bold text-muted-foreground">
+        {symbol.slice(0, 2)}
+      </div>
+    );
   }
 
   return (
-    <div className="h-6 w-6 shrink-0 overflow-hidden rounded-md bg-white flex items-center justify-center border border-border">
+    <div className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white">
       <img
         src={logoUrl}
         alt={symbol}
@@ -98,160 +142,48 @@ function StockLogo({ symbol }: { symbol: string }) {
   );
 }
 
-// Dynamic AI Summary Generator
-function generateAiSummary(stocks: FnoStock[]) {
-  const longBuildup = stocks.filter((s) => s.buildup === "Long Buildup").length;
-  const shortBuildup = stocks.filter((s) => s.buildup === "Short Buildup").length;
-  const longUnwinding = stocks.filter((s) => s.buildup === "Long Unwinding").length;
-  const shortCovering = stocks.filter((s) => s.buildup === "Short Covering").length;
-
-  const total = longBuildup + shortBuildup + longUnwinding + shortCovering;
-  if (total === 0) return "No active buildup data available to analyze market sentiment.";
-
-  const bullishScore = ((longBuildup + shortCovering) / total) * 100;
-  const bearishScore = ((shortBuildup + longUnwinding) / total) * 100;
-  const sentiment = bullishScore > 55 ? "BULLISH" : bearishScore > 55 ? "BEARISH" : "NEUTRAL";
-
-  const lines: string[] = [];
-
-  if (sentiment === "BULLISH") {
-    lines.push(
-      `Market derivatives data is displaying a strong **BULLISH** bias. Buildup classification shows **${(
-        (longBuildup / total) *
-        100
-      ).toFixed(0)}%** of stocks in Long Buildup and **${((shortCovering / total) * 100).toFixed(
-        0
-      )}%** experiencing Short Covering.`
-    );
-    lines.push(
-      `This configuration suggests heavy long accrual, likely supporting benchmark indices. **NIFTY 50** is experiencing positive momentum with immediate supports rising, and **BANK NIFTY** is positioned to test upper range boundaries.`
-    );
-    lines.push(
-      `High buying volume is noticeable in counters like **${
-        stocks
-          .filter((s) => s.buildup === "Long Buildup")
-          .slice(0, 2)
-          .map((s) => s.symbol)
-          .join(" and ") || "underlyings"
-      }**, which are driving positive sectoral moves.`
-    );
-    lines.push(
-      "Open interest analysis indicates active PE writing at key strikes, reinforcing a solid bottom for the current expiry series."
-    );
-    lines.push(
-      "Derivatives data favors selective buying on intraday pullbacks as short-covering momentum remains supportive in major F&O counters."
-    );
-  } else if (sentiment === "BEARISH") {
-    lines.push(
-      `Derivatives buildup indicates a dominant **BEARISH** pressure across underlyings. Fresh shorts are actively accumulating, with **${(
-        (shortBuildup / total) *
-        100
-      ).toFixed(0)}%** of stocks in Short Buildup and **${((longUnwinding / total) * 100).toFixed(
-        0
-      )}%** showing Long Unwinding.`
-    );
-    lines.push(
-      `This setup suggests aggressive short-selling. Overhead pressure will likely keep **NIFTY 50** capping its gains, while **BANK NIFTY** remains vulnerable to downward tests as banking constituents show unwinding.`
-    );
-    lines.push(
-      `Stocks showing significant fresh short buildup include **${
-        stocks
-          .filter((s) => s.buildup === "Short Buildup")
-          .slice(0, 2)
-          .map((s) => s.symbol)
-          .join(" and ") || "underlyings"
-      }**, which are under intense selling pressure.`
-    );
-    lines.push(
-      "Heavy CE writing observed at immediate strikes indicates strong overhead resistance that will cap index breakout attempts."
-    );
-    lines.push(
-      "Risk management is advised. Bearish structures call for hedged negative strategies or spread trading rather than aggressive long buys."
-    );
-  } else {
-    lines.push(
-      `Market bias remains **NEUTRAL / CONSOLIDATING**. Derivates metrics show a balanced distribution between **${
-        longBuildup + shortCovering
-      }** bullish setups and **${shortBuildup + longUnwinding}** bearish setups.`
-    );
-    lines.push(
-      "This indicates a lack of directional commitment from institutional participants, resulting in range-bound price action in **NIFTY 50** and **BANK NIFTY**."
-    );
-    lines.push(
-      `Sectoral rotation is the primary theme, with stocks like **${stocks
-        .slice(0, 2)
-        .map((s) => s.symbol)
-        .join(" and ")}** showing isolated stock-specific trends.`
-    );
-    lines.push(
-      "Straddles and range-bound credit spreads are favored as option premiums decay within key trading ranges."
-    );
-  }
-
-  return lines.join(" ");
-}
-
-// Dynamically generate the 3 active monthly expiries
-function getActiveExpiries() {
-  const expiries: { label: string; value: string }[] = [];
-  const now = new Date();
-  let currentYear = now.getFullYear();
-  let currentMonth = now.getMonth();
-
-  for (let i = 0; i < 3; i++) {
-    const lastThursday = getLastThursday(currentYear, currentMonth);
-    const label = lastThursday.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-
-    expiries.push({
-      label,
-      value: lastThursday.toISOString().split("T")[0],
-    });
-
-    currentMonth++;
-    if (currentMonth > 11) {
-      currentMonth = 0;
-      currentYear++;
-    }
-  }
-  return expiries;
-}
-
-function getLastThursday(year: number, month: number) {
-  const d = new Date(year, month + 1, 0);
-  while (d.getDay() !== 4) {
-    d.setDate(d.getDate() - 1);
-  }
-  return d;
-}
-
-// Table Sort Header Component for Modal
-type SortKey = "symbol" | "ltp" | "changePct" | "volume" | "oi" | "oiChgPct" | "aiSentiment";
+// ─── Table sort header ─────────────────────────────────────────────────────────
+type SortKey =
+  | "symbol"
+  | "ltp"
+  | "changePct"
+  | "volume"
+  | "oi"
+  | "oiChgPct"
+  | "buildup"
+  | "signalTime";
 type SortDir = "asc" | "desc";
+
+const BUILDUP_ORDER: Record<FnoStock["buildup"], number> = {
+  "Long Buildup": 4,
+  "Short Covering": 3,
+  Neutral: 2,
+  "Long Unwinding": 1,
+  "Short Buildup": 0,
+};
 
 function SortHeader({
   label,
   k,
   sortKey,
   dir,
+  align = "right",
   onClick,
 }: {
   label: string;
   k: SortKey;
   sortKey: SortKey;
   dir: SortDir;
+  align?: "left" | "right";
   onClick: (k: SortKey) => void;
 }) {
   const active = sortKey === k;
   const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
   return (
-    <th className="px-3 py-3 text-right">
+    <th className={`px-3 py-2.5 ${align === "left" ? "text-left" : "text-right"}`}>
       <button
         onClick={() => onClick(k)}
-        className={`inline-flex items-center gap-1 text-[10px] uppercase tracking-wider transition hover:text-foreground ${
+        className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition hover:text-foreground ${
           active ? "text-[var(--neon)]" : "text-muted-foreground"
         }`}
       >
@@ -262,26 +194,25 @@ function SortHeader({
   );
 }
 
-// Individual Dashboard Card Component
-function DashboardCard({
+// ─── Category card with top-5 preview + full-list modal ────────────────────────
+function CategoryCard({
   title,
   stocks,
-  isNegativeColor = false,
-  allFnoStocks,
+  negative = false,
+  isEod = false,
 }: {
   title: string;
   stocks: FnoStock[];
-  isNegativeColor?: boolean;
-  allFnoStocks: FnoStock[];
+  negative?: boolean;
+  isEod?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
-  const [dir, setDir] = useState<SortDir>(isNegativeColor ? "asc" : "desc");
+  const [dir, setDir] = useState<SortDir>(negative ? "asc" : "desc");
 
-  const topFive = stocks.slice(0, 5);
-  // Find maximum absolute value to scale progress bars properly
-  const maxVal = Math.max(0.1, ...topFive.map((s) => Math.abs(s.changePct)));
+  const topTen = stocks.slice(0, 10);
+  const maxVal = Math.max(0.1, ...topTen.map((s) => Math.abs(s.changePct)));
 
   const handleSort = (k: SortKey) => {
     if (k === sortKey) setDir(dir === "asc" ? "desc" : "asc");
@@ -296,314 +227,364 @@ function DashboardCard({
       s.symbol.toLowerCase().includes(search.toLowerCase())
     );
     return [...filtered].sort((a, b) => {
-      const av = a[sortKey] as number | string;
-      const bv = b[sortKey] as number | string;
+      let av: number | string;
+      let bv: number | string;
+      if (sortKey === "symbol") {
+        av = a.symbol;
+        bv = b.symbol;
+      } else if (sortKey === "buildup") {
+        av = BUILDUP_ORDER[a.buildup];
+        bv = BUILDUP_ORDER[b.buildup];
+      } else if (sortKey === "signalTime") {
+        av = a.signalTime ?? 0;
+        bv = b.signalTime ?? 0;
+      } else {
+        av = a[sortKey] as number;
+        bv = b[sortKey] as number;
+      }
       if (typeof av === "string" && typeof bv === "string") {
         return dir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
       }
-      return dir === "asc" ? (av as number) - (bv as number) : (bv as number) - (av as number);
+      return dir === "asc"
+        ? (av as number) - (bv as number)
+        : (bv as number) - (av as number);
     });
   }, [stocks, search, sortKey, dir]);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground select-none">
+    <div className="flex flex-col rounded-lg border border-border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={`h-2.5 w-2.5 rounded-sm ${
+              negative ? "bg-[var(--bear)]" : "bg-[var(--bull)]"
+            }`}
+          />
+          <h2 className="text-[13px] font-semibold tracking-tight text-foreground">
             {title}
           </h2>
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <button className="text-xs font-semibold text-[var(--neon)] hover:underline cursor-pointer">
-                View All
-              </button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl bg-card border border-border text-foreground max-h-[85vh] overflow-y-auto">
-              <DialogHeader>
-                <div className="flex items-center gap-2">
-                  <div className={`h-3 w-3 rounded-full ${isNegativeColor ? "bg-[var(--bear)]" : "bg-[var(--bull)]"}`} />
-                  <DialogTitle className="text-xl font-bold">{title} — Full List</DialogTitle>
-                </div>
-              </DialogHeader>
-
-              {/* Search */}
-              <div className="flex items-center gap-2 my-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search stock symbol..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 bg-background border-border text-xs h-9 focus:border-[var(--neon)]"
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground select-none">
-                  {modalRows.length} stocks
-                </div>
+          <span className="text-[11px] text-muted-foreground">({stocks.length})</span>
+        </div>
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <button
+              disabled={stocks.length === 0}
+              className="text-[11px] font-semibold text-[var(--neon)] transition hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+            >
+              View all
+            </button>
+          </DialogTrigger>
+          <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden border border-border bg-card text-foreground">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`h-2.5 w-2.5 rounded-sm ${
+                    negative ? "bg-[var(--bear)]" : "bg-[var(--bull)]"
+                  }`}
+                />
+                <DialogTitle className="text-base font-semibold">
+                  {title}
+                </DialogTitle>
               </div>
+            </DialogHeader>
 
-              {/* Table */}
-              <div className="overflow-x-auto border border-border rounded-xl">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-background text-muted-foreground font-semibold uppercase tracking-wider border-b border-border">
-                    <tr>
-                      <th className="px-3 py-3 text-left">Symbol</th>
-                      <SortHeader label="LTP" k="ltp" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                      <SortHeader label="Change %" k="changePct" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                      <SortHeader label="Volume" k="volume" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                      <SortHeader label="OI" k="oi" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                      <SortHeader label="OI Chg %" k="oiChgPct" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                      <SortHeader label="AI Sentiment" k="aiSentiment" sortKey={sortKey} dir={dir} onClick={handleSort} />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/40 font-mono text-xs sm:text-sm">
-                    {modalRows.map((s) => {
-                      const up = s.changePct >= 0;
-                      return (
-                        <tr key={s.symbol} className="hover:bg-background/40">
-                          <td className="px-3 py-3 text-left font-semibold font-sans text-foreground">
-                            <div className="flex items-center gap-2">
-                              <StockLogo symbol={s.symbol} />
-                              <span>{s.symbol}</span>
-                            </div>
-                          </td>
-                          <td className="px-3 py-3 text-right">{fmt(s.ltp)}</td>
-                          <td className={`px-3 py-3 text-right ${up ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                            {up ? "+" : ""}{fmt(s.changePct)}%
-                          </td>
-                          <td className="px-3 py-3 text-right">{fmtN(s.volume)}</td>
-                          <td className="px-3 py-3 text-right">{fmtN(s.oi)}</td>
-                          <td className={`px-3 py-3 text-right ${s.oiChgPct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                            {s.oiChgPct >= 0 ? "+" : ""}{fmt(s.oiChgPct)}%
-                          </td>
-                          <td className={`px-3 py-3 text-right ${s.aiSentiment >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"}`}>
-                            {s.aiSentiment >= 0 ? "+" : ""}{s.aiSentiment}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {modalRows.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
-                          No stocks found matching the criteria.
+            <div className="my-2 flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search symbol..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-9 border-border bg-background pl-9 text-xs focus:border-[var(--neon)]"
+                />
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                {modalRows.length} symbols
+              </div>
+            </div>
+
+            <div className="max-h-[60vh] overflow-auto rounded-lg border border-border">
+              <table className="w-full text-left text-xs">
+                <thead className="sticky top-0 z-10 border-b border-border bg-background">
+                  <tr>
+                    <SortHeader
+                      label="Symbol"
+                      k="symbol"
+                      sortKey={sortKey}
+                      dir={dir}
+                      align="left"
+                      onClick={handleSort}
+                    />
+                    <SortHeader label="LTP" k="ltp" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="Chg %" k="changePct" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="Volume" k="volume" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="OI" k="oi" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="OI Chg %" k="oiChgPct" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="Buildup" k="buildup" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                    <SortHeader label="Detected" k="signalTime" sortKey={sortKey} dir={dir} onClick={handleSort} />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {modalRows.map((s) => {
+                    const up = s.changePct >= 0;
+                    return (
+                      <tr key={s.symbol} className="hover:bg-background/50">
+                        <td className="px-3 py-2.5 text-left font-medium text-foreground">
+                          <div className="flex items-center gap-2">
+                            <StockLogo symbol={s.symbol} />
+                            <span>{s.symbol}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{fmt(s.ltp)}</td>
+                        <td
+                          className={`px-3 py-2.5 text-right tabular-nums ${
+                            up ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                          }`}
+                        >
+                          {up ? "+" : ""}
+                          {fmt(s.changePct)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{fmtN(s.volume)}</td>
+                        <td className="px-3 py-2.5 text-right tabular-nums">{fmtN(s.oi)}</td>
+                        <td
+                          className={`px-3 py-2.5 text-right tabular-nums ${
+                            s.oiChgPct >= 0 ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                          }`}
+                        >
+                          {s.oiChgPct >= 0 ? "+" : ""}
+                          {fmt(s.oiChgPct)}%
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <BuildupBadge buildup={s.buildup} />
+                        </td>
+                        <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                          {isEod ? (
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              EOD
+                            </span>
+                          ) : (
+                            <DetectedTime ts={s.signalTime} className="text-[11px]" />
+                          )}
                         </td>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Stock List Rows */}
-        <div className="space-y-4">
-          {topFive.map((stock) => {
-            const val = stock.changePct;
-            const pct = maxVal > 0 ? (Math.abs(val) / maxVal) * 100 : 0;
-            const up = val >= 0;
-
-            return (
-              <div key={stock.symbol} className="flex items-center justify-between text-sm">
-                {/* Symbol with Logo */}
-                <div className="flex items-center gap-2.5 w-[120px] shrink-0">
-                  <StockLogo symbol={stock.symbol} />
-                  <span className="font-bold text-foreground truncate text-sm sm:text-base">{stock.symbol}</span>
-                </div>
-
-                {/* Progress Bar Container - Square and Thick */}
-                <div className={`flex-1 mx-3 h-5 bg-muted/10 overflow-hidden relative border-l-2 ${
-                  isNegativeColor ? "border-[var(--bear)]" : "border-[var(--bull)]"
-                }`}>
-                  <div
-                    className={`h-full transition-all duration-500 ${
-                      isNegativeColor ? "bg-[var(--bear)]" : "bg-[var(--bull)]"
-                    }`}
-                    style={{ width: `${Math.min(100, Math.max(4, pct))}%` }}
-                  />
-                </div>
-
-                {/* Percentage value */}
-                <div
-                  className={`w-[70px] text-right font-mono font-bold shrink-0 text-sm sm:text-base ${
-                    up ? "text-[var(--bull)]" : "text-[var(--bear)]"
-                  }`}
-                >
-                  {up ? "+" : ""}{val.toFixed(2)}%
-                </div>
-              </div>
-            );
-          })}
-
-          {topFive.length === 0 && (
-            <div className="py-6 text-center text-sm text-muted-foreground select-none">
-              No stocks in this category
+                    );
+                  })}
+                  {modalRows.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-3 py-8 text-center text-muted-foreground"
+                      >
+                        No symbols found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Top-10 preview */}
+      <div className="space-y-2.5">
+        {topTen.map((stock) => {
+          const val = stock.changePct;
+          const pct = maxVal > 0 ? (Math.abs(val) / maxVal) * 100 : 0;
+          const up = val >= 0;
+          return (
+            <div key={stock.symbol} className="flex items-center gap-3 text-xs">
+              <div className="flex w-[124px] shrink-0 items-center gap-2">
+                <StockLogo symbol={stock.symbol} />
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-foreground">
+                    {stock.symbol}
+                  </div>
+                  {isEod ? (
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      EOD
+                    </span>
+                  ) : (
+                    <DetectedTime ts={stock.signalTime} className="text-[10px]" />
+                  )}
+                </div>
+              </div>
+              <div
+                className={`relative h-3.5 flex-1 overflow-hidden border-l-2 bg-muted/10 ${
+                  negative ? "border-[var(--bear)]" : "border-[var(--bull)]"
+                }`}
+              >
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    negative ? "bg-[var(--bear)]" : "bg-[var(--bull)]"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(4, pct))}%` }}
+                />
+              </div>
+              <div
+                className={`w-[60px] shrink-0 text-right font-medium tabular-nums ${
+                  up ? "text-[var(--bull)]" : "text-[var(--bear)]"
+                }`}
+              >
+                {up ? "+" : ""}
+                {val.toFixed(2)}%
+              </div>
+            </div>
+          );
+        })}
+        {topTen.length === 0 && (
+          <div className="py-6 text-center text-xs text-muted-foreground">
+            No symbols in this category.
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+// ─── FAIL state ────────────────────────────────────────────────────────────────
+function FailState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-[var(--bear)]/40 bg-[var(--bear)]/5 px-6 py-16 text-center">
+      <AlertTriangle className="mb-3 h-8 w-8 text-[var(--bear)]" />
+      <h2 className="text-base font-semibold text-foreground">
+        No F&O activity data available
+      </h2>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">
+        The live NSE derivatives feed is unavailable and no end-of-day snapshot
+        could be loaded. No data is shown rather than estimated values.
+      </p>
+      {message && (
+        <p className="mt-2 max-w-md break-words text-xs text-muted-foreground/70">
+          {message}
+        </p>
+      )}
+      {onRetry && (
+        <button
+          onClick={onRetry}
+          className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:border-[var(--neon)]/50"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── Loading skeleton ──────────────────────────────────────────────────────────
+function PageSkeleton() {
+  return (
+    <DashboardShell
+      title="F&O Market Activity"
+      subtitle="NSE F&O — available OI-activity symbols, price & open-interest buildup"
+    >
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="h-[420px] animate-pulse rounded-lg border border-border bg-card"
+          />
+        ))}
+      </div>
+    </DashboardShell>
+  );
+}
+
 function Page() {
-  const { data } = useSuspenseQuery(fnoStocksQuery);
-  const [selectedExpiry, setSelectedExpiry] = useState<string>("All");
+  const { data, refetch } = useSuspenseQuery(fnoStocksQuery);
+  const stocks = data.data;
+  const isEod = Boolean(data.isEod);
 
-  const activeExpiries = useMemo(() => getActiveExpiries(), []);
+  const priceGainers = useMemo(
+    () =>
+      [...stocks].filter((s) => s.changePct > 0).sort((a, b) => b.changePct - a.changePct),
+    [stocks]
+  );
+  const priceLosers = useMemo(
+    () =>
+      [...stocks].filter((s) => s.changePct < 0).sort((a, b) => a.changePct - b.changePct),
+    [stocks]
+  );
+  const longBuildup = useMemo(
+    () =>
+      [...stocks]
+        .filter((s) => s.buildup === "Long Buildup")
+        .sort((a, b) => b.changePct - a.changePct),
+    [stocks]
+  );
+  const shortBuildup = useMemo(
+    () =>
+      [...stocks]
+        .filter((s) => s.buildup === "Short Buildup")
+        .sort((a, b) => a.changePct - b.changePct),
+    [stocks]
+  );
+  const longUnwinding = useMemo(
+    () =>
+      [...stocks]
+        .filter((s) => s.buildup === "Long Unwinding")
+        .sort((a, b) => a.changePct - b.changePct),
+    [stocks]
+  );
+  const shortCovering = useMemo(
+    () =>
+      [...stocks]
+        .filter((s) => s.buildup === "Short Covering")
+        .sort((a, b) => b.changePct - a.changePct),
+    [stocks]
+  );
 
-  // Filter stocks based on expiry
-  const expiryFilteredStocks = useMemo(() => {
-    if (selectedExpiry === "All") return data.data;
-    // Deterministic simulation filter: keep different subsets of stocks per expiry
-    return data.data.filter((s) => {
-      const charCodeSum = s.symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const expirySum = selectedExpiry.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      return (charCodeSum + expirySum) % 10 < 8; // keep ~80%
-    });
-  }, [data.data, selectedExpiry]);
-
-  // Table lists setup
-  const priceGainers = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.changePct > 0)
-      .sort((a, b) => b.changePct - a.changePct);
-  }, [expiryFilteredStocks]);
-
-  const priceLosers = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.changePct < 0)
-      .sort((a, b) => a.changePct - b.changePct);
-  }, [expiryFilteredStocks]);
-
-  const longBuildup = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.buildup === "Long Buildup")
-      .sort((a, b) => b.changePct - a.changePct);
-  }, [expiryFilteredStocks]);
-
-  const shortBuildup = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.buildup === "Short Buildup")
-      .sort((a, b) => a.changePct - b.changePct);
-  }, [expiryFilteredStocks]);
-
-  const longUnwinding = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.buildup === "Long Unwinding")
-      .sort((a, b) => a.changePct - b.changePct);
-  }, [expiryFilteredStocks]);
-
-  const shortCovering = useMemo(() => {
-    return [...expiryFilteredStocks]
-      .filter((s) => s.buildup === "Short Covering")
-      .sort((a, b) => b.changePct - a.changePct);
-  }, [expiryFilteredStocks]);
-
-  const aiSummaryText = useMemo(() => generateAiSummary(expiryFilteredStocks), [expiryFilteredStocks]);
+  const snapshotDate =
+    stocks.length > 0
+      ? new Date(data.updatedAt).toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+      : null;
 
   return (
     <DashboardShell
-      title="Future Dashboard"
-      subtitle="NSE Derivatives Buildup Analytics & Live Sentiment"
+      title="F&O Market Activity"
+      subtitle="NSE F&O — available OI-activity symbols, price & open-interest buildup"
       updatedAt={data.updatedAt}
     >
-      {/* Fallback alerts */}
-      {data.isEod && (
-        <div className="mb-4 rounded-lg border border-[var(--neon)]/40 bg-[var(--neon)]/10 px-4 py-3 text-xs text-foreground select-none">
-          Showing EOD (End of Day) derivatives metrics from the last trading day. Live updates will resume on next market hours.
+      {/* Status banners */}
+      {isEod && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[var(--neon)]/40 bg-[var(--neon)]/10 px-4 py-3 text-xs text-foreground">
+          <span className="font-semibold">EOD snapshot</span>
+          <span className="text-muted-foreground">
+            Last saved end-of-day derivatives activity
+            {snapshotDate ? ` · ${snapshotDate} IST` : ""}. Live updates resume
+            during market hours.
+          </span>
         </div>
       )}
 
-      {data.source === "fallback" && !data.isEod && (
-        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200 select-none">
-          NSE derivatives feed blocked from server. Displaying cached session details. Auto-retry in 15s.
+      {data.source === "fallback" && !isEod && stocks.length > 0 && (
+        <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-200">
+          Live NSE derivatives feed is temporarily unavailable. Showing the last
+          cached session. Auto-retry every 15s during market hours.
         </div>
       )}
 
-      {/* Expiries Selector */}
-      <div className="flex flex-wrap items-center justify-end gap-1.5 mb-6 bg-card border border-border p-1.5 rounded-xl">
-        <span className="mr-auto pl-2 text-sm font-bold text-muted-foreground uppercase tracking-wider select-none">
-          Active Expiries
-        </span>
-        {activeExpiries.map((exp) => (
-          <button
-            key={exp.value}
-            onClick={() => setSelectedExpiry(exp.value)}
-            className={`rounded-lg px-4 py-2 text-sm font-medium transition cursor-pointer select-none ${
-              selectedExpiry === exp.value
-                ? "bg-[var(--neon)]/15 text-[var(--neon)] border border-[var(--neon)]/30"
-                : "border border-border hover:bg-sidebar-accent text-sidebar-foreground/80"
-            }`}
-          >
-            {exp.label}
-          </button>
-        ))}
-        <button
-          onClick={() => setSelectedExpiry("All")}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition cursor-pointer select-none ${
-            selectedExpiry === "All"
-              ? "bg-[var(--neon)]/15 text-[var(--neon)] border border-[var(--neon)]/30"
-              : "border border-border hover:bg-sidebar-accent text-sidebar-foreground/80"
-          }`}
-        >
-          All
-        </button>
-      </div>
-
-      {/* Grid of 6 tables */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 mb-6">
-        <DashboardCard
-          title="Price Gainers"
-          stocks={priceGainers}
-          allFnoStocks={data.data}
-        />
-        <DashboardCard
-          title="Price Losers"
-          stocks={priceLosers}
-          isNegativeColor
-          allFnoStocks={data.data}
-        />
-        <DashboardCard
-          title="Long Build Up"
-          stocks={longBuildup}
-          allFnoStocks={data.data}
-        />
-        <DashboardCard
-          title="Short Build Up"
-          stocks={shortBuildup}
-          isNegativeColor
-          allFnoStocks={data.data}
-        />
-        <DashboardCard
-          title="Long Unwinding"
-          stocks={longUnwinding}
-          isNegativeColor
-          allFnoStocks={data.data}
-        />
-        <DashboardCard
-          title="Short Covering"
-          stocks={shortCovering}
-          allFnoStocks={data.data}
-        />
-      </div>
-
-      {/* AI Summary Card */}
-      <div className="rounded-2xl border border-border bg-card p-6 relative overflow-hidden">
-        {/* Glow decoration */}
-        <div className="absolute top-0 right-0 w-[150px] h-[150px] bg-[var(--neon)]/5 rounded-full blur-2xl pointer-events-none" />
-
-        <div className="flex items-center gap-2 mb-3">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--neon)]/15">
-            <Sparkles className="h-4 w-4 text-[var(--neon)]" />
-          </div>
-          <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground select-none">
-            AI Market Sentiment & Index Impact Analysis
-          </h2>
+      {stocks.length === 0 ? (
+        <FailState onRetry={() => refetch()} />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <CategoryCard title="Price Gainers" stocks={priceGainers} isEod={isEod} />
+          <CategoryCard title="Price Losers" stocks={priceLosers} negative isEod={isEod} />
+          <CategoryCard title="Long Buildup" stocks={longBuildup} isEod={isEod} />
+          <CategoryCard title="Short Buildup" stocks={shortBuildup} negative isEod={isEod} />
+          <CategoryCard title="Short Covering" stocks={shortCovering} isEod={isEod} />
+          <CategoryCard title="Long Unwinding" stocks={longUnwinding} negative isEod={isEod} />
         </div>
-
-        <p className="text-sm sm:text-base text-muted-foreground leading-relaxed font-sans w-full" dangerouslySetInnerHTML={{ __html: aiSummaryText }} />
-      </div>
+      )}
     </DashboardShell>
   );
 }
