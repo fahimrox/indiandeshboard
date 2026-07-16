@@ -3,13 +3,21 @@ import type { OISnapshot } from "../types";
 import { CALL_COLOR, PUT_COLOR, formatIN } from "../utils";
 
 const Card = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="rounded-2xl border border-slate-700/40 bg-slate-900/60 p-4">
-    <h4 className="mb-4 text-sm font-semibold text-slate-200">{title}</h4>
+  <div className="rounded-2xl border border-slate-700/40 bg-slate-900/60 p-3">
+    <h4 className="mb-3 text-sm font-semibold text-slate-200">{title}</h4>
     {children}
   </div>
 );
 
-function MiniBars({ call, put, showBaseline = false }: { call: number; put: number; showBaseline?: boolean }) {
+function MiniBars({
+  call,
+  put,
+  showBaseline = false,
+}: {
+  call: number;
+  put: number;
+  showBaseline?: boolean;
+}) {
   const max = Math.max(Math.abs(call), Math.abs(put), 1);
   // Percentage height relative to the half-container (used when baseline can go negative)
   const pctHalf = (v: number) => `${Math.min(100, (Math.abs(v) / max) * 100)}%`;
@@ -20,16 +28,17 @@ function MiniBars({ call, put, showBaseline = false }: { call: number; put: numb
   const Col = ({ v, color, label }: { v: number; color: string; label: string }) => (
     <div className="flex flex-col items-center">
       <span className="mb-2 text-sm font-semibold text-slate-100">
-        {v >= 0 ? "+" : ""}{formatIN(v)}
+        {v >= 0 ? "+" : ""}
+        {formatIN(v)}
       </span>
-      <div className="relative flex h-48 w-28 items-end justify-center overflow-visible">
+      <div className="relative flex h-40 w-24 items-end justify-center overflow-visible">
         {hasNegative ? (
           <>
             {/* Baseline sits at the mid-point of the container */}
             <div className="absolute left-0 right-0 top-1/2 z-0 border-t border-slate-600/50" />
             {/* Bar grows up from mid-line when positive, down from mid-line when negative */}
             <div
-              className={`absolute left-1/2 w-20 -translate-x-1/2 transition-[height] duration-700 ${
+              className={`absolute left-1/2 w-18 -translate-x-1/2 transition-[height] duration-700 ${
                 v >= 0 ? "rounded-t-lg" : "rounded-b-lg"
               }`}
               style={{
@@ -43,7 +52,7 @@ function MiniBars({ call, put, showBaseline = false }: { call: number; put: numb
           </>
         ) : (
           <div
-            className="w-20 rounded-t-lg transition-[height] duration-700"
+            className="w-18 rounded-t-lg transition-[height] duration-700"
             style={{ height: pctFull(v), backgroundColor: color }}
           />
         )}
@@ -53,7 +62,7 @@ function MiniBars({ call, put, showBaseline = false }: { call: number; put: numb
   );
 
   return (
-    <div className="flex items-end justify-center gap-6">
+    <div className="flex items-end justify-center gap-5">
       <Col v={call} color={CALL_COLOR} label="CALL" />
       <Col v={put} color={PUT_COLOR} label="PUT" />
     </div>
@@ -98,7 +107,7 @@ function PCRDonut({ pcr, callOI, putOI }: { pcr: number; callOI: number; putOI: 
 
 function BottomPanelsBase({ snapshot }: { snapshot: OISnapshot }) {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
       <Card title="Open Interest Change">
         <MiniBars call={snapshot.totalCallOIChange} put={snapshot.totalPutOIChange} showBaseline />
       </Card>

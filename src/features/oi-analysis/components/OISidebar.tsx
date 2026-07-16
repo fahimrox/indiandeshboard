@@ -27,7 +27,7 @@ const DEPTHS: ReadonlyArray<{ label: string; value: number }> = [
 
 const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
   <div
-    className={`rounded-2xl border border-slate-700/40 bg-slate-900/60 p-4 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] ${className}`}
+    className={`rounded-2xl border border-slate-700/40 bg-slate-900/60 p-3 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] ${className}`}
   >
     {children}
   </div>
@@ -35,9 +35,9 @@ const Card = ({ children, className = "" }: { children: React.ReactNode; classNa
 
 function OISidebarBase(p: Props) {
   return (
-    <aside className="flex w-full max-w-[320px] flex-col gap-4">
+    <aside className="flex w-full max-w-[280px] flex-col gap-3">
       <Card>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between">
           <h2 className="text-sm font-semibold tracking-wide text-slate-200">Settings</h2>
         </div>
 
@@ -49,14 +49,14 @@ function OISidebarBase(p: Props) {
           onExpiryChange={p.onExpiryChange}
         />
 
-        <div className="mt-4">
+        <div className="mt-3">
           <label className="mb-1 block text-xs font-medium text-slate-400">Mode</label>
           <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-800/60 p-1">
             {(["LIVE", "HISTORICAL"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => p.onModeChange(m)}
-                className={`rounded-lg py-2 text-xs font-medium transition-colors ${
+                className={`rounded-lg py-1.5 text-xs font-medium transition-colors ${
                   p.mode === m ? "bg-sky-600 text-white" : "text-slate-300 hover:bg-slate-700/50"
                 }`}
               >
@@ -66,14 +66,16 @@ function OISidebarBase(p: Props) {
           </div>
         </div>
 
-        <div className="mt-4">
-          <label className="mb-1 block text-xs font-medium text-slate-400">Strikes above/below ATM</label>
+        <div className="mt-3">
+          <label className="mb-1 block text-xs font-medium text-slate-400">
+            Strikes above/below ATM
+          </label>
           <div className="grid grid-cols-5 gap-1 rounded-xl bg-slate-800/60 p-1">
             {DEPTHS.map((d) => (
               <button
                 key={d.label}
                 onClick={() => p.onStrikeDepthChange(d.value)}
-                className={`rounded-lg py-2 text-xs font-medium transition-colors ${
+                className={`rounded-lg py-1.5 text-xs font-medium transition-colors ${
                   p.strikeDepth === d.value
                     ? "bg-sky-600 text-white"
                     : "text-slate-300 hover:bg-slate-700/50"
@@ -88,11 +90,11 @@ function OISidebarBase(p: Props) {
 
       <Card>
         <h3 className="mb-1 text-sm font-semibold text-slate-200">Market Sentiment</h3>
-        <p className="mb-3 text-[11px] text-slate-500">(based on OI)</p>
+        <p className="mb-2 text-[11px] text-slate-500">(based on OI)</p>
         <div className="flex justify-center">
-          <RadialGauge sentiment={p.sentiment} />
+          <RadialGauge sentiment={p.sentiment} size={160} />
         </div>
-        <div className="mt-4 rounded-xl border border-slate-700/40 bg-slate-800/40 px-3 py-3 text-center text-xs text-slate-300">
+        <div className="mt-3 rounded-xl border border-slate-700/40 bg-slate-800/40 px-3 py-2 text-center text-xs text-slate-300">
           <div>
             PCR: <span className="font-semibold text-slate-100">{p.snapshot.pcr.toFixed(2)}</span>{" "}
             <span className={p.snapshot.pcrChange >= 0 ? "text-emerald-400" : "text-rose-400"}>
@@ -102,7 +104,9 @@ function OISidebarBase(p: Props) {
           </div>
           <div className="mt-1">
             PCR OI Change:{" "}
-            <span className="font-semibold text-slate-100">{p.snapshot.pcrOIChange.toFixed(2)}</span>
+            <span className="font-semibold text-slate-100">
+              {p.snapshot.pcrOIChange.toFixed(2)}
+            </span>
           </div>
         </div>
       </Card>

@@ -39,7 +39,7 @@ export function useOIAnalysis({
     if (atmIdx < 0) return sorted;
     return sorted.slice(
       Math.max(0, atmIdx - strikeDepth),
-      Math.min(sorted.length, atmIdx + strikeDepth + 1)
+      Math.min(sorted.length, atmIdx + strikeDepth + 1),
     );
   }, [snapshot, strikeDepth]);
 

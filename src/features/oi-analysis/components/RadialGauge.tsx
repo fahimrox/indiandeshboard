@@ -15,8 +15,8 @@ function RadialGaugeBase({ sentiment, size = 180 }: Props) {
   const dash = (sentiment.score / 100) * c;
 
   return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="absolute -rotate-90">
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -37,15 +37,12 @@ function RadialGaugeBase({ sentiment, size = 180 }: Props) {
           style={{ transition: "stroke-dasharray 700ms cubic-bezier(.22,1,.36,1)" }}
         />
       </svg>
-      <div
-        className="pointer-events-none -mt-[118px] flex flex-col items-center"
-        style={{ width: size }}
-      >
-        <span className="text-2xl font-semibold tracking-tight" style={{ color }}>
+      <div className="absolute flex flex-col items-center justify-center" style={{ maxWidth: size * 0.7 }}>
+        <span className="text-xl font-semibold tracking-tight" style={{ color }}>
           {sentiment.label}
         </span>
-        <span className="mt-1 max-w-[120px] text-center text-[11px] leading-tight text-slate-400">
-          {sentiment.label} market conditions
+        <span className="mt-1 text-center text-[11px] leading-tight text-slate-400">
+          {sentiment.label} conditions
         </span>
         <span className="mt-1 text-sm font-medium" style={{ color }}>
           {sentiment.score}%

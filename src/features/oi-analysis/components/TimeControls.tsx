@@ -12,6 +12,7 @@ interface Props {
   mode: "LIVE" | "HISTORICAL";
   historicalDate?: string;
   onHistoricalDate?: (d: string) => void;
+  disabled?: boolean;
 }
 
 function pct(v: number) {
@@ -19,12 +20,15 @@ function pct(v: number) {
 }
 
 function TimeControlsBase(p: Props) {
+  const isDisabled = p.disabled ?? false;
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
+    <div className="space-y-2">
+      <div className={`flex items-center gap-2 ${isDisabled ? "opacity-40 pointer-events-none" : ""}`}>
         <button
           onClick={p.onReset}
-          className="rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700/50 transition-colors"
+          disabled={isDisabled}
+          className="rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Reset
         </button>
@@ -40,7 +44,8 @@ function TimeControlsBase(p: Props) {
             max={100}
             value={p.start * 100}
             onChange={(e) => p.onRangeChange(Number(e.target.value) / 100, p.end)}
-            className="pointer-events-none absolute -top-1.5 h-4 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+            disabled={isDisabled}
+            className="pointer-events-none absolute -top-1.5 h-4 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white disabled:[&::-webkit-slider-thumb]:opacity-50"
           />
           <input
             type="range"
@@ -48,18 +53,20 @@ function TimeControlsBase(p: Props) {
             max={100}
             value={p.end * 100}
             onChange={(e) => p.onRangeChange(p.start, Number(e.target.value) / 100)}
-            className="pointer-events-none absolute -top-1.5 h-4 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+            disabled={isDisabled}
+            className="pointer-events-none absolute -top-1.5 h-4 w-full appearance-none bg-transparent [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white disabled:[&::-webkit-slider-thumb]:opacity-50"
           />
         </div>
         <span className="text-xs text-slate-400">3:30 PM</span>
       </div>
 
-      <div className="flex flex-wrap gap-1">
+      <div className={`flex flex-wrap gap-1 ${isDisabled ? "opacity-40" : ""}`}>
         {TIME_PRESETS.map((t) => (
           <button
             key={t.id}
             onClick={() => p.onPreset(t.id)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            disabled={isDisabled}
+            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
               p.activePreset === t.id
                 ? "bg-sky-600 text-white"
                 : "bg-slate-800/60 text-slate-300 hover:bg-slate-700/50"

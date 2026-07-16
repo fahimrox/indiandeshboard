@@ -1,8 +1,15 @@
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import type { TimePresetId, TimeWindow } from "../types";
 
 const MIN: Record<Exclude<TimePresetId, "all">, number> = {
-  "3m": 3, "5m": 5, "10m": 10, "15m": 15, "30m": 30, "1h": 60, "2h": 120, "3h": 180,
+  "3m": 3,
+  "5m": 5,
+  "10m": 10,
+  "15m": 15,
+  "30m": 30,
+  "1h": 60,
+  "2h": 120,
+  "3h": 180,
 };
 
 function tradingDayBoundaries(baseTs: number) {
@@ -31,47 +38,31 @@ interface UseTimeWindowReturn {
 
 export function useTimeWindow(
   mode: "LIVE" | "HISTORICAL",
-  historicalDate?: string
+  historicalDate?: string,
+  latestSnapshotTs?: number, // Actual timestamp from the most recent snapshot
 ): UseTimeWindowReturn {
   const [preset, setPreset] = useState<TimePresetId>("all");
   const [startFraction, setStartFraction] = useState(0);
   const [endFraction, setEndFraction] = useState(1);
   const [isManual, setIsManual] = useState(false);
 
-  // In LIVE mode: baseTs must tick with real time so presets like "Last 5m" stay correct.
-  // In HISTORICAL mode: baseTs is fixed at the EOD of the selected historical date.
-  const [liveNow, setLiveNow] = useState(() => Date.now());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (mode === "LIVE") {
-      // Tick every 60s to keep time-window presets accurate during long live sessions.
-      intervalRef.current = setInterval(() => setLiveNow(Date.now()), 60_000);
-    } else {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-    return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [mode]);
-
+  // baseTs is the reference point for time calculations.
+  // CRITICAL: Must use actual snapshot timestamp, not wall clock time.
+  // For LIVE/EOD mode: use the latest snapshot's timestamp
+  // For HISTORICAL mode: use the latest snapshot from the selected date
   const baseTs = useMemo(() => {
+    if (latestSnapshotTs && latestSnapshotTs > 0) {
+      // Use actual snapshot timestamp - this works for both LIVE and HISTORICAL
+      return latestSnapshotTs;
+    }
+    // Fallback only when no snapshot available yet
     if (mode === "HISTORICAL" && historicalDate) {
       return new Date(`${historicalDate}T15:30:00`).getTime();
     }
-    return liveNow; // Updates every 60s in LIVE mode
-  }, [mode, historicalDate, liveNow]);
+    return Date.now();
+  }, [mode, historicalDate, latestSnapshotTs]);
 
-  const { dayStart, dayEnd } = useMemo(
-    () => tradingDayBoundaries(baseTs),
-    [baseTs]
-  );
+  const { dayStart, dayEnd } = useMemo(() => tradingDayBoundaries(baseTs), [baseTs]);
 
   const window = useMemo<TimeWindow>(() => {
     if (isManual) {
@@ -92,11 +83,7 @@ export function useTimeWindow(
     };
   }, [preset, isManual, startFraction, endFraction, dayStart, dayEnd, baseTs]);
 
-  const start = fractionOfDay(
-    window.fromTs ?? dayStart,
-    dayStart,
-    dayEnd
-  );
+  const start = fractionOfDay(window.fromTs ?? dayStart, dayStart, dayEnd);
   const end = fractionOfDay(window.toTs ?? dayEnd, dayStart, dayEnd);
 
   const onRangeChange = (s: number, e: number) => {

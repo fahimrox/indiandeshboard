@@ -1,57 +1,102 @@
 # Latest AI Session Handover
 
 ## Session
-- Date/Time: 2026-07-15 22:50 IST
-- AI Agent: Codex (GPT-5)
+- Date/Time: 2026-07-16 23:37 IST
+- AI Agent: Claude Sonnet 5
 - User: Fahim
-- Branch: `main`
+- Branch: `feat/oi-analysis-real-history`
 
 ---
 
 ## Completed Work
 
-### Index Contribution production deployment
-- Confirmed approved branch `feat/index-contribution-professional-ui` was clean at commit `1133acb93f8b78c40725a8c393a045ce817d3261` and that `origin/main` had not advanced beyond its expected merge base.
-- Merged the approved feature without squash or rebase through merge commit `4dd97f378731f947ecaa2fdf28be90262d06fa76`.
-- Pushed `main` and deployed using the existing `/home/ubuntu/deploy-indian-dashboard.sh` script.
-- The Oracle build used `NITRO_PRESET=node-server`; PM2 restarted `indian-dashboard` and saved its process state.
-
-### Production verification
-- PM2 process `indian-dashboard` is online with zero unstable restarts and listens only on `127.0.0.1:3000`.
-- Oracle-local root and `/index-contribution` requests returned HTTP 200; public `https://bazaarmood.com/` and `/index-contribution` also returned HTTP 200.
-- Browser-verified NIFTY 50, BANK NIFTY, and SENSEX selectors.
-- Browser-verified Prev, Intraday, 3m, 5m, 15m, and 1h controls.
-- Positive and negative contribution lines, the thin dotted index-price line, contributor tables, normal sans-serif numeric typography, and dark table scrollbars rendered correctly.
-- Intraday reconciliation was exact for all three indices. All six tested SENSEX periods also reconciled to `0.00`.
-- Selected index price and contribution totals remained unchanged during a 10.5-second closed-market interval; browser logs contained no hydration or runtime errors.
+### OI Analysis V2 — real historical OI analysis
+- Wired `/oi-analysis` LIVE and HISTORICAL modes to the real backend historical
+  endpoints (`/api/option-history`, `/api/oi-history`) instead of any
+  mock/synthetic data.
+- Fixed the time-window presets (3m/5m/10m/15m/30m/1h/2h/3h/Full Day), which
+  previously never visibly changed the chart:
+  - Root cause 1: time windows were anchored to `Date.now()` because the code
+    read fields that don't exist (`optionChain.timestamp`, `snapshot_time`).
+    Corrected to the real fields (`OptionChain.updatedAt`,
+    `HistoricalOptionChainSnapshot.timestamp`), both epoch milliseconds,
+    IST-derived.
+  - Root cause 2: baseline snapshots lived in a mutable module-level `Map` that
+    React never re-rendered from. Replaced with a `useMemo`-derived reactive
+    series (`liveHistorySnapshots`) built directly from the historical queries.
+  - Verified against the live backend for NIFTY, expiry 21-Jul-2026: 258 real
+    snapshots, latest 15:30:28 IST; 3m → baseline 15:27:28, 5m → 15:25:28,
+    15m → 15:15:28, each producing distinct non-zero signed OI deltas.
+- Fixed chart horizontal scrolling and hover jitter: responsive bar/group width
+  that compresses to fit the container (no scroll at 1920/1366/1024px; scoped
+  dark scrollbar only as a last resort), and a fixed-position
+  `pointer-events-none` tooltip that never affects layout.
+- Simplified the tooltip to Strike, Call OI, Put OI, Call ΔOI, Put ΔOI only.
+- Signed bars with zero baseline, hatch/drain OI-change visuals, ~10-15%
+  denser page layout, RadialGauge switched to a robust centered flexbox
+  overlay.
+- Added honest data-trust safeguards: stale-data guards on symbol/date/expiry
+  change, a genuine "Insufficient History" warning (never fabricated zero
+  movement), and disabled time controls when historical mode has no data.
+- Removed dead code: `oiHistoryStore.ts` (superseded, zero remaining imports),
+  `scaleSnapshotForWindow` (unused synthetic linear-interpolation helper), and
+  a duplicated inline scrollbar `<style>` block. Updated
+  `docs/PROJECT_MASTER.md`'s state-management section accordingly.
+- Committed the verified work locally on `feat/oi-analysis-real-history`
+  (not merged, pushed, or deployed).
 
 ---
 
 ## Files Changed
-- `src/routes/index-contribution.tsx` (approved feature commit)
-- `src/components/IndexContribution/IndexContributionChart.tsx` (approved feature commit)
-- `src/lib/index-contribution.functions.ts` (approved feature commit)
-- `src/lib/dashboard-query.ts` (approved feature commit)
-- `docs/CHANGELOG.md` (deployment log)
+- `src/features/oi-analysis/OIAnalysisPage.tsx`
+- `src/features/oi-analysis/components/BottomPanels.tsx`
+- `src/features/oi-analysis/components/ChartToolbar.tsx`
+- `src/features/oi-analysis/components/OIChart.tsx`
+- `src/features/oi-analysis/components/OISidebar.tsx`
+- `src/features/oi-analysis/components/RadialGauge.tsx`
+- `src/features/oi-analysis/components/SymbolSelector.tsx`
+- `src/features/oi-analysis/components/TimeControls.tsx`
+- `src/features/oi-analysis/hooks/useOIAnalysis.ts`
+- `src/features/oi-analysis/hooks/useTimeWindow.ts`
+- `src/features/oi-analysis/oiHistoryStore.ts` (deleted)
+- `src/features/oi-analysis/transformOptionChain.ts`
+- `src/features/oi-analysis/types.ts`
+- `src/features/oi-analysis/utils.ts`
+- `src/lib/dashboard-query.ts`
+- `src/styles.css`
+- `docs/PROJECT_MASTER.md`
+- `docs/CHANGELOG.md` (this session's entry)
 - `docs/SESSION_HANDOVER.md` (this handover)
 
 ---
 
 ## Validation
-- `git diff --check HEAD~2..HEAD`: ✅ exit 0
-- Merge-parent `git diff --check`: ✅ exit 0
-- Local `NITRO_PRESET=node-server npm run build`: ✅ exit 0
-- Oracle deployment build: ✅ exit 0 (Linux ARM64, node-server preset)
-- PM2: ✅ online, PID 50593 at verification, zero unstable restarts
-- HTTP: ✅ root and `/index-contribution` returned 200 locally and publicly
-- Browser: ✅ selectors, six periods, chart lines, dotted index line, tables, scrollbars, exact reconciliation, stable values, no runtime/hydration errors
+- `git diff --check`: ✅ clean
+- `npx tsc --noEmit`: only 2 pre-existing, unrelated errors remain
+  (`IndexContributionChart.tsx`, `supabase.server.ts`). Zero OI Analysis errors.
+- `npm run build`: ✅ exit 0 (client + ssr + nitro)
+- Runtime: dev server SSR of `/oi-analysis` returned HTTP 200 with no
+  error-boundary output; live `/api/option-history` and `/api/oi-history`
+  responses verified directly (377 real option snapshots, 5,397 real
+  strike-level OI rows for the active expiry). 3m/5m/15m baseline-selection
+  arithmetic independently reproduced against this live data.
+- No database schema, scheduler, or Supabase dual-write logic was touched.
 
 ---
 
 ## Remaining Risks / Next Actions
-- The Index Contribution client chunk is approximately 1.16 MB minified and triggers the existing large-chunk warning.
-- Oracle `npm audit` reports one low-severity dependency vulnerability; existing Vite externalization and framework unused-import warnings remain.
-- Historical PM2 logs contain older stale-cache, expired-FYERS fallback, and Supabase duplicate-key warnings. Only market-closed stale-cache warnings were observed after this deployment; there was no fresh startup/runtime failure.
-- The production worktree still has its pre-existing modified `package-lock.json`; it was not changed or reverted.
-- `docs/CURRENT_TASK.md` remains on the existing Historical Data and Backtesting phase because this deployment did not change that active roadmap status.
-- No scheduler, dual-write behavior, schemas, production data, environment variables, Nginx, SSL, firewall, or feature branch was changed or deleted.
+- Tooltip is not clamped to the viewport edge (minor cosmetic risk near screen
+  edges).
+- `pcrOIChange` is currently computed identically to `pcr` (pre-existing
+  simplification, out of scope for this task).
+- No browser-automation click-through was available in this environment;
+  verification relied on live endpoint responses, SSR rendering, and
+  independent reproduction of the baseline-selection arithmetic.
+- `feat/oi-analysis-real-history` is committed locally only — not merged into
+  `main`, not pushed, not deployed.
+- `docs/CURRENT_TASK.md` was left as-is (Historical Data and Backtesting phase)
+  since this session's scope was the OI Analysis V2 feature audit/commit, not
+  a change to the active roadmap phase.
+- No scheduler, dual-write behavior, schemas, production data, environment
+  variables, Nginx, SSL, firewall, or other feature branch was changed or
+  deleted.

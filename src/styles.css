@@ -115,3 +115,26 @@
 .scroll-dark::-webkit-scrollbar-track { background: oklch(0.14 0.02 250); border-radius: 8px; }
 .scroll-dark::-webkit-scrollbar-thumb { background: oklch(0.4 0.02 250); border-radius: 8px; }
 .scroll-dark::-webkit-scrollbar-thumb:hover { background: oklch(0.5 0.02 250); }
+
+/* OI Analysis chart scrollbar (dark, scoped) */
+.oi-chart-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.35 0.03 265) transparent;
+}
+
+.oi-chart-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.oi-chart-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.oi-chart-scroll::-webkit-scrollbar-thumb {
+  background-color: oklch(0.35 0.03 265);
+  border-radius: 4px;
+}
+
+.oi-chart-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.45 0.03 265);
+}
