@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { isMarketOpenIst } from "./market-hours";
 
 // NSE scraper. NSE requires a cookie session — we hit the homepage first,
 // reuse cookies for the JSON API, and cache responses to dodge rate limits.
@@ -252,6 +253,20 @@ async function fetchYahooMiniQuotes(symbols: string[]): Promise<Map<string, Yaho
 
 export async function fetchFnoStocks(): Promise<FnoResponse> {
   const now = Date.now();
+  const marketOpen = isMarketOpenIst(now);
+
+  // Outside NSE market hours the OI-spurt endpoint can still respond, but that
+  // response is not a live session — treating it as live would stamp the current
+  // wall-clock time as a "detection time" (e.g. a misleading 01:57 am). Prefer the
+  // last saved EOD snapshot so the UI shows a truthful "EOD" state.
+  if (!marketOpen) {
+    const { getEodData } = await import("./services/persistentCache");
+    const cachedData = await getEodData("fno_stocks");
+    if (cachedData) {
+      return { ...cachedData, isEod: true };
+    }
+  }
+
   try {
     type Resp = {
       data: Array<{
@@ -295,7 +310,10 @@ export async function fetchFnoStocks(): Promise<FnoResponse> {
           oi,
           oiChgPct: oiChg,
           buildup,
-          signalTime: stampSignal(symbol, buildup, now),
+          // Session detection time only during live hours. Outside hours we have
+          // no EOD snapshot to serve here, so keep the real data but never stamp a
+          // wall-clock time as if it were a market detection event.
+          signalTime: marketOpen ? stampSignal(symbol, buildup, now) : null,
           volumeShocker: false,
           aiSentiment,
         };
@@ -307,6 +325,10 @@ export async function fetchFnoStocks(): Promise<FnoResponse> {
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
     const result: FnoResponse = { data: stocks, source: "nse", updatedAt: now };
+    // Live-hours snapshots are saved as the EOD source. When closed with no prior
+    // snapshot, mark the response EOD so the UI never shows wall-clock detection
+    // times; saveEodData intentionally skips persisting EOD-flagged payloads.
+    if (!marketOpen) result.isEod = true;
     const { saveEodData } = await import("./services/persistentCache");
     await saveEodData("fno_stocks", result);
     return result;

@@ -199,10 +199,12 @@ function CategoryCard({
   title,
   stocks,
   negative = false,
+  isEod = false,
 }: {
   title: string;
   stocks: FnoStock[];
   negative?: boolean;
+  isEod?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -356,7 +358,13 @@ function CategoryCard({
                           <BuildupBadge buildup={s.buildup} />
                         </td>
                         <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                          <DetectedTime ts={s.signalTime} className="text-[11px]" />
+                          {isEod ? (
+                            <span className="text-[11px] font-medium text-muted-foreground">
+                              EOD
+                            </span>
+                          ) : (
+                            <DetectedTime ts={s.signalTime} className="text-[11px]" />
+                          )}
                         </td>
                       </tr>
                     );
@@ -392,7 +400,13 @@ function CategoryCard({
                   <div className="truncate font-medium text-foreground">
                     {stock.symbol}
                   </div>
-                  <DetectedTime ts={stock.signalTime} className="text-[10px]" />
+                  {isEod ? (
+                    <span className="text-[10px] font-medium text-muted-foreground">
+                      EOD
+                    </span>
+                  ) : (
+                    <DetectedTime ts={stock.signalTime} className="text-[10px]" />
+                  )}
                 </div>
               </div>
               <div
@@ -563,12 +577,12 @@ function Page() {
         <FailState onRetry={() => refetch()} />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <CategoryCard title="Price Gainers" stocks={priceGainers} />
-          <CategoryCard title="Price Losers" stocks={priceLosers} negative />
-          <CategoryCard title="Long Buildup" stocks={longBuildup} />
-          <CategoryCard title="Short Buildup" stocks={shortBuildup} negative />
-          <CategoryCard title="Short Covering" stocks={shortCovering} />
-          <CategoryCard title="Long Unwinding" stocks={longUnwinding} negative />
+          <CategoryCard title="Price Gainers" stocks={priceGainers} isEod={isEod} />
+          <CategoryCard title="Price Losers" stocks={priceLosers} negative isEod={isEod} />
+          <CategoryCard title="Long Buildup" stocks={longBuildup} isEod={isEod} />
+          <CategoryCard title="Short Buildup" stocks={shortBuildup} negative isEod={isEod} />
+          <CategoryCard title="Short Covering" stocks={shortCovering} isEod={isEod} />
+          <CategoryCard title="Long Unwinding" stocks={longUnwinding} negative isEod={isEod} />
         </div>
       )}
     </DashboardShell>
