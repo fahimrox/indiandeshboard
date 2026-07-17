@@ -27,7 +27,7 @@ export type FeatureCategory = "quotes" | "futuresOI" | "optionChain" | "sectorIn
 export const routingConfig: Record<FeatureCategory, BrokerName[]> = {
   quotes: ["upstox", "yahoo"],
   futuresOI: ["angelone", "nse"],
-  optionChain: ["fyers", "angelone", "nse"],
+  optionChain: ["upstox", "fyers", "angelone", "nse"],
   // Sector/broad index quotes: FYERS is authenticated HTTPS (works on Cloudflare
   // and carries every sectoral index incl. Defence/Chemicals/Capital Markets),
   // then NSE allIndices, then Yahoo, then the EOD snapshot.
@@ -360,7 +360,40 @@ export const marketDataLayer = {
     let fyersTokenStatus = { ok: true, error: "" };
     const start = Date.now();
 
-    // 1. Try FYERS (Primary Options Source)
+    // 1. Try Upstox (Primary Options Source)
+    if (isBrokerAvailable("upstox")) {
+      try {
+        const chain = await upstoxService.getOptionChain(
+          symbol,
+          finalSpot,
+          expiry
+        );
+
+        recordSuccess("upstox");
+
+        const res = {
+          ...chain,
+          fyersTokenStatus,
+        } as EnvelopedResponse<any>;
+
+        res._metadata = {
+          source: "upstox",
+          status: "live",
+          timestamp: Date.now(),
+          latencyMs: Date.now() - start,
+        };
+
+        await saveEodOptionChain(symbol, expiry, res);
+        return res;
+      } catch (err: any) {
+        console.warn(
+          `Upstox option chain failed: ${err.message}. Falling back to FYERS.`
+        );
+        recordFailure("upstox");
+      }
+    }
+
+    // 2. Try FYERS (Backup Options Source)
     let fyersAvailable = isBrokerAvailable("fyers");
     if (fyersAvailable) {
       try {
@@ -380,7 +413,7 @@ export const marketDataLayer = {
         const res = { ...chain, fyersTokenStatus: { ok: true } } as EnvelopedResponse<any>;
         res._metadata = {
           source: "fyers",
-          status: "live",
+          status: "fallback",
           timestamp: Date.now(),
           latencyMs: Date.now() - start,
         };
@@ -395,7 +428,7 @@ export const marketDataLayer = {
       fyersTokenStatus = { ok: false, error: "Fyers marked as expired or circuit broken" };
     }
 
-    // 2. Try Angel One (Backup Options Source)
+    // 3. Try Angel One (Secondary Backup Options Source)
     if (isBrokerAvailable("angelone")) {
       try {
         const chain = await angelOneService.getOptionChain(symbol, finalSpot, expiry);
@@ -415,7 +448,7 @@ export const marketDataLayer = {
       }
     }
 
-    // 3. Try NSE fallback (Scraper - Last resort Live Source)
+    // 4. Try NSE fallback (Scraper - Last resort Live Source)
     if (isBrokerAvailable("nse")) {
       try {
         const chain = await nseFallbackService.getOptionChain(symbol, expiry);
@@ -435,7 +468,7 @@ export const marketDataLayer = {
       }
     }
 
-    // 4. Try persistent EOD cache (exact expiry, else default snapshot)
+    // 5. Try persistent EOD cache (exact expiry, else default snapshot)
     const cachedData = await getEodOptionChain(symbol, expiry);
     if (cachedData) {
       const res = {
@@ -452,7 +485,7 @@ export const marketDataLayer = {
       return res;
     }
 
-    // 5. No synthetic/mock fallback. If every live source and the EOD cache
+    // 6. No synthetic/mock fallback. If every live source and the EOD cache
     //    failed, surface a real error so the UI can show a FAIL state instead
     //    of fabricated data.
     throw new Error(
