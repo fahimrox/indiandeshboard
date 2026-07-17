@@ -106,7 +106,7 @@ export type OptionChain = {
   second: { ceOi: number; peOi: number; ceVol: number; peVol: number };
   totals: { ceOi: number; peOi: number; ceOiChg: number; peOiChg: number; ceVol: number; peVol: number };
   levels: SrLevel[];
-  source: "nse" | "fallback" | "fyers" | "angelone";
+  source: "nse" | "fallback" | "fyers" | "angelone" | "upstox";
   updatedAt: number;
   isEod?: boolean;
 };

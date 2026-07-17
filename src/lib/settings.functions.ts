@@ -114,7 +114,14 @@ export const getSettingsStatus = createServerFn({ method: "GET" }).handler(
 
     const activeQuotes = (!!upstoxToken && upstoxOk && upstoxAvail) ? "upstox" : "yahoo";
     const activeFuturesOI = (angelConfigured && angelOk && angelAvail) ? "angelone" : "nse";
-    const activeOptionChain = (fyersConfigured && fyersOk && fyersAvail) ? "fyers" : ((angelConfigured && angelOk && angelAvail) ? "angelone" : "nse");
+    const activeOptionChain =
+      !!upstoxToken && upstoxOk && upstoxAvail
+        ? "upstox"
+        : fyersConfigured && fyersOk && fyersAvail
+          ? "fyers"
+          : angelConfigured && angelOk && angelAvail
+            ? "angelone"
+            : "nse";
 
     return {
       upstox: {
