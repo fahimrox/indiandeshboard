@@ -29,7 +29,7 @@
 |-------|------|
 | Framework | TanStack Start (`@tanstack/react-start`) + React 19 + Vite 7 |
 | Routing | TanStack Router (file-based, type-safe) |
-| Server/SSR | Nitro (build target: **Cloudflare `cloudflare-module`**) |
+| Server/SSR | Nitro (production target: Oracle VM `node-server`; secondary target: Cloudflare `cloudflare-module`) |
 | Data/query | TanStack React Query v5 |
 | Styling | Tailwind CSS v4 (`@tailwindcss/vite`, `@theme inline` tokens) |
 | UI kit | Radix UI primitives + shadcn-style components (`src/components/ui`) |
@@ -138,12 +138,13 @@ Exposes `queryOptions` factories consumed by pages:
 - Market-hours-aware refetch: `liveInterval()` polls ~10–15s when open, and spaces
   out when closed. `staleTime` set; pages pass `placeholderData: keepPreviousData`.
 
-### 6.2 Orchestrator — `src/lib/services/marketDataLayer.ts`
+### 6.2 Orchestrator & Fallback Architecture — `src/lib/services/marketDataLayer.ts`
 Single entry for market data with per-feature fallback and a **circuit breaker**.
-Every response is an `EnvelopedResponse<T>` carrying `_metadata { source, status,
-latencyMs }` (see `dataLineage.ts`).
+Every response is an `EnvelopedResponse<T>` carrying `_metadata { source, status, latencyMs }` (see `dataLineage.ts`).
 
-**Fallback chains (verified, NO synthetic step):**
+#### 6.2.1 Current Implemented Architecture (Direct Connections)
+The dashboard currently connects directly to live APIs and scrapers. OpenAlgo is running on a separate middleware VM and is NOT yet connected.
+
 ```
 Quotes:        Upstox → Yahoo → EOD cache → (else) throw
 Option Chain:  FYERS → Angel One → NSE scraper → EOD cache → (else) FAIL (throw)
@@ -151,7 +152,23 @@ F&O Stocks:    NSE OI-spurts + Yahoo quotes → EOD cache → (else) empty []
 EOD read:      getEodOptionChain() = exact-expiry file, else symbol `default` snapshot
 ```
 
-### 6.3 Providers (`services/`)
+*Note: Option chains strictly show a FAIL state if all sources fail. No synthetic/mock chains are generated.*
+
+#### 6.2.2 Planned Target Architecture (Shoonya Integration & OpenAlgo Shadowing)
+To resolve the daily manual token renewal overhead of FYERS, a Shoonya integration is planned. Shoonya will be integrated behind a feature flag/shadow adapter and verified for 2-3 live sessions before cutover.
+
+**Quotes Future Chain (proposed):**
+1. Shoonya API or existing Upstox (based on shadow test performance)
+2. Upstox/OpenAlgo or direct Upstox fallback
+3. Angel One SmartAPI
+4. Yahoo Finance
+
+**Option Chain / OI Future Chain (proposed):**
+1. Shoonya API (after full live validation)
+2. NSE official scraper (fallback)
+3. FYERS (emergency-only or disabled)
+
+### 6.3 Providers & Middleware (`services/`)
 | Service | Role |
 |---------|------|
 | `upstoxService.ts` | Primary cash quotes |
@@ -164,6 +181,12 @@ EOD read:      getEodOptionChain() = exact-expiry file, else symbol `default` sn
 | `dataLineage.ts` | `EnvelopedResponse` + `DataLineage` types |
 | `configStore.ts` / `config.server.ts` | FYERS encrypted config (`fyers_config.enc`) |
 | `settings.functions.ts` | Broker connection status + save FYERS token |
+
+#### 6.3.1 OpenAlgo Middleware Integration (Separate VM: Bazaarmood2)
+- **Current Role:** OpenAlgo is running as an isolated middleware service on `Bazaarmood2` (`openalgo.bazaarmood.com`). It handles Upstox authorization but does NOT route data to the Indian Dashboard.
+- **Future Integration:** OpenAlgo should be integrated as an optional shadow source first before replacing any production paths.
+- **Multi-Instance Warning:** Any future Shoonya OpenAlgo instance must run on a separate subdomain/service (e.g. `shoonya.openalgo.bazaarmood.com`) to avoid credentials and connection conflicts.
+- **Capacity Limits:** Each OpenAlgo instance consumes ~721 MB RAM. Monitor VM memory limits closely before adding instances. **Do not create a third OCI VM** as it exceeds the 2 OCPUs, 12 GB RAM, 94 GB boot storage limits of the Oracle Always Free tier.
 
 ### 6.4 Persistence
 - **EOD JSON cache** — `persistentCache.ts` → `eod_cache/*.json`. Saves only real

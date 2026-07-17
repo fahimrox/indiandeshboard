@@ -100,7 +100,7 @@ If interrupted (tokens/time/connection): update `CURRENT_TASK.md` +
   `EnvelopedResponse { _metadata }` lineage. Do not bypass the orchestrator.
 - **Fallback chains (no synthetic step):**
   - Quotes: Upstox → Yahoo → EOD cache → throw
-  - Option chain: FYERS → Angel One → NSE → EOD cache (`getEodOptionChain`) → FAIL
+  - Option chain: Upstox → FYERS → Angel One → NSE → EOD cache (`getEodOptionChain`) → FAIL
   - F&O: NSE OI-spurts + Yahoo → EOD cache → empty `[]`
 - **Status semantics:** `LIVE` (open + real feed) · `EOD` (closed + real cache) ·
   `FAIL` (nothing real). Preserve these on data pages.
@@ -369,6 +369,17 @@ Any feature that changes stored fields must include:
 - **Do NOT use `snapshot_time`** as a cross-history uniqueness key, as 13 July historical backfill rows contain repeated snapshot times.
 - **Preserve Option-Chain Fallback:** The server-side code in `supabase.server.ts` must preserve the safe parent-ID query fallback (`maybeSingle` by business keys) when duplicate upserts return zero rows.
 - **Exclude `trade_signals` & `system_logs`:** `trade_signals` lacks `trading_time` keys and is excluded from uniqueness constraints pending a future schema redesign. `system_logs` does not have or require uniqueness.
+
+---
+
+## 17. OpenAlgo & Shoonya Operational Safeguards
+
+- **Untouched VM:** The existing Bazaar Mood production VM (`indian-dashboard-collector` at `92.4.75.251`) must remain completely untouched during OpenAlgo or broker configuration.
+- **OpenAlgo Host:** OpenAlgo runs on the separate `Bazaarmood2` VM (`146.56.55.42`).
+- **Python Version:** OpenAlgo requires Python 3.12 (specifically from the `deadsnakes` PPA). The default Ubuntu 22.04 Python 3.10 is incompatible.
+- **Oracle Production Builds:** Builds deployed to the production VM must always run: `NITRO_PRESET=node-server npm run build`. Plain builds select the wrong preset and cause 502 errors.
+- **Secrets Protection:** Never log, print, expose, or commit any credentials, API keys, or dynamic OpenAlgo/Supabase tokens.
+- **Shoonya Transition:** Shoonya integration remains planned. Do not claim or document it as active. It must be shadow-tested for 2-3 live sessions to compare LTP/OI/expiry data against FYERS before promotion.
 
 ---
 

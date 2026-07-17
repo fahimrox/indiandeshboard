@@ -6,6 +6,37 @@
 
 ---
 
+## 2026-07-18 00:50 IST — Antigravity
+
+### Task
+Audit and update Markdown documentation to align with the current production infrastructure, OpenAlgo setup on `Bazaarmood2`, data-source flows, and planned Shoonya migration.
+
+### Summary
+- **Infrastructure Docs Update:** Updated `docs/PRODUCTION_INFRASTRUCTURE.md` with:
+  - Details for the new dedicated OpenAlgo VM `Bazaarmood2` (`146.56.55.42`) and preserved existing `indian-dashboard-collector` VM (`92.4.75.251`) untouched.
+  - Resource footprints and Oracle Always Free capacity warnings (2 OCPUs, 12 GB RAM, 94 GB boot storage total).
+  - OpenAlgo service configuration (`openalgo.service`, Python 3.12 compatibility from deadsnakes PPA, ~721 MB RAM, Unix socket `/var/python/openalgo/openalgo.sock` plus WebSocket proxy).
+  - Nginx reverse proxy configuration and Let's Encrypt SSL certificate details (expiry 2026-10-15).
+  - Persistence of OCI and host firewall rules in `/etc/iptables/rules.v4` using `netfilter-persistent`.
+  - Clarified that OpenAlgo is operational as a separate standalone Upstox instance, but is not yet integrated into the Indian Dashboard production data path.
+- **Project Master Architecture:** Updated `docs/PROJECT_MASTER.md` and `PROJECT_SUMMARY.md` to:
+  - Reflect standard Oracle production build requirements (`NITRO_PRESET=node-server npm run build`).
+  - Correct fallback statements regarding synthetic/mock option chains (strictly no mock data in live code paths).
+  - Outline the planned Shoonya migration target architecture.
+- **Durable Safeguards in AGENTS.md:** Appended concise operational rules covering Python 3.12 dependency, secrets protection, Bazaarmood2 isolation, Oracle build command, and Shoonya transition steps.
+- **Current Roadmap Task:** Updated `docs/CURRENT_TASK.md` marking the dedicated OpenAlgo-Upstox setup phase complete, and adding Shoonya onboarding to the active task lists.
+
+### Files Changed
+- `AGENTS.md`
+- `docs/PRODUCTION_INFRASTRUCTURE.md`
+- `docs/SESSION_HANDOVER.md`
+- `docs/CHANGELOG.md` (this file)
+- `docs/CURRENT_TASK.md`
+- `docs/PROJECT_MASTER.md`
+- `PROJECT_SUMMARY.md`
+
+---
+
 ## 2026-07-16 23:37 IST — Claude Sonnet 5
 
 ### Task

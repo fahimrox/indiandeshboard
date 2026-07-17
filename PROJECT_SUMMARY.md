@@ -85,25 +85,25 @@ Dashboard kisi ek broker API ke band hone par fail nahi hota. Isme **Multi-Tier 
 graph TD
     A[getQuotes request] --> B{Upstox API Active?}
     B -- Yes --> C[Return Upstox Live quotes]
-    B -- No --> D{Angel One Active?}
-    D -- Yes --> E[Return Angel One Quotes]
-    D -- No --> F{Yahoo Finance Active?}
-    F -- Yes --> G[Return Yahoo Sparkline/Quotes]
-    F -- No --> H[Fallback: Read SQLite/Local EOD Cache]
+    B -- No --> D{Yahoo Finance Active?}
+    D -- Yes --> E[Return Yahoo Quotes]
+    D -- No --> F[Fallback: Read SQLite/Local EOD Cache]
 ```
 
 ### Live Option Chain & OI Data Flow
 ```mermaid
 graph TD
-    A[getOptionChain request] --> B{Fyers API V3 Active?}
-    B -- Yes --> C[Return Fyers Option Chain]
-    B -- No --> D{Angel One Active?}
-    D -- Yes --> E[Return Angel One Option Chain]
-    D -- No --> F{NSE Scraper Active?}
-    F -- Yes --> G[Scrape from nseindia.com & return]
-    F -- No --> H{EOD Cache available?}
-    H -- Yes --> I[Return cached market EOD snapshots]
-    H -- No --> J[Fallback: Generate synthetic Mock Data]
+    A[getOptionChain request] --> B{Upstox API Active?}
+    B -- Yes --> C[Return Upstox Option Chain]
+    B -- No --> D{Fyers API V3 Active?}
+    D -- Yes --> E[Return Fyers Option Chain]
+    D -- No --> F{Angel One Active?}
+    F -- Yes --> G[Return Angel One Option Chain]
+    F -- No --> H{NSE Scraper Active?}
+    H -- Yes --> I[Scrape from nseindia.com & return]
+    H -- No --> J{EOD Cache available?}
+    J -- Yes --> K[Return cached market EOD snapshots]
+    J -- No --> L[FAIL state: Throw error & show FAIL UI]
 ```
 
 ---
@@ -219,9 +219,9 @@ Live updating tables aur graph metrics render karte waqt:
 ### 4. Build Validation
 Kisi bhi change/checkpoint ko push karne se pehle frontend aur backend integration tests validation check karne ke liye production build command run karein:
 ```bash
-npm run build
+NITRO_PRESET=node-server npm run build
 ```
-Compile warning or static assets error code check pass hona chahiye.
+*Note: plain `npm run build` bina NITRO_PRESET ke production VM (Ubuntu node-server) par 502 Bad Gateway error create kar sakta hai.*
 
 ---
 
@@ -230,12 +230,12 @@ Recently, the core market data layer has been upgraded to a highly robust **Dist
 1. **Unified Symbol Mapping & SENSEX (Phase 1)**: Integrated `SENSEX` across all layers, replacing `MIDCAPNIFTY` references in core layouts, and introduced a unified symbol mapper (`resolveSymbol()`) for resolving standard symbols across Upstox, Angel One, Fyers, Yahoo, and NSE.
 2. **Broker API Protection & Session Concurrency (Phase 2)**: Solved Angel One concurrent login totp token locks. Bypassed modern F5 firewall blocks on Angel One via modern endpoints. Implemented auto-reconnects and protected Fyers API from locking on non-auth errors.
 3. **Fallback Routing & Sanity Checks (Phase 3)**: Implemented a central orchestrator (`marketDataLayer.ts`) with custom feature categories and automated fallback paths:
-   * **Quotes**: `upstox` ➔ `yahoo`
+   * **Quotes**: `upstox` ➔ `yahoo` ➔ `EOD cache`
    * **Futures/OI**: `angelone` ➔ `nse`
-   * **Option Chain**: `fyers` ➔ `angelone` ➔ `nse` ➔ `synthetic` (mathematically computed Option Chain model).
+   * **Option Chain**: `upstox` ➔ `fyers` ➔ `angelone` ➔ `nse` ➔ `EOD cache` ➔ `FAIL` (strictly no mock or synthetic data).
    * **3-Strike Circuit Breaker**: Auto-bypasses failed brokers on 4th call.
    * **IST Market-Hours & Quote Sanity Guard**: Prevents bad ticks and rate limit wastage.
-4. **Data Lineage UI & Polish (Phase 4)**: Added real-time source badges and latency indicators in Option Chain and OI Analysis Pro pages. Option chains utilizing synthetic computed feeds are flagged with a prominent rose-red pulsating `ESTIMATED (MOCK)` badge.
+4. **Data Lineage UI & Polish (Phase 4)**: Added real-time source badges and latency indicators in Option Chain and OI Analysis Pro pages. Since mock data is forbidden, any data-source failure results in a clean EOD or FAIL state.
 5. **Key Bug Fixes**:
    * **AI Lab Divide-by-Zero**: Fixed `+Infinity%` index price ticks on loading state by defaulting baseline properties to spot price, and adding `Data Pending` labels in `public/ai-analysis.html` if `prevClose` is zero.
    * **Isolated Cache Keys**: Solved persistent cache-collision by hashing symbol lists to generate isolated EOD snapshot keys (avoiding overwrites between stocks and index quotes).

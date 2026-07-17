@@ -1,6 +1,28 @@
 # Latest AI Session Handover
 
 ## Session
+- Date/Time: 2026-07-18 IST
+- AI Agent: Antigravity
+- User: Fahim
+- Branch: main (Documentation changes remain uncommitted)
+
+---
+
+## Completed Work
+
+### OpenAlgo VM Middleware Setup & Verification
+- **Middleware Host:** OpenAlgo installed and configured on the dedicated `Bazaarmood2` VM (`146.56.55.42`) separate from the main production application (`indian-dashboard-collector`).
+- **Python 3.12 Upgrade:** Installed Python 3.12.13 via deadsnakes on Ubuntu 22.04 to fix incompatibilities between IPython 9.12 and the default Python 3.10.
+- **Systemd Service:** Configured `openalgo.service` manually to run Gunicorn with one eventlet worker on a Unix socket (`openalgo.sock`) plus a WebSocket proxy. Survives reboots successfully; memory consumption is ~721 MB.
+- **Nginx & SSL:** Reverse-proxies `openalgo.bazaarmood.com` to the Unix socket. Let's Encrypt SSL certificate active (expiring 2026-10-15) with automatic renewals scheduled.
+- **Firewall Persistence:** Inserted a TCP ACCEPT rule for ports 80/443 before the pre-configured OCI INPUT REJECT rule in `/etc/iptables/rules.v4` and saved it using `netfilter-persistent`. Reboot test confirmed persistent web access.
+- **Upstox Broker Authorization:** Succeeded and verified operational on the standalone OpenAlgo instance.
+- **Dashboard Integration Status:** The main Indian Dashboard application integration with OpenAlgo is still pending (it continues to query live APIs directly).
+- **Shoonya Migration Plan:** Shoonya API onboarding and shadow validation comparing LTP/OI/expiry data against FYERS are planned.
+
+---
+
+## Session
 - Date/Time: 2026-07-16 23:37 IST
 - AI Agent: Claude Sonnet 5
 - User: Fahim

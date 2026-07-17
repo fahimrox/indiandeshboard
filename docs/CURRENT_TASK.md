@@ -5,13 +5,16 @@
 
 ---
 
-## Status: ACTIVE — Historical Data and Backtesting Phase
+## Status: ACTIVE — Parallel Data-Source and Historical Frontend Workstreams
 
-**Current Feature:**
-Last 7 Trading Days Historical Data, Date-Range Charts, and Backtesting Pipeline
+**Current Workstreams:**
+1. Shoonya API onboarding, adapter design, and 2–3 live-session shadow validation. (Keep FYERS active as current primary option-chain source until Shoonya completes live shadow validation).
+2. Phase 2B frontend historical chart integration using the already-completed historical backend. (Note: Phase 2B is NOT blocked by Shoonya and can continue using the existing Supabase/SQLite historical endpoints).
+3. Dedicated OpenAlgo-Upstox infrastructure setup — complete.
 
-**Current Objective:**
-Proceed to Phase 2B: Frontend historical chart integration (selectable trading dates, range selectors, loaders/states, and ECharts integrations).
+**Current Objectives:**
+- Shoonya Onboarding & Validation: Proceed with onboarding and adapter design, maintaining secure TOTP authentication.
+- Phase 2B Frontend Integration: Implement selectable dates, range selectors, loaders/states, and ECharts/Recharts integration.
 
 **Latest Completed Vertical Slice (15 July 2026):**
 - Chart Lab EOD/latest OI now reads a coherent Supabase snapshot first with SQLite fallback.
@@ -51,6 +54,14 @@ Proceed to Phase 2B: Frontend historical chart integration (selectable trading d
 - [ ] Store strategy inputs, signals, entries, exits, P&L, and performance metrics.
 - [ ] Keep backtesting isolated from live trading and production collection.
 - [ ] No order placement features.
+
+### Broker & Middleware Migrations (Shoonya & OpenAlgo)
+- [x] Set up dedicated OpenAlgo VM (`Bazaarmood2` at `146.56.55.42`) and authorize Upstox broker.
+- [x] Configure deadsnakes Python 3.12, systemd Gunicorn Unix socket, SSL certs, and persistent firewall Accept rules on Bazaarmood2 VM.
+- [ ] Onboard Shoonya API and implement secure TOTP authentication.
+- [ ] Create Shoonya REST/WebSocket adapter and verify symbol/expiry mapping.
+- [ ] Execute 2-3 live sessions shadow validation comparing Shoonya against FYERS.
+- [ ] Promote Shoonya as primary Option Chain/OI source, NSE as fallback, and disable or demote FYERS.
 
 ### Phase 5 — Validation
 - [ ] Verify row counts per trading day.
