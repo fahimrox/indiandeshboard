@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { isMarketOpenIst } from "./market-hours";
+import { getIstDate, isMarketOpenIst } from "./market-hours";
 
 // NSE scraper. NSE requires a cookie session — we hit the homepage first,
 // reuse cookies for the JSON API, and cache responses to dodge rate limits.
@@ -216,13 +216,96 @@ function classifyBuildup(priceChg: number, oiChg: number): FnoStock["buildup"] {
   return "Neutral";
 }
 
+// Per-symbol "signal first seen" times. LOCKED per trading day and persisted to
+// disk so they survive server restarts (a restart must never re-stamp a 9:30 AM
+// signal to the restart time) and stay visible end-of-day for backtesting —
+// mirroring how the reference terminals keep each signal's original fire time.
 const signalSeenAt = new Map<string, { key: string; at: number }>();
+let signalTimesDate: string | null = null;
+
+function istTradingDateStr(now: number): string {
+  const ist = getIstDate(now);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${ist.getFullYear()}-${pad(ist.getMonth() + 1)}-${pad(ist.getDate())}`;
+}
+
+// Hydrate the in-memory signal-time map from disk for the given trading day.
+// Rolls over (resets) automatically when the trading day changes.
+// Serialization guard: ensures concurrent calls to ensureSignalTimesLoaded
+// never interleave the clear+hydrate sequence — the second caller chains onto
+// the same in-flight promise rather than starting a second clear.
+let _hydrateInFlight: Promise<void> | null = null;
+
+async function ensureSignalTimesLoaded(tradingDate: string) {
+  // Fast path: already hydrated for this trading day.
+  if (signalTimesDate === tradingDate) return;
+
+  // Serialize: if another call is already hydrating, wait for it and re-check.
+  if (_hydrateInFlight) {
+    await _hydrateInFlight;
+    if (signalTimesDate === tradingDate) return;
+  }
+
+  // This call owns the hydration. Capture promise so concurrent callers wait.
+  _hydrateInFlight = (async () => {
+    signalSeenAt.clear();
+    let hydrationOk = false;
+    try {
+      const { loadSignalTimes } = await import("./services/persistentCache");
+      const stored = await loadSignalTimes();
+      if (stored === null) {
+        // Missing state file is valid: fresh session or first day, start empty.
+        hydrationOk = true;
+      } else if (stored.tradingDate === tradingDate && stored.entries) {
+        for (const [sym, entry] of Object.entries(stored.entries)) {
+          if (entry && typeof entry.at === "number" && typeof entry.key === "string") {
+            signalSeenAt.set(sym, entry);
+          }
+        }
+        hydrationOk = true;
+      } else {
+        // File exists but is for a different day — treat as empty for today.
+        hydrationOk = true;
+      }
+    } catch {
+      // Transient read / JSON parse error: do NOT mark hydration complete so the
+      // next request can retry. signalSeenAt stays empty for this cycle.
+      hydrationOk = false;
+    }
+    if (hydrationOk) signalTimesDate = tradingDate;
+  })();
+
+  try {
+    await _hydrateInFlight;
+  } finally {
+    _hydrateInFlight = null;
+  }
+}
+
+async function persistSignalTimes(tradingDate: string) {
+  try {
+    const { saveSignalTimes } = await import("./services/persistentCache");
+    const entries: Record<string, { key: string; at: number }> = {};
+    for (const [sym, v] of signalSeenAt) entries[sym] = v;
+    await saveSignalTimes({ tradingDate, entries });
+  } catch {
+    // best-effort persist
+  }
+}
 
 function stampSignal(symbol: string, buildup: FnoStock["buildup"], now: number) {
-  if (buildup === "Neutral") return null;
+  if (buildup === "Neutral") {
+    // Clear stored state: A → Neutral → A must produce a NEW stamp for the second
+    // A, not silently reuse the first A's time. Deletion is reflected in the next
+    // persistSignalTimes() call in the same fetch cycle.
+    signalSeenAt.delete(symbol);
+    return null;
+  }
   const key = `${symbol}:${buildup}`;
   const prev = signalSeenAt.get(symbol);
+  // Same buildup state as before → keep the ORIGINAL locked time (do not re-stamp).
   if (prev?.key === key) return prev.at;
+  // New signal / changed buildup → stamp the moment it first appeared.
   signalSeenAt.set(symbol, { key, at: now });
   return now;
 }
@@ -287,6 +370,9 @@ export async function fetchFnoStocks(): Promise<FnoResponse> {
     const json = await nseGet<Resp>("/api/live-analysis-oi-spurts-underlyings");
     if (!json?.data?.length) throw new Error("empty");
     const quotes = await fetchYahooMiniQuotes(json.data.map((d) => String(d.symbol ?? "")).filter(Boolean));
+    // Restore locked signal times for today before stamping, so a restart mid-session
+    // keeps each signal's original fire time instead of re-stamping to "now".
+    if (marketOpen) await ensureSignalTimesLoaded(istTradingDateStr(now));
     const stocks: FnoStock[] = json.data
       .map((d) => {
         const symbol = String(d.symbol ?? "");
@@ -324,6 +410,9 @@ export async function fetchFnoStocks(): Promise<FnoResponse> {
     const volSort = [...stocks].sort((a, b) => b.volume - a.volume);
     const cutoff = volSort[Math.floor(volSort.length * 0.1)]?.volume ?? Infinity;
     for (const s of stocks) if (s.volume >= cutoff) s.volumeShocker = true;
+    // Persist the (possibly newly stamped) locked times so they survive restarts
+    // and are baked into the EOD snapshot saved below.
+    if (marketOpen) await persistSignalTimes(istTradingDateStr(now));
     const result: FnoResponse = { data: stocks, source: "nse", updatedAt: now };
     // Live-hours snapshots are saved as the EOD source. When closed with no prior
     // snapshot, mark the response EOD so the UI never shows wall-clock detection
