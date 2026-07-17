@@ -504,7 +504,7 @@ export function DashboardShell({
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-medium text-xs">Option Chain</span>
                           <div className="flex items-center gap-1.5 font-mono text-xs">
-                            <span className="text-muted-foreground">Fyers ➔ Angel ➔ NSE</span>
+                            <span className="text-muted-foreground">Upstox ➔ Fyers ➔ Angel ➔ NSE</span>
                             <span className={`rounded px-1.5 py-0.5 font-bold uppercase text-[10px] border capitalize ${
                               status.activeRoutes.optionChain === "fyers"
                                 ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/20"
