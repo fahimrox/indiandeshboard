@@ -6,6 +6,36 @@
 
 ---
 
+## 2026-07-18 02:45 IST — Claude Sonnet 5 (Kiro)
+
+### Task
+Redesign the homepage (`/`) live-market overview UI using reference screenshots as visual inspiration only. Live market page, no historical controls added.
+
+### Summary
+- Removed the shared page header ("Market Dashboard" / "Live Indian market intelligence" / updated-at badge) from the homepage only, by no longer passing `title`/`subtitle`/`updatedAt` to `DashboardShell` from `src/routes/index.tsx`. `DashboardShell.tsx` itself was not modified; the header still renders normally on every other page that passes `title`.
+- Removed from the homepage: Positive Impact / Negative Impact / Advance-Decline / Avg Change KPI cards, the AI Market Sentiment card, the Market Breadth card, Top Gainers & Losers (NIFTY 50 stock rows), and the entire Market Overview & Pulse block (per-index bias cards, Volatility & Positioning, Sector Flow, sentiment bullet lines). `KpiCard` and `StockRow` were NOT deleted from `MarketBits.tsx` — they are still used by `src/routes/sector.$key.tsx`.
+- Added `src/features/home/FearGreedGauge.tsx`: a semicircular SVG gauge with a pure, documented `computeFearGreed()` function. Real inputs only: breadth (35%, from `constituentsQuery` advance/decline for NIFTY/BANKNIFTY/SENSEX), momentum (30%, index %change clamped to ±1.5%), sector participation (20%, % of tracked sector indices positive), VIX risk adjustment (15%, inverted, clamped 10-30). Missing inputs are dropped and remaining weights renormalized — never replaced with a bullish/bearish guess. Returns `score: null` / "Unavailable" if fewer than 2 of the 4 dimensions resolve, or if neither breadth nor momentum resolves.
+- Added `src/features/home/IndexBreadthBars.tsx`: three per-index (NIFTY 50 / BANK NIFTY / SENSEX) large paired Advances/Declines bars with real counts, percentages, unchanged count, and total constituent count, sourced from the existing `constituentsQuery(index)` (no new server endpoints). Each block has independent loading skeleton and error/unavailable states so one failing index doesn't affect the others.
+- Added `src/features/home/ParticipantActivity.tsx`: polished FII/DII/Client/Retail-style layout. Repo-wide search (server functions, `services/database.server.ts`, `services/supabase.server.ts`, API routes, docs) found no real participant/institutional-flow dataset anywhere in the codebase — only an unrelated F&O scanner heuristic tag (`INSTITUTIONAL_BUYING`/`INSTITUTIONAL_SELLING`, not a participant-flow feed). Per the task's outcome C, the section renders a clearly labeled "Not available" state per category and a summary line: "Participant activity data is not currently available from the configured sources." No values were fabricated or derived from unrelated breadth/price/volume data.
+- Rewrote `src/routes/index.tsx` to keep the 3 index hero cards, remove the old sections, and mount the three new homepage components in sequence. Kept `dashboardQuery` as the loader/data source (no new fetches added beyond the pre-existing `constituentsQuery` calls already used elsewhere in the app).
+
+### Build/Test Result
+`npm run build`: exit 0 (client + ssr + nitro, clean). `git diff --check`: clean (no whitespace errors). No other pages, `DashboardShell.tsx`, `MarketBits.tsx`, scheduler, database, or Supabase files were touched.
+
+### Files Changed
+- `src/routes/index.tsx` (rewritten)
+- `src/features/home/FearGreedGauge.tsx` (new)
+- `src/features/home/IndexBreadthBars.tsx` (new)
+- `src/features/home/ParticipantActivity.tsx` (new)
+- `docs/CURRENT_TASK.md`, `docs/SESSION_HANDOVER.md`, `docs/CHANGELOG.md` (this entry)
+
+### Remaining Risks / Follow-ups
+- Fear & Greed weights (35/30/20/15) are a first, documented pass per the task's "suggested principle, not mandatory exact weights" — may need tuning once observed against real live sessions.
+- Participant Activity section will need a real read-only data source wired in before it can show live figures; currently intentionally shows an honest unavailable state.
+- Not committed, staged, pushed, or merged — left for review per task instructions.
+
+---
+
 ## 2026-07-18 00:50 IST — Antigravity
 
 ### Task

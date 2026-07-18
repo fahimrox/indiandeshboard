@@ -43,6 +43,37 @@ async function nseGet<T>(path: string): Promise<T> {
   if (!res.ok) throw new Error(`NSE ${path} -> ${res.status}`);
   return (await res.json()) as T;
 }
+/**
+ * Download a text/CSV report from NSE using the shared cookie session.
+ * Accepts either an NSE-relative path or a full https://www.nseindia.com URL.
+ */
+export async function nseDownloadText(pathOrUrl: string): Promise<string> {
+  const url = pathOrUrl.startsWith("https://")
+    ? pathOrUrl
+    : `https://www.nseindia.com${pathOrUrl}`;
+
+  const request = async (cookie: string) =>
+    fetch(url, {
+      headers: {
+        ...HEADERS_BASE,
+        Accept: "text/csv,text/plain,*/*",
+        Cookie: cookie,
+      },
+    });
+
+  let response = await request(await getCookies());
+
+  if (response.status === 401 || response.status === 403) {
+    cookieStore = null;
+    response = await request(await getCookies());
+  }
+
+  if (!response.ok) {
+    throw new Error(`NSE download ${url} -> ${response.status}`);
+  }
+
+  return response.text();
+}
 
 const cache = new Map<string, { at: number; data: unknown }>();
 const TTL = 8_000;

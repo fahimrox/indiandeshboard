@@ -16,6 +16,13 @@
 - Shoonya Onboarding & Validation: Proceed with onboarding and adapter design, maintaining secure TOTP authentication.
 - Phase 2B Frontend Integration: Implement selectable dates, range selectors, loaders/states, and ECharts/Recharts integration.
 
+**Latest Completed Vertical Slice (18 July 2026, out-of-band UI task):**
+- Homepage (`/`) live-dashboard UI redesign: Fear & Greed gauge, per-index
+  advance/decline breadth bars, and a participant-activity section (honest
+  "unavailable" state — no real FII/DII/Client/Retail dataset exists in this
+  codebase). Homepage remains live-only; no historical controls added. Not
+  part of the Phase 2B roadmap below — Phase 2B status is unchanged.
+
 **Latest Completed Vertical Slice (15 July 2026):**
 - Chart Lab EOD/latest OI now reads a coherent Supabase snapshot first with SQLite fallback.
 - Chart Lab OI profile now uses refresh-to-refresh CE/PE OI changes only, retains the final saved refresh state after market close, matches the supplied flat broker-profile styling with wide square bars and colored hollow draining tips, shows strike-only axis labels, uses available real CE+PE activity as index volume, fits the viewport without page scroll, and remains populated when switching indices.

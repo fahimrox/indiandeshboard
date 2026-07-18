@@ -3,9 +3,18 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { startScheduler } from "./lib/services/scheduler.server";
+import { startParticipantCollector } from "./lib/services/participantCollector.server";
 
 // Start background intraday market data recording scheduler
 startScheduler();
+
+// Start the once-per-day EOD participant-derivatives collector (idempotent,
+// SQLite-first, self-contained). Guarded so it can never break SSR startup.
+try {
+  startParticipantCollector();
+} catch (err) {
+  console.error("[server] Failed to start participant collector", err);
+}
 
 
 type ServerEntry = {
