@@ -1,5 +1,6 @@
 import { marketDataLayer } from "./marketDataLayer";
 import type { Quote } from "../market.functions";
+import { NIFTY_STOCKS, BANKNIFTY_STOCKS, SENSEX_STOCKS } from "../market-constituents";
 
 const INDICES = ["^NSEI", "^BSESN", "^NSEBANK", "^INDIAVIX"];
 
@@ -16,14 +17,6 @@ const SECTORS = [
   { key: "finance", symbol: "NIFTY_FIN_SERVICE.NS", name: "Finance" },
   { key: "banking", symbol: "^NSEBANK", name: "Banking" },
   { key: "infra", symbol: "^CNXINFRA", name: "Infra" },
-];
-
-const NIFTY_STOCKS = [
-  "RELIANCE.NS","HDFCBANK.NS","ICICIBANK.NS","INFY.NS","TCS.NS",
-  "BHARTIARTL.NS","ITC.NS","LT.NS","KOTAKBANK.NS","AXISBANK.NS",
-  "SBIN.NS","HINDUNILVR.NS","BAJFINANCE.NS","MARUTI.NS","ASIANPAINT.NS",
-  "M&M.NS","SUNPHARMA.NS","HCLTECH.NS","ULTRACEMCO.NS","TITAN.NS",
-  "NTPC.NS","POWERGRID.NS","WIPRO.NS","NESTLEIND.NS","TATAMOTORS.NS",
 ];
 
 type IndexBias = "Bullish" | "Bearish" | "Neutral";
@@ -58,7 +51,10 @@ function buildPulse(opts: {
   bank?: Quote | null;
   sensex?: Quote | null;
   vix?: Quote | null;
+  /** Overall/headline breadth (NIFTY-50 constituents) — used for the market tone line. */
   bullsPct: number;
+  /** Real per-index constituent bulls% for each index card. */
+  indexBreadth: { nifty: number; bank: number; sensex: number };
   advance: number;
   decline: number;
   topSector?: { label: string; changePct: number };
@@ -67,15 +63,17 @@ function buildPulse(opts: {
   topLoser?: Quote;
   pcr: number;
 }) {
-  const { nifty, bank, sensex, vix, bullsPct, advance, decline, topSector, bottomSector, topGainer, topLoser, pcr } = opts;
+  const { nifty, bank, sensex, vix, bullsPct, indexBreadth, advance, decline, topSector, bottomSector, topGainer, topLoser, pcr } = opts;
   const vixChg = vix?.changePct ?? 0;
   const vixLvl = vix?.price ?? 0;
   const overallTone: IndexBias = bullsPct >= 55 ? "Bullish" : bullsPct <= 45 ? "Bearish" : "Neutral";
   
+  // Per-index breadth: each index card uses breadth from its OWN constituents
+  // (NIFTY 50 / BANK NIFTY 12 / SENSEX 30) — never one shared NIFTY value.
   const indices = [
-    indexNote("NIFTY 50", nifty, bullsPct, vixChg),
-    indexNote("BANK NIFTY", bank, bullsPct, vixChg),
-    indexNote("SENSEX", sensex, bullsPct, vixChg),
+    indexNote("NIFTY 50", nifty, indexBreadth.nifty, vixChg),
+    indexNote("BANK NIFTY", bank, indexBreadth.bank, vixChg),
+    indexNote("SENSEX", sensex, indexBreadth.sensex, vixChg),
   ].filter(Boolean) as Array<{ label: string; bias: IndexBias; changePct: number; reason: string; reversalChance: number }>;
 
   const vixStatus =
@@ -169,10 +167,12 @@ async function getQuotesCached(symbols: string[], bypassCache = false): Promise<
 
 export const dashboardService = {
   async getDashboardData(bypassCache = false) {
-    const [indices, sectors, stocks] = await Promise.all([
+    const [indices, sectors, stocks, bankStocks, sensexStocks] = await Promise.all([
       getQuotesCached(INDICES, bypassCache),
       getQuotesCached(SECTORS.map((s) => s.symbol), bypassCache),
-      getQuotesCached(NIFTY_STOCKS, bypassCache),
+      getQuotesCached([...NIFTY_STOCKS], bypassCache),
+      getQuotesCached([...BANKNIFTY_STOCKS], bypassCache),
+      getQuotesCached([...SENSEX_STOCKS], bypassCache),
     ]);
 
     const indexMap = Object.fromEntries(indices.map((q) => [q.symbol, q]));
@@ -183,7 +183,19 @@ export const dashboardService = {
 
     const s = statsFor(stocks);
     const sortedSectors = [...sectorList].sort((a, b) => b.changePct - a.changePct);
-    const bullsPct = (s.advance / Math.max(1, s.advance + s.decline)) * 100;
+
+    // Real per-index constituent breadth (bulls% = advances / directional).
+    const bullsPctOf = (list: Quote[]) => {
+      const adv = list.filter((q) => q.changePct > 0).length;
+      const dec = list.filter((q) => q.changePct < 0).length;
+      return (adv / Math.max(1, adv + dec)) * 100;
+    };
+    const bullsPct = bullsPctOf(stocks); // NIFTY-50 headline breadth
+    const indexBreadth = {
+      nifty: bullsPct,
+      bank: bullsPctOf(bankStocks),
+      sensex: bullsPctOf(sensexStocks),
+    };
     const pcr = 0;
 
     const commentary = buildPulse({
@@ -192,6 +204,7 @@ export const dashboardService = {
       sensex: indexMap["^BSESN"],
       vix: indexMap["^INDIAVIX"],
       bullsPct,
+      indexBreadth,
       advance: s.advance,
       decline: s.decline,
       topSector: sortedSectors[0],

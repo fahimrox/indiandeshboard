@@ -18,6 +18,7 @@ import {
   getIndexContributionHistory,
   type IndexContributionKey,
 } from "./index-contribution.functions";
+import { getParticipantActivity } from "./participant.functions";
 import { isMarketOpenIst, msUntilNextMarketOpenIst } from "./market-hours";
 
 const liveInterval =
@@ -32,6 +33,14 @@ export const dashboardQuery = queryOptions({
   queryFn: () => getDashboard(),
   refetchInterval: liveInterval(10_000),
   staleTime: 5_000,
+});
+
+export const participantActivityQuery = queryOptions({
+  queryKey: ["participant-activity"],
+  queryFn: () => getParticipantActivity(),
+  // Official EOD report — no fast polling; refresh hourly.
+  refetchInterval: 60 * 60_000,
+  staleTime: 30 * 60_000,
 });
 
 export const quotesQuery = (symbols: string[]) =>

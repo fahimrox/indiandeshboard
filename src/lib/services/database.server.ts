@@ -80,6 +80,24 @@ export interface DBSignal {
   confidence: number;
 }
 
+
+export interface DBParticipantDerivativeRow {
+  participantType: "Client" | "DII" | "FII" | "Pro" | "TOTAL";
+  futureIndexLong: number;
+  futureIndexShort: number;
+  futureStockLong: number;
+  futureStockShort: number;
+  optionIndexCallLong: number;
+  optionIndexPutLong: number;
+  optionIndexCallShort: number;
+  optionIndexPutShort: number;
+  optionStockCallLong: number;
+  optionStockPutLong: number;
+  optionStockCallShort: number;
+  optionStockPutShort: number;
+  totalLongContracts: number;
+  totalShortContracts: number;
+}
 export interface MarketDatabase {
   init(): void;
   saveSnapshots(quotes: DBQuote[], timestamp: number, dateStr: string, timeStr: string): void;
@@ -87,6 +105,12 @@ export interface MarketDatabase {
   saveBreadth(breadth: DBBreadth, timestamp: number, dateStr: string, timeStr: string): void;
   saveSectors(sectors: DBSector[], timestamp: number, dateStr: string, timeStr: string): void;
   saveSignals(signals: DBSignal[], timestamp: number, dateStr: string, timeStr: string): void;
+  saveParticipantDerivatives(
+    reportType: "OI" | "VOLUME",
+    reportDate: string,
+    rows: DBParticipantDerivativeRow[]
+  ): void;
+  getLatestParticipantDerivativeReports(limitDates?: number): any[];
   logEvent(level: "INFO" | "WARN" | "ERROR", message: string, details?: string): void;
   
   getAvailableDates(): string[];
@@ -245,6 +269,29 @@ class SQLiteDatabaseService implements MarketDatabase {
         confidence REAL NOT NULL,
         UNIQUE(trading_date, trading_time, symbol, strike)
       );
+      CREATE TABLE IF NOT EXISTS participant_derivatives (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        report_date TEXT NOT NULL,
+        report_type TEXT NOT NULL CHECK(report_type IN ('OI', 'VOLUME')),
+        participant_type TEXT NOT NULL,
+        future_index_long INTEGER NOT NULL,
+        future_index_short INTEGER NOT NULL,
+        future_stock_long INTEGER NOT NULL,
+        future_stock_short INTEGER NOT NULL,
+        option_index_call_long INTEGER NOT NULL,
+        option_index_put_long INTEGER NOT NULL,
+        option_index_call_short INTEGER NOT NULL,
+        option_index_put_short INTEGER NOT NULL,
+        option_stock_call_long INTEGER NOT NULL,
+        option_stock_put_long INTEGER NOT NULL,
+        option_stock_call_short INTEGER NOT NULL,
+        option_stock_put_short INTEGER NOT NULL,
+        total_long_contracts INTEGER NOT NULL,
+        total_short_contracts INTEGER NOT NULL,
+        source TEXT NOT NULL DEFAULT 'NSE',
+        collected_at INTEGER NOT NULL,
+        UNIQUE(report_date, report_type, participant_type)
+      );
     `);
 
     // 2. Create indexes
@@ -255,6 +302,8 @@ class SQLiteDatabaseService implements MarketDatabase {
       CREATE INDEX IF NOT EXISTS idx_breadth_date ON market_breadth(trading_date, timestamp);
       CREATE INDEX IF NOT EXISTS idx_sector_sym_date ON sector_strength(symbol, trading_date);
       CREATE INDEX IF NOT EXISTS idx_signals_sym_date ON trade_signals(symbol, trading_date);
+      CREATE INDEX IF NOT EXISTS idx_participant_derivatives_date
+        ON participant_derivatives(report_date DESC, report_type, participant_type);
     `);
   }
 
@@ -355,6 +404,118 @@ class SQLiteDatabaseService implements MarketDatabase {
     });
 
     transaction(signals);
+  }
+
+  public saveParticipantDerivatives(
+    reportType: "OI" | "VOLUME",
+    reportDate: string,
+    rows: DBParticipantDerivativeRow[]
+  ) {
+    const insert = this.db.prepare(`
+      INSERT INTO participant_derivatives (
+        report_date,
+        report_type,
+        participant_type,
+        future_index_long,
+        future_index_short,
+        future_stock_long,
+        future_stock_short,
+        option_index_call_long,
+        option_index_put_long,
+        option_index_call_short,
+        option_index_put_short,
+        option_stock_call_long,
+        option_stock_put_long,
+        option_stock_call_short,
+        option_stock_put_short,
+        total_long_contracts,
+        total_short_contracts,
+        source,
+        collected_at
+      ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NSE', ?
+      )
+      ON CONFLICT(report_date, report_type, participant_type) DO UPDATE SET
+        future_index_long = excluded.future_index_long,
+        future_index_short = excluded.future_index_short,
+        future_stock_long = excluded.future_stock_long,
+        future_stock_short = excluded.future_stock_short,
+        option_index_call_long = excluded.option_index_call_long,
+        option_index_put_long = excluded.option_index_put_long,
+        option_index_call_short = excluded.option_index_call_short,
+        option_index_put_short = excluded.option_index_put_short,
+        option_stock_call_long = excluded.option_stock_call_long,
+        option_stock_put_long = excluded.option_stock_put_long,
+        option_stock_call_short = excluded.option_stock_call_short,
+        option_stock_put_short = excluded.option_stock_put_short,
+        total_long_contracts = excluded.total_long_contracts,
+        total_short_contracts = excluded.total_short_contracts,
+        source = excluded.source,
+        collected_at = excluded.collected_at
+    `);
+
+    const collectedAt = Date.now();
+
+    const transaction = this.db.transaction(
+      (items: DBParticipantDerivativeRow[]) => {
+        for (const row of items) {
+          insert.run(
+            reportDate,
+            reportType,
+            row.participantType,
+            row.futureIndexLong,
+            row.futureIndexShort,
+            row.futureStockLong,
+            row.futureStockShort,
+            row.optionIndexCallLong,
+            row.optionIndexPutLong,
+            row.optionIndexCallShort,
+            row.optionIndexPutShort,
+            row.optionStockCallLong,
+            row.optionStockPutLong,
+            row.optionStockCallShort,
+            row.optionStockPutShort,
+            row.totalLongContracts,
+            row.totalShortContracts,
+            collectedAt
+          );
+        }
+      }
+    );
+
+    transaction(rows);
+  }
+
+  public getLatestParticipantDerivativeReports(limitDates = 2): any[] {
+    const safeLimit = Math.max(1, Math.min(30, Math.trunc(limitDates)));
+
+    const query = this.db.prepare(`
+      SELECT *
+      FROM participant_derivatives
+      WHERE report_date IN (
+        SELECT DISTINCT report_date
+        FROM participant_derivatives
+        ORDER BY report_date DESC
+        LIMIT ?
+      )
+      ORDER BY
+        report_date DESC,
+        CASE report_type
+          WHEN 'OI' THEN 1
+          WHEN 'VOLUME' THEN 2
+          ELSE 3
+        END,
+        CASE participant_type
+          WHEN 'FII' THEN 1
+          WHEN 'DII' THEN 2
+          WHEN 'Client' THEN 3
+          WHEN 'Pro' THEN 4
+          WHEN 'TOTAL' THEN 5
+          ELSE 6
+        END
+    `);
+
+    return query.all(safeLimit);
   }
 
   public logEvent(level: "INFO" | "WARN" | "ERROR", message: string, details?: string) {
