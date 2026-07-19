@@ -6,6 +6,139 @@
 
 ---
 
+## 2026-07-18 21:32 IST — Claude Opus 4.8
+
+### Task
+Screener V3 — Phase 1 **data foundation only** (no signal engines, no UI). Branch: `feat/screener-v3-data-foundation` (uncommitted, for review).
+
+### Summary
+- Added an isolated `src/lib/screener-v3/` module set. Nothing here is wired into the app, `/screener`, scheduler, DB, or deployment yet.
+- **Instrument master**: `instrument-master.parser.ts` (pure) parses the full official Upstox NSE master into a typed stock-F&O universe. Indices excluded via `underlying_type === "EQUITY"` plus an explicit excluded-index safety set. Near-month future selected deterministically (earliest non-expired, IST date-safe); later expiries preserved; expired futures/options dropped from the current universe; invalid expiry/strike/lot/key rows rejected (never coerced to 0); missing spot mapping kept `null` and counted. `instrument-master.server.ts` downloads + gunzips + in-memory-caches (6h TTL) with explicit `stale`/`provider_error` states; never writes disk/persistent cache; does not touch the existing equity quote map in `upstoxService.ts`.
+- **Universe helpers** (`fno-universe.ts`, pure): find/isFno/resolve spot/nearest future/expiries/options-by-expiry, and a deterministic ATM + nearby-strike resolver that only uses real strikes (never fabricates).
+- **Candle service**: `candles.ts` (pure normalize/validate/dedupe/sort + IST-session-aligned 1m→3m/5m aggregation, no gap fabrication, missing volume stays `null`) and `candles.server.ts` (Yahoo v8 via existing `yahooService.getHistory`, `.NS` normalization, freshness metadata, explicit 1-minute ≤8-day limitation note).
+- **Pure features** (`features.ts`): session VWAP (no last-price fallback), true range, ATR, previous-session OHLC, opening range (5/15/30m, incomplete→insufficient), 1m/3m/5m/15m returns, rolling volume sum/avg, volume acceleration — all returning explicit availability envelopes; no zero-as-missing.
+- **DataResult repair** (`types.ts`): added `DataResultMeta<T>` (Omit status/value) and reordered helpers so `meta` can never override the discriminant/value; added a `stale` helper that preserves the value.
+- **Tests** (Node's built-in `node:test`, zero new deps — Bun not installed): 31 tests across parser, DataResult, candles, features, universe. All pass.
+- **Diagnostic**: `scripts/screener-v3-diagnostic.ts` (dev-only, production-guarded, read-only, no secrets).
+
+### Diagnostic (real data, 2026-07-18)
+88,128 raw instruments · 9,446 NSE equity · 625 stock futures · 32,197 active stock options · **210 eligible stock-F&O underlyings** · 0 missing spot · 0 invalid. RELIANCE/HDFCBANK/SBIN resolved near-month (28 JUL 26) futures, 3 expiries, ATM strikes, VWAP, ATR, opening range — all available.
+
+### Deliberately NOT implemented (still pending)
+- Rocket Boost / Intraday Breakout / Intraday Reversal / Long Momentum engines; BOS/CHoCH; confidence scores; signal ranking; any trading recommendation.
+- Live near-month **futures quote** ingestion (LTP/OHLC/volume/OI/bid/ask) — no provider wired.
+- Option **bid/ask/depth/Greeks** — not available in the normalized chain.
+- **Delivery** data ingestion.
+- No `/screener` UI, no existing signal logic, no production scheduler, no DB schema, no deployment config changed.
+
+### Data-source limitations
+- Yahoo 1-minute history is capped at ~8 days per request (20-session 1m not obtainable in one call; use 5m/daily for longer lookbacks).
+- Instrument master is in-memory cached only (not persisted to disk by design).
+
+### Build/Test Result
+`node --test src/lib/screener-v3/*.test.ts`: 31 pass / 0 fail. `tsc --noEmit`: zero errors in `screener-v3`/`scripts` (pre-existing type errors remain in unrelated files: `IndexContribution/IndexContributionChart.tsx`, `market.functions.ts`, `scheduler.server.ts`, `supabase.server.ts`). Not committed.
+
+### Signal-safety hardening pass (amended, same day — Claude Opus 4.8)
+Phase 1 received a focused signal-safety hardening pass before any engine work (still Phase 1 data foundation only; no UI/signal/scheduler/DB/deploy changes):
+- **Candles**: strict OHLC validation (positive prices; high ≥ open/close; low ≤ open/close; positive timestamp) with no repair; aggregator now accepts only genuine `1m` inputs and returns an explicit `AggregateResult` (counts non-1m/invalid drops); 3m/5m buckets are emitted only when EVERY expected 1-minute start exists (missing-middle omitted); incomplete buckets are returned as metadata only (never shaped like real candles); aggregate volume is `null` if any member volume is missing (no partial sums); candle START ≥ 15:30 excluded; pre/post-market dropped; dates never merged; mixed-source buckets rejected.
+- **Candle service**: canonical suffix-free `symbol` + `.NS` `yahooSymbol`; `.BO` explicitly rejected; unsupported interval/range combos (e.g. `1m`+`1y`) fail fast as invalid requests before any provider call; freshness metadata (`requestedAt`/`ageMs`/`sessionDateIst`).
+- **Features**: all inputs normalized (sorted+deduped); `sessionVwap` computes exactly one IST session (returns `{vwap,sessionDateIst,candleCount}`, unavailable if any session candle lacks volume or cumulative volume is 0); opening range requires full 1-minute coverage (a later candle does not imply completeness); intraday returns are same-session with an interval-based baseline tolerance (no previous-day/overnight baseline, large gaps rejected); rolling volume + acceleration reject session-boundary crossings, mixed intervals, and missing volume; ATR rejects mixed intervals and invalid OHLC.
+- **Instrument master**: session-aware expiry validity — a same-day expiry is current only before 15:30 IST and rolls deterministically after close; `underlying_key` accepted only in `NSE_EQ|…` form (NSE_INDEX/malformed rejected); conflicting spot keys surfaced deterministically + counted; new eligibility tiers (`listed` ⊂ `fullyMapped` ⊂ `optionFoundationCandidate`); query-time helpers revalidate expiry against a reference time so a cached universe never returns an expired near-month; `.NS` accepted/`.BO` rejected in `fno-universe`; ATM helper normalizes/bounds `nearby`, validates explicit expiry against real current expiries, and reports CE/PE/both availability.
+- **Fetch service**: 20s `AbortController` timeout; async gunzip (no event-loop block); `_clearInstrumentCache` hard-guarded against production.
+- **Tests**: expanded to **45 pass / 0 fail** (added candle-service + hardening cases). `tsc --noEmit`: still zero errors in `screener-v3`/`scripts` (same pre-existing unrelated errors). Diagnostic re-run confirms 210 eligible underlyings and full RELIANCE/HDFCBANK/SBIN mappings. Not committed.
+
+### Second correctness pass (amended, same day — Claude Opus 4.8)
+A second focused correctness pass on the isolated Phase 1 foundation only (still no UI/signal/scheduler/DB/deploy changes; nothing committed). Manual review found gaps the prior tests did not cover:
+- **Result type** (`types.ts`): `DataResult<T>` is now a true discriminated union (`OkResult`/`StaleResult` carry non-null `T`; failures carry `value:null` + required `reason`). Added `invalid_input` status + `invalidInput()`, and `isOk`/`isUsable`/`isFailure`/`propagateFailure` so feature code propagates failures with NO `as unknown as` casts. Metadata still cannot override `status`/`value`.
+- **Exact candle timing** (`ist-time.ts`, `candles.ts`): added `isFinitePositiveTs`/`isExactMinuteBoundary`/`isCanonicalMinuteStart`/`isIntervalAlignedStart`. A canonical 1m start must satisfy `timestamp % 60_000 === 0` (09:15:30 rejected). `dedupeSortStrict` detects duplicate exact timestamps BEFORE any last-wins: identical duplicates are collapsed + counted, conflicting duplicates are removed + surfaced (never silently overwritten). `aggregateCandles` returns full metadata counters (misaligned, duplicateIdentical, duplicateConflict, duplicateMinuteSlot, mixedSourceBuckets, nonOneMinute, invalidShape, outOfSession) and `invalid_input` when a non-empty input has no usable canonical 1m candle; a bucket completes only with EXACTLY `factor` members; the meaningless `diagnostic` option was removed. `15:27–15:29` is a valid final 3m bucket; `15:30`+ excluded; any-missing-volume member → `volume:null`.
+- **Session features** (`features.ts`): shared `cleanIntraday` guard (conflict/mixed-interval/daily/invalid/misaligned → `invalid_input`); optional deterministic `referenceMs` drops still-forming trailing candles. VWAP returns coverage metadata (`observedCount`/`expectedCount`/`missingCount`/`coverageRatio`) and fails on gaps instead of reporting a false-complete result. Opening range is wall-clock gated (`referenceMs >= range end`; 5m≥09:20, 15m≥09:30, 30m≥09:45) with full 1m coverage. Return windows validate integer minutes, reject pre-session baselines/targets, use an interval tolerance, and never cross the trading date. Rolling volume/acceleration require contiguous single-session aligned bars with volume. **Bug fixed** (found by new tests): the rolling/return-window session guards were calling `isSessionStart` with the Candle object instead of its timestamp (NaN → always out-of-session); now pass `c.timestamp`.
+- **Spot-mapping truth** (`instrument-types.ts`, `instrument-master.parser.ts`): explicit `SpotMappingStatus` (`missing_key`/`invalid_key`/`unresolved_record`/`conflicting_keys`/`resolved`); only `resolved` is eligible and yields a usable `spotInstrumentKey` (conflicts → null + separate `diagnosticSpotKey`). Spot keys are collected ONLY from structurally-valid + current contracts (expired/invalid rows can no longer create a false conflict); strict `^NSE_EQ\|[^|\s]+$` + must resolve to a real `NSE_EQ` record. Contracts deduped by `instrumentKey` (identical collapsed, conflicting surfaced); `nowMs`/`fetchedAt` validated (throws on non-finite). Metadata renamed to what it actually counts (`currentFuturesUnderlyings`, `fullyResolvedMappings`, `optionStructureReadyUnderlyings`, spot-status breakdown, duplicate/conflict counts).
+- **Option pairing** (`fno-universe.ts`): same-strike CE/PE pairing (`pairedStrikes`), readiness renamed `optionStructureReady` and now REQUIRES ≥1 genuine same-strike pair (a conflict spot mapping forces `fullyMapped=false`). ATM result exposes `atmCeAvailable`/`atmPeAvailable`/`atmBothAvailable` (same-strike at ATM) + `pairedStrikesInWindow`/`anyPairedStrikeInWindow` — the old `calls.length>0 && puts.length>0` definition is gone. `isFnoUnderlying` clarified (`isParsedFnoUnderlying` = structural vs `isListedFnoUnderlying` = current); `nowMs` validated.
+- **Cache expiry-boundary safety** (`instrument-master.server.ts`): the cache now stores RAW records + fetch time and RE-PROJECTS them against the request's `now` on every read, so a cached universe can never expose contracts that expired after 15:30 IST as current. `getCachedStockFnoUniverse()` returns a current-time projection + metadata (never a frozen raw universe). Dev/test guards are default-deny (only explicit `NODE_ENV=development|test`).
+- **Candle service** (`candles.server.ts`): strict symbol validation (`^[A-Z0-9&-]+$`; whitespace/slash/query/hash/`.BO` rejected) before any provider call; `1m`+`7d` removed from the allowlist (unverified); reports alignment/duplicate/conflict/cadence/last-forming hygiene and never returns a silent negative `ageMs` (future timestamp → `ageMs:null` + flagged).
+- **Diagnostic** (`scripts/screener-v3-diagnostic.ts`): default-deny production protection; truthful labels (stale vs available, `nonExpiredAtReferenceTime`, "ATM estimate from last daily close"); per-session VWAP coverage; structural counts; explicitly framed as smoke-test evidence, not readiness certification.
+- **Tests**: expanded to **58 pass / 0 fail** (rewritten for the new signatures + added regression cases). `tsc --noEmit`: still zero errors in `screener-v3`/`scripts` (same pre-existing unrelated errors in `IndexContribution/IndexContributionChart.tsx`, `market.functions.ts`, `scheduler.server.ts`, `supabase.server.ts`). Diagnostic (real data, 2026-07-18): 88,128 raw · 9,446 equity · 625 futures · 32,197 current options · **210 current-futures underlyings, all resolved + option-structure-ready** · RELIANCE 44 same-strike pairs, ATM both-available, per-session VWAP 375/375. Not committed.
+
+### Corrections to the claims above (read before trusting them)
+The two amendments above OVERSTATED completeness. A subsequent manual audit + third
+hardening pass found and fixed real defects they missed; treat the following as the
+accurate record:
+- The 2nd pass conflict handling was **not complete**: coordinate conflicts (two
+  distinct instrument keys at the same `expiry|FUT` or `expiry|strike|type`) were only
+  *counted*, not removed — both contracts were retained. Same-key inconsistent rows
+  were also retained. Now BOTH are quarantined (removed).
+- The return-window "interval-based baseline tolerance" was itself a **bug**: it could
+  pick a nearby candle as the baseline and could return a value across a missing
+  intermediate candle. Now requires an exact baseline and full contiguity.
+- The forming-candle policy was **not** consistent: `sessionVwap`/`openingRange`/
+  `previousSessionOhlc` still fell back to `Date.now()` when `referenceMs` was omitted.
+- `DataResult` non-null safety and `isFailure` correctness were completed by a manual
+  edit (success values are `NonNullable<T>`; `isFailure` checks failure statuses).
+- The diagnostic previously exited `0` even on handled failures — its exit code did
+  NOT prove readiness. It is smoke-test evidence only.
+
+### Third hardening pass (amended, same day — Claude Opus 4.8)
+Regression-test-first pass on the isolated Phase 1 foundation only (no UI/signal/
+scheduler/DB/deploy changes; nothing committed). Fixes, each with tests:
+- **Return windows** (`features.ts`): `minutes` must be a positive integer AND an exact
+  multiple of the candle interval (else `invalid_input`); baseline must exist EXACTLY at
+  `last - minutes*60000`; every interval from baseline→latest must be present (missing
+  intermediate → `unavailable`); no nearest/tolerance substitution; never crosses the
+  trading date.
+- **Forming-candle policy**: `sessionVwap`, `returnWindow`, `rollingVolumeSum`,
+  `rollingAvgVolume`, `volumeAcceleration`, `openingRange` now REQUIRE an explicit
+  finite-positive `referenceMs` (missing/invalid → `invalid_input`); no hidden
+  `Date.now()`. `previousSessionOhlc` requires an explicit `referenceMs` too.
+- **Opening range**: validates a canonical `YYYY-MM-DD` `sessionDateIst` and anchors
+  midnight to a candle that actually belongs to that date; a requested date absent from
+  the series returns `unavailable` (never borrows another session's midnight).
+- **Parser conflict quarantine** (`instrument-master.parser.ts`): identical duplicate
+  rows collapse; a single instrument key with inconsistent rows is quarantined
+  (`sameKeyConflicts`); >1 distinct key at one coordinate quarantines ALL involved
+  contracts (`coordinateConflicts`). Spot keys are collected ONLY from accepted,
+  conflict-free, current contracts (a rejected row can no longer pollute the mapping).
+  Duplicate NSE_EQ keys: identical collapse (`equityDuplicatesCollapsed`), inconsistent
+  quarantine (`equityConflictingKeys`) — a conflicted equity key cannot resolve a spot.
+  Runtime validation hardened: trimmed non-empty keys, integer lot/expiry, positive
+  strike, `weekly === true` strict, non-object rows skipped safely
+  (`malformedRecordsSkipped`) without crashing.
+- **Mapping coherence** (`fno-universe.ts`): `isCoherentResolvedSpot()` requires
+  status/flag/key/trading-symbol to all agree; `fullyMapped` and
+  `resolveSpotInstrumentKey()` reject contradictory objects and empty/whitespace trading
+  symbols. `EXCLUDED_INDEX_SYMBOLS` is a `ReadonlySet`; `bySymbol` uses
+  `Object.create(null)`.
+- **Cache consistency** (`instrument-master.server.ts`): single `projectRecordsAsOf()`
+  validator; outer `available`/`stale` only when the projected universe is actually
+  usable; a documented `MAX_STALE_AGE_MS` (48h); negative clock age is never treated as
+  fresh or serveable; reprojected at response time.
+- **Candle service** (`candles.server.ts`): invalid symbol/range/`nowMs` now return
+  `invalid_input` (still zero provider calls); cadence counts MISSING interval bars among
+  aligned in-session bars only; `lastCandleForming` derived from the last usable aligned
+  bar; strict integer timestamp seconds (no `Math.round`); zero usable aligned intraday
+  candles → `unavailable`; daily duplicate trading dates quarantined; injectable `nowMs`.
+- **Aggregation/alignment contracts** (`candles.ts`, `ist-time.ts`): `aggregateCandles`
+  validates `factorMinutes ∈ {3,5}` and rejects empty/whitespace source members;
+  `isIntervalAlignedStart` validates its interval; `isExpiryContractCurrent` rejects
+  non-canonical date strings.
+- **Diagnostic** (`scripts/screener-v3-diagnostic.ts`): exits non-zero on any critical
+  failure (universe unavailable/empty, missing expected sample mapping, non-available
+  daily/1m, aggregate failure); warnings (stale universe, VWAP gaps, ATM estimate) are
+  distinct from failures; passes explicit `referenceMs`; refreshes the reference time
+  after network ops; ATM labelled RAW/unvalidated unless option structure is ready;
+  corrected PowerShell run instructions.
+- **Tests / typecheck**: **99 pass / 0 fail** (`node --test src/lib/screener-v3/*.test.ts`),
+  including a new network-free `instrument-master.server.test.ts`. `npx tsc --noEmit`
+  reports ZERO errors in `screener-v3`/`scripts`; the full-repo run still exits `2`
+  ONLY because of the four pre-existing unrelated files
+  (`IndexContribution/IndexContributionChart.tsx`, `market.functions.ts`,
+  `scheduler.server.ts`, `supabase.server.ts`), which were not touched. Diagnostic
+  (real data) confirms 210 current-futures underlyings, all resolved +
+  option-structure-ready. Nothing committed, staged, pushed, merged, deployed, or wired
+  into the app/scheduler/DB/UI. Diagnostic output is smoke-test evidence, not
+  trading-readiness certification.
+
+---
+
 ## 2026-07-18 02:45 IST — Claude Sonnet 5 (Kiro)
 
 ### Task
