@@ -29,6 +29,7 @@ import { Route as SectorKeyRouteImport } from './routes/sector.$key'
 import { Route as ApiSupabaseTestRouteImport } from './routes/api/supabase-test'
 import { Route as ApiSupabaseHealthRouteImport } from './routes/api/supabase-health'
 import { Route as ApiSectorHistoryRouteImport } from './routes/api/sector-history'
+import { Route as ApiScreenerV3RouteImport } from './routes/api/screener-v3'
 import { Route as ApiOptionHistoryRouteImport } from './routes/api/option-history'
 import { Route as ApiOiHistoryRouteImport } from './routes/api/oi-history'
 import { Route as ApiMarketHistoryRouteImport } from './routes/api/market-history'
@@ -138,6 +139,11 @@ const ApiSectorHistoryRoute = ApiSectorHistoryRouteImport.update({
   path: '/api/sector-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiScreenerV3Route = ApiScreenerV3RouteImport.update({
+  id: '/api/screener-v3',
+  path: '/api/screener-v3',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOptionHistoryRoute = ApiOptionHistoryRouteImport.update({
   id: '/api/option-history',
   path: '/api/option-history',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/screener-v3': typeof ApiScreenerV3Route
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/screener-v3': typeof ApiScreenerV3Route
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/api/market-history': typeof ApiMarketHistoryRoute
   '/api/oi-history': typeof ApiOiHistoryRoute
   '/api/option-history': typeof ApiOptionHistoryRoute
+  '/api/screener-v3': typeof ApiScreenerV3Route
   '/api/sector-history': typeof ApiSectorHistoryRoute
   '/api/supabase-health': typeof ApiSupabaseHealthRoute
   '/api/supabase-test': typeof ApiSupabaseTestRoute
@@ -295,6 +304,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/screener-v3'
     | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
@@ -325,6 +335,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/screener-v3'
     | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/api/market-history'
     | '/api/oi-history'
     | '/api/option-history'
+    | '/api/screener-v3'
     | '/api/sector-history'
     | '/api/supabase-health'
     | '/api/supabase-test'
@@ -386,6 +398,7 @@ export interface RootRouteChildren {
   ApiMarketHistoryRoute: typeof ApiMarketHistoryRoute
   ApiOiHistoryRoute: typeof ApiOiHistoryRoute
   ApiOptionHistoryRoute: typeof ApiOptionHistoryRoute
+  ApiScreenerV3Route: typeof ApiScreenerV3Route
   ApiSectorHistoryRoute: typeof ApiSectorHistoryRoute
   ApiSupabaseHealthRoute: typeof ApiSupabaseHealthRoute
   ApiSupabaseTestRoute: typeof ApiSupabaseTestRoute
@@ -535,6 +548,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSectorHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/screener-v3': {
+      id: '/api/screener-v3'
+      path: '/api/screener-v3'
+      fullPath: '/api/screener-v3'
+      preLoaderRoute: typeof ApiScreenerV3RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/option-history': {
       id: '/api/option-history'
       path: '/api/option-history'
@@ -629,6 +649,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMarketHistoryRoute: ApiMarketHistoryRoute,
   ApiOiHistoryRoute: ApiOiHistoryRoute,
   ApiOptionHistoryRoute: ApiOptionHistoryRoute,
+  ApiScreenerV3Route: ApiScreenerV3Route,
   ApiSectorHistoryRoute: ApiSectorHistoryRoute,
   ApiSupabaseHealthRoute: ApiSupabaseHealthRoute,
   ApiSupabaseTestRoute: ApiSupabaseTestRoute,
