@@ -923,7 +923,7 @@ test("E14. a stale top-level derivatives result attaches its value", async () =>
 // ── E15. Enriched symbol cap is enforced (explicit) ──────────────────────────
 test("E15. enriched batch is capped to ENRICHED_MAX_SYMBOLS with truthful rejections", async () => {
   const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 5 }, (_, i) => `SYM${i}`);
-  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { deps, calls: fetchCalls } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
   const { enrichDerivatives, calls } = makeEnrichFake();
   deps.enrichDerivatives = enrichDerivatives;
   const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols, includeDerivatives: true }, deps));
@@ -931,7 +931,10 @@ test("E15. enriched batch is capped to ENRICHED_MAX_SYMBOLS with truthful reject
   assert.equal(batch.acceptedSymbolCount, ENRICHED_MAX_SYMBOLS);
   assert.equal(calls.batches[0].length, ENRICHED_MAX_SYMBOLS, "enrichment capped");
   const capReasons = batch.rejectedSymbols.filter((r) => /enriched batch capped/.test(r.reason));
-  assert.equal(capReasons.length, 5, "5 over-cap symbols rejected truthfully");
+  assert.equal(capReasons.length, 5, "5 over-cap explicit symbols rejected truthfully");
+  // The 5 dropped explicit symbols must trigger ZERO provider work: only the 25
+  // capped symbols fetch candles (intraday + daily each).
+  assert.equal(fetchCalls.candles.length, ENRICHED_MAX_SYMBOLS * 2, "dropped explicit symbols never fetched candles");
 });
 
 // ── E16. Enriched cap applies to universe-derived requests too ───────────────
@@ -944,6 +947,24 @@ test("E16. enriched cap applies to universe-derived symbols consistently", async
   const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, limit: 250, includeDerivatives: true }, deps));
   assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS);
   assert.equal(calls.batches[0].length, ENRICHED_MAX_SYMBOLS);
+});
+
+// ── E16b. Universe-derived cap does NOT emit a bloated/misleading rejection list
+//    and never fetches candles for symbols beyond the cap. ──────────────────
+test("E16b. universe-derived enriched cap produces no cap-rejection entries and no dropped-symbol provider work", async () => {
+  const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 30 }, (_, i) => `SYM${String(i).padStart(3, "0")}`);
+  const { deps, calls } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { enrichDerivatives } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, limit: 200, includeDerivatives: true }, deps));
+  assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS, "capped to 25 rows");
+  // No per-symbol "capped" rejection noise for symbols the caller never named.
+  const capReasons = batch.rejectedSymbols.filter((r) => /enriched batch capped/.test(r.reason));
+  assert.equal(capReasons.length, 0, "auto-derived overflow must not pad rejectedSymbols");
+  // Dropped symbols never triggered candle fetches: 25 symbols x (intraday+daily) = 50.
+  assert.equal(calls.candles.length, ENRICHED_MAX_SYMBOLS * 2, "no provider work for dropped symbols");
+  // requestedCount still truthfully reflects the whole universe.
+  assert.equal(batch.requestedCount, symbols.length);
 });
 
 // ── E17. Plain mode is unaffected by the enriched cap ────────────────────────

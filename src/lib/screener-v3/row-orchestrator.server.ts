@@ -311,17 +311,28 @@ export async function runScreenerV3Batch(
       // relabeling it — a truthful top-level failure, not an invented one.
       return propagateFailure(universeResult);
     }
-    accepted = deriveSymbolsFromUniverse(universeResult.value, limit);
+    // Enriched mode clamps AUTO-derivation to the server cap so the response is
+    // never padded with a large, misleading "rejected" list for symbols the
+    // caller never named. The cap VALUE is identical to the explicit-symbol
+    // path below; only the reporting differs (auto-derived overflow is a
+    // server-internal bound, not truthful per-symbol caller feedback).
+    const deriveLimit =
+      input.includeDerivatives === true ? Math.min(limit ?? ENRICHED_MAX_SYMBOLS, ENRICHED_MAX_SYMBOLS) : limit;
+    accepted = deriveSymbolsFromUniverse(universeResult.value, deriveLimit);
     requestedCount = universeResult.value.underlyings.length;
   }
 
-  // Enriched mode applies a REDUCED, server-owned symbol cap consistently to
-  // both explicit and universe-derived requests. Truncation preserves the
-  // existing deterministic order; dropped symbols are recorded truthfully in
-  // `rejectedSymbols` so nothing is silently processed beyond the cap and
-  // nothing beyond the cap is silently discarded. The cap is NOT
-  // caller-overridable by any query parameter.
-  if (input.includeDerivatives === true && accepted.length > ENRICHED_MAX_SYMBOLS) {
+  // Enriched mode applies a REDUCED, server-owned symbol cap. For EXPLICIT
+  // symbols, dropped entries are recorded truthfully in `rejectedSymbols` (the
+  // caller named them, so which were dropped is meaningful feedback), preserving
+  // deterministic order. Universe-derived requests are already clamped above, so
+  // this block only affects explicit input and never emits a bloated rejection
+  // list. The cap is NOT caller-overridable by any query parameter.
+  if (
+    input.includeDerivatives === true &&
+    explicitSymbols !== undefined &&
+    accepted.length > ENRICHED_MAX_SYMBOLS
+  ) {
     for (const dropped of accepted.slice(ENRICHED_MAX_SYMBOLS)) {
       rejected.push({
         input: dropped,
