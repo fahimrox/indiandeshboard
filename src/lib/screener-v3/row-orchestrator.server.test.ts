@@ -6,10 +6,13 @@ import {
   INTRADAY_RANGE,
   DAILY_INTERVAL,
   DAILY_RANGE,
+  ENRICHED_MAX_SYMBOLS,
   type RowOrchestratorDeps,
 } from "./row-orchestrator.server.ts";
 import { createCandleCache } from "./candle-cache.server.ts";
 import { ok, providerError, unavailable, isFailure, isUsable, type DataResult } from "./types.ts";
+import type { DerivativesEnrichmentRequest } from "./derivatives-orchestrator.server.ts";
+import type { ScreenerV3Derivatives } from "./derivatives-types.ts";
 import type { CandleSeries, SpotInterval } from "./candles.server.ts";
 import { istDateStr } from "./ist-time.ts";
 import type {
@@ -684,4 +687,345 @@ test("a thrown provider fetch releases its slot and does not cancel other symbol
   assert.equal(batch.rows.length, 5);
   assert.ok(maxActive <= 2, `expected maxActive <= 2, got ${maxActive}`);
   assert.equal(batch.providerFailureCount >= 1, true);
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// Phase 2B Part 4 — additive derivatives enrichment integration
+// Uses an INJECTED fake enrichDerivatives (never a live provider). Verifies the
+// row orchestrator wires the Part 3 enrichBatch boundary correctly: one batched
+// call, truthful attachment, failure isolation, cap enforcement, determinism.
+// ══════════════════════════════════════════════════════════════════════════
+
+/** Minimal truthful ScreenerV3Derivatives value for attachment assertions. */
+function mkDerivatives(symbol: string, referenceMs: number): ScreenerV3Derivatives {
+  return {
+    selection: {
+      futureInstrumentKey: `FUT|${symbol}`,
+      futureExpiryMs: NEAR_FUT_EXPIRY,
+      optionExpiryMs: null,
+      anchorPrice: 100,
+      atmStrike: null,
+      callInstrumentKey: null,
+      putInstrumentKey: null,
+      resolvedFrom: "instrument_master",
+    },
+    future: unavailable(`no future data for ${symbol}`, { source: "test" }),
+    call: unavailable("no CE", { source: "test" }),
+    put: unavailable("no PE", { source: "test" }),
+    health: { status: "unavailable", usableLegs: 0, staleLegs: 0, failedLegs: 3, reasons: [] },
+    referenceMs,
+  };
+}
+
+interface EnrichCalls {
+  count: number;
+  batches: DerivativesEnrichmentRequest[][];
+  referenceMs: number[];
+  universeStatuses: string[];
+}
+/** Injected fake for RowOrchestratorDeps.enrichDerivatives. */
+function makeEnrichFake(
+  resultFor?: (rk: string, symbol: string, referenceMs: number) => DataResult<ScreenerV3Derivatives>,
+): { enrichDerivatives: NonNullable<RowOrchestratorDeps["enrichDerivatives"]>; calls: EnrichCalls } {
+  const calls: EnrichCalls = { count: 0, batches: [], referenceMs: [], universeStatuses: [] };
+  const enrichDerivatives: NonNullable<RowOrchestratorDeps["enrichDerivatives"]> = async ({
+    universe,
+    requests,
+    referenceMs,
+  }) => {
+    calls.count++;
+    calls.batches.push([...requests]);
+    calls.referenceMs.push(referenceMs);
+    calls.universeStatuses.push(universe.status);
+    const m = new Map<string, DataResult<ScreenerV3Derivatives>>();
+    for (const r of requests) {
+      m.set(r.requestKey, resultFor ? resultFor(r.requestKey, r.symbol, referenceMs) : ok(mkDerivatives(r.symbol, referenceMs)));
+    }
+    return m;
+  };
+  return { enrichDerivatives, calls };
+}
+
+// ── E1. Enrichment OFF -> zero derivatives work, no derivatives key ──────────
+test("E1. enrichment off performs zero derivatives calls and omits the derivatives key", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"] }, deps));
+  assert.equal(calls.count, 0);
+  for (const row of batch.rows) assert.equal("derivatives" in row, false, "no derivatives key in plain mode");
+});
+
+// ── E2. Enrichment ON -> exactly one enrichBatch call for the whole batch ────
+test("E2. enrichment on invokes enrichBatch exactly once per batch", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS", "INFY"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS", "INFY"], includeDerivatives: true }, deps),
+  );
+  assert.equal(calls.count, 1, "one batched enrichBatch call");
+  assert.equal(calls.batches[0].length, 3, "one request per selected row");
+  for (const row of batch.rows) assert.ok(row.derivatives, "each row carries derivatives");
+});
+
+// ── E3. Universe loaded exactly once even with enrichment on ─────────────────
+test("E3. universe loaded once; enrichment reuses the same universe result", async () => {
+  const { deps, calls } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls: eCalls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps);
+  assert.equal(calls.universe, 1, "no extra universe load for derivatives");
+  assert.equal(eCalls.universeStatuses[0], "available", "reused universe result passed to enrichBatch");
+});
+
+// ── E4. Duplicate symbols cause no duplicate enrichment work ─────────────────
+test("E4. duplicate symbols produce a single enrichment request", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  await runScreenerV3Batch(
+    { referenceMs: REF, symbols: ["RELIANCE", "reliance", "RELIANCE.NS"], includeDerivatives: true },
+    deps,
+  );
+  assert.equal(calls.count, 1);
+  assert.equal(calls.batches[0].length, 1, "deduped to a single request");
+  assert.equal(calls.batches[0][0].requestKey, "RELIANCE");
+});
+
+// ── E5. Invalid symbol triggers no derivatives request for it ────────────────
+test("E5. invalid symbols are excluded from enrichment; valid ones still enriched", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "has space", "BAD.SYMBOL"], includeDerivatives: true }, deps),
+  );
+  assert.equal(calls.count, 1);
+  assert.deepEqual(calls.batches[0].map((r) => r.requestKey), ["RELIANCE"]);
+  assert.equal(batch.rows.length, 1);
+  assert.ok(batch.rows[0].derivatives);
+});
+
+// ── E6. All-invalid symbols -> no enrichment call at all ─────────────────────
+test("E6. all-invalid symbols never reach the derivatives boundary", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const r = await runScreenerV3Batch({ referenceMs: REF, symbols: ["  ", "bad symbol"], includeDerivatives: true }, deps);
+  assert.ok(isFailure(r));
+  assert.equal(calls.count, 0);
+});
+
+// ── E7. Rows without a usable anchor are not enriched (no enrichBatch call) ──
+test("E7. a row without a usable anchor price is not enriched", async () => {
+  const { deps } = makeFakeDeps({
+    universe: ok(mkUniverse(["RELIANCE"])),
+    responses: { intraday: () => unavailable("no intraday"), daily: () => unavailable("no daily") },
+  });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps));
+  assert.equal(calls.count, 0, "no anchor -> no enrichment request -> no batch call");
+  assert.equal(batch.rows.length, 1);
+  assert.equal("derivatives" in batch.rows[0], false);
+});
+
+// ── E8. Anchor price comes from the row's lastCompleted metric ───────────────
+test("E8. enrichment anchor price equals the row's lastCompleted price", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps));
+  const lc = batch.rows[0].metrics.lastCompleted;
+  assert.ok(isUsable(lc));
+  if (isUsable(lc)) assert.equal(calls.batches[0][0].anchorPrice, lc.value.price);
+});
+
+// ── E9. Row order is preserved after enrichment ──────────────────────────────
+test("E9. enrichment preserves deterministic row order", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["AAA", "BBB", "CCC"])) });
+  const { enrichDerivatives } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["CCC", "AAA", "BBB"], includeDerivatives: true }, deps),
+  );
+  assert.deepEqual(batch.rows.map((r) => r.identity.symbol), ["CCC", "AAA", "BBB"]);
+});
+
+// ── E10. Correct request-key association on attachment ───────────────────────
+test("E10. derivatives attach to the correct row by request key", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+  // Tag each derivatives value with its symbol via the selection key.
+  const { enrichDerivatives } = makeEnrichFake((rk, symbol, ref) => ok(mkDerivatives(symbol, ref)));
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"], includeDerivatives: true }, deps),
+  );
+  for (const row of batch.rows) {
+    assert.ok(row.derivatives);
+    assert.equal(row.derivatives!.selection.futureInstrumentKey, `FUT|${row.identity.symbol}`);
+  }
+});
+
+// ── E11. One derivatives failure is isolated to its row ──────────────────────
+test("E11. a single derivatives failure does not affect other rows", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+  const { enrichDerivatives } = makeEnrichFake((rk, symbol, ref) =>
+    symbol === "RELIANCE" ? providerError("derivatives down") : ok(mkDerivatives(symbol, ref)),
+  );
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"], includeDerivatives: true }, deps),
+  );
+  const reliance = batch.rows.find((r) => r.identity.symbol === "RELIANCE")!;
+  const tcs = batch.rows.find((r) => r.identity.symbol === "TCS")!;
+  assert.equal("derivatives" in reliance, false, "failed enrichment -> no fabricated object");
+  assert.ok(tcs.derivatives, "other row still enriched");
+  // Base row survives intact regardless.
+  assert.ok(reliance.metrics.lastCompleted);
+});
+
+// ── E12. Provider-wide derivatives failure keeps usable base rows ────────────
+test("E12. batch-wide derivatives failure leaves base rows intact and unfabricated", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+  const { enrichDerivatives } = makeEnrichFake(() => providerError("provider outage"));
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"], includeDerivatives: true }, deps),
+  );
+  assert.equal(batch.rows.length, 2);
+  for (const row of batch.rows) {
+    assert.equal("derivatives" in row, false, "no derivatives key on top-level failure");
+    assert.equal(row.health.status, "complete", "base health unaffected");
+  }
+});
+
+// ── E13. Attached derivatives referenceMs equals the base request reference ──
+test("E13. attached derivatives referenceMs equals the batch referenceMs exactly", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps));
+  assert.equal(batch.rows[0].derivatives!.referenceMs, REF);
+});
+
+// ── E14. Stale top-level enrichment still attaches its value ─────────────────
+test("E14. a stale top-level derivatives result attaches its value", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { stale } = await import("./types.ts");
+  const { enrichDerivatives } = makeEnrichFake((rk, symbol, ref) => stale(mkDerivatives(symbol, ref), { source: "test" }));
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps));
+  assert.ok(batch.rows[0].derivatives, "stale enrichment attaches");
+});
+
+// ── E15. Enriched symbol cap is enforced (explicit) ──────────────────────────
+test("E15. enriched batch is capped to ENRICHED_MAX_SYMBOLS with truthful rejections", async () => {
+  const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 5 }, (_, i) => `SYM${i}`);
+  const { deps, calls: fetchCalls } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols, includeDerivatives: true }, deps));
+  assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS, "rows capped");
+  assert.equal(batch.acceptedSymbolCount, ENRICHED_MAX_SYMBOLS);
+  assert.equal(calls.batches[0].length, ENRICHED_MAX_SYMBOLS, "enrichment capped");
+  const capReasons = batch.rejectedSymbols.filter((r) => /enriched batch capped/.test(r.reason));
+  assert.equal(capReasons.length, 5, "5 over-cap explicit symbols rejected truthfully");
+  // The 5 dropped explicit symbols must trigger ZERO provider work: only the 25
+  // capped symbols fetch candles (intraday + daily each).
+  assert.equal(fetchCalls.candles.length, ENRICHED_MAX_SYMBOLS * 2, "dropped explicit symbols never fetched candles");
+});
+
+// ── E16. Enriched cap applies to universe-derived requests too ───────────────
+test("E16. enriched cap applies to universe-derived symbols consistently", async () => {
+  const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 10 }, (_, i) => `SYM${String(i).padStart(3, "0")}`);
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  // No explicit symbols -> universe-derived; large limit must not exceed the cap.
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, limit: 250, includeDerivatives: true }, deps));
+  assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS);
+  assert.equal(calls.batches[0].length, ENRICHED_MAX_SYMBOLS);
+});
+
+// ── E16b. Universe-derived cap does NOT emit a bloated/misleading rejection list
+//    and never fetches candles for symbols beyond the cap. ──────────────────
+test("E16b. universe-derived enriched cap produces no cap-rejection entries and no dropped-symbol provider work", async () => {
+  const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 30 }, (_, i) => `SYM${String(i).padStart(3, "0")}`);
+  const { deps, calls } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { enrichDerivatives } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, limit: 200, includeDerivatives: true }, deps));
+  assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS, "capped to 25 rows");
+  // No per-symbol "capped" rejection noise for symbols the caller never named.
+  const capReasons = batch.rejectedSymbols.filter((r) => /enriched batch capped/.test(r.reason));
+  assert.equal(capReasons.length, 0, "auto-derived overflow must not pad rejectedSymbols");
+  // Dropped symbols never triggered candle fetches: 25 symbols x (intraday+daily) = 50.
+  assert.equal(calls.candles.length, ENRICHED_MAX_SYMBOLS * 2, "no provider work for dropped symbols");
+  // requestedCount still truthfully reflects the whole universe.
+  assert.equal(batch.requestedCount, symbols.length);
+});
+
+// ── E17. Plain mode is unaffected by the enriched cap ────────────────────────
+test("E17. plain mode processes more than the enriched cap (cap does not apply)", async () => {
+  const symbols = Array.from({ length: ENRICHED_MAX_SYMBOLS + 5 }, (_, i) => `SYM${i}`);
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(symbols)) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols }, deps));
+  assert.equal(batch.rows.length, ENRICHED_MAX_SYMBOLS + 5, "plain mode not capped");
+  assert.equal(calls.count, 0);
+});
+
+// ── E18. Enrichment uses the request referenceMs, never a caller side-channel ─
+test("E18. enrichBatch receives the batch referenceMs (server-owned reference)", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  const { enrichDerivatives, calls } = makeEnrichFake();
+  deps.enrichDerivatives = enrichDerivatives;
+  const customRef = REF + 12_345;
+  await runScreenerV3Batch({ referenceMs: customRef, symbols: ["RELIANCE"], includeDerivatives: true }, deps);
+  assert.equal(calls.referenceMs[0], customRef);
+});
+
+// ── E19. Enrichment does not change base health/cache summaries ──────────────
+test("E19. base orchestration summaries are unchanged by enrichment", async () => {
+  const buildDeps = () => {
+    const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+    return deps;
+  };
+  const plain = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"] }, buildDeps()));
+  const enrichedDeps = buildDeps();
+  enrichedDeps.enrichDerivatives = makeEnrichFake().enrichDerivatives;
+  const enriched = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"], includeDerivatives: true }, enrichedDeps),
+  );
+  assert.deepEqual(enriched.health, plain.health);
+  assert.deepEqual(enriched.cache, plain.cache);
+  assert.equal(enriched.providerFailureCount, plain.providerFailureCount);
+});
+
+// ── E20. includeDerivatives=true but no dep wired -> plain rows, no crash ────
+test("E20. enrichment requested without a wired dependency yields plain rows", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE"])) });
+  // deps.enrichDerivatives intentionally left undefined.
+  const batch = unwrap(await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE"], includeDerivatives: true }, deps));
+  assert.equal(batch.rows.length, 1);
+  assert.equal("derivatives" in batch.rows[0], false);
+});
+
+// ── E21. A THROWN derivatives subsystem error never fails the base batch ─────
+test("E21. a thrown enrichDerivatives never discards base rows or 500s the batch", async () => {
+  const { deps } = makeFakeDeps({ universe: ok(mkUniverse(["RELIANCE", "TCS"])) });
+  deps.enrichDerivatives = async () => {
+    throw new Error("SECRET_TOKEN=xyz derivatives subsystem exploded");
+  };
+  const batch = unwrap(
+    await runScreenerV3Batch({ referenceMs: REF, symbols: ["RELIANCE", "TCS"], includeDerivatives: true }, deps),
+  );
+  assert.equal(batch.rows.length, 2, "base rows survive a derivatives throw");
+  for (const row of batch.rows) {
+    assert.equal("derivatives" in row, false, "no fabricated derivatives after a throw");
+    assert.equal(row.health.status, "complete", "base health intact");
+  }
 });

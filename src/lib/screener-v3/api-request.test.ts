@@ -7,6 +7,7 @@ import {
   API_DEFAULT_LIMIT,
   API_CONCURRENCY,
   type ScreenerV3HandlerDeps,
+  type ScreenerV3RequestInput,
 } from "./api-request.ts";
 import {
   ok,
@@ -17,7 +18,7 @@ import {
   providerError,
   isFailure,
 } from "./types.ts";
-import type { ScreenerV3Batch, ScreenerV3BatchInput, ScreenerV3BatchResult } from "./batch-types.ts";
+import type { ScreenerV3Batch, ScreenerV3BatchResult } from "./batch-types.ts";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const REF = 1_800_000_000_000;
@@ -47,8 +48,8 @@ function makeDeps(opts: {
   now?: number;
   result?: ScreenerV3BatchResult;
   throwErr?: unknown;
-}): { deps: ScreenerV3HandlerDeps; calls: { now: number; inputs: ScreenerV3BatchInput[] } } {
-  const calls = { now: 0, inputs: [] as ScreenerV3BatchInput[] };
+}): { deps: ScreenerV3HandlerDeps; calls: { now: number; inputs: ScreenerV3RequestInput[] } } {
+  const calls = { now: 0, inputs: [] as ScreenerV3RequestInput[] };
   const deps: ScreenerV3HandlerDeps = {
     now: () => {
       calls.now++;
@@ -340,4 +341,134 @@ test("P22. pathologically long / overflowing digit limit is rejected (no Infinit
   // clamp to 250. A large finite value above MAX is likewise rejected.
   assert.equal(parseScreenerV3Query(params("limit=" + "9".repeat(400))).ok, false);
   assert.equal(parseScreenerV3Query(params("limit=9999999999999")).ok, false);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 2B PART 4 — include=derivatives parsing + enriched forwarding
+// ═══════════════════════════════════════════════════════════════════════════
+
+test("I1. no include param -> plain mode (includeDerivatives false)", () => {
+  const r = parseScreenerV3Query(params("symbols=RELIANCE"));
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.includeDerivatives, false);
+});
+
+test("I2. include=derivatives enables enrichment", () => {
+  const r = parseScreenerV3Query(params("symbols=RELIANCE&include=derivatives"));
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.includeDerivatives, true);
+});
+
+test("I3. unknown include token does not enable anything", () => {
+  const r = parseScreenerV3Query(params("include=greeks"));
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.includeDerivatives, false);
+});
+
+test("I4. comma-separated include with derivatives among unknown tokens enables it", () => {
+  const r = parseScreenerV3Query(params("include=" + encodeURIComponent("foo,derivatives,bar")));
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.includeDerivatives, true);
+});
+
+test("I5. repeated include params combine deterministically", () => {
+  const r = parseScreenerV3Query(params("include=foo&include=derivatives"));
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(r.includeDerivatives, true);
+  // Order-independent: derivatives first also works.
+  const r2 = parseScreenerV3Query(params("include=derivatives&include=foo"));
+  assert.ok(r2.ok);
+  if (r2.ok) assert.equal(r2.includeDerivatives, true);
+});
+
+test("I6. blank / whitespace include tokens are ignored (no enable, no error)", () => {
+  const rBlank = parseScreenerV3Query(params("include="));
+  assert.ok(rBlank.ok);
+  if (rBlank.ok) assert.equal(rBlank.includeDerivatives, false);
+  const rWs = parseScreenerV3Query(params("include=" + encodeURIComponent("  ,  ")));
+  assert.ok(rWs.ok);
+  if (rWs.ok) assert.equal(rWs.includeDerivatives, false);
+});
+
+test("I7. exact token match only ('derivative' / 'DERIVATIVES' do not enable)", () => {
+  for (const tok of ["derivative", "DERIVATIVES", "Derivatives", "derivatives2"]) {
+    const r = parseScreenerV3Query(params("include=" + tok));
+    assert.ok(r.ok);
+    if (r.ok) assert.equal(r.includeDerivatives, false, `token "${tok}" must not enable`);
+  }
+});
+
+test("I8. include parsing does not disturb existing symbol/limit parsing", () => {
+  const r = parseScreenerV3Query(params("symbols=TCS,RELIANCE&limit=5&include=derivatives"));
+  assert.ok(r.ok);
+  if (r.ok) {
+    assert.deepEqual(r.symbols, ["TCS", "RELIANCE"]);
+    assert.equal(r.limit, 5);
+    assert.equal(r.includeDerivatives, true);
+  }
+});
+
+test("I9. blank symbols= is still invalid_input even with include=derivatives", () => {
+  assert.equal(parseScreenerV3Query(params("symbols=&include=derivatives")).ok, false);
+});
+
+test("I10. limit=0 is still invalid even with include=derivatives", () => {
+  assert.equal(parseScreenerV3Query(params("limit=0&include=derivatives")).ok, false);
+});
+
+// ── Handler forwarding of the enrichment flag ────────────────────────────────
+
+test("HD1. plain request forwards NO includeDerivatives key (byte-compatible input)", async () => {
+  const { deps, calls } = makeDeps({});
+  await handleScreenerV3Request(params("symbols=RELIANCE"), deps);
+  assert.equal("includeDerivatives" in calls.inputs[0], false);
+  assert.deepEqual(Object.keys(calls.inputs[0]).sort(), ["concurrency", "limit", "referenceMs", "symbols"].sort());
+});
+
+test("HD2. enriched request forwards includeDerivatives=true", async () => {
+  const { deps, calls } = makeDeps({});
+  await handleScreenerV3Request(params("symbols=RELIANCE&include=derivatives"), deps);
+  assert.equal(calls.inputs[0].includeDerivatives, true);
+  assert.deepEqual(
+    Object.keys(calls.inputs[0]).sort(),
+    ["concurrency", "includeDerivatives", "limit", "referenceMs", "symbols"].sort(),
+  );
+});
+
+test("HD3. unknown include token does not set includeDerivatives", async () => {
+  const { deps, calls } = makeDeps({});
+  await handleScreenerV3Request(params("symbols=RELIANCE&include=greeks"), deps);
+  assert.equal("includeDerivatives" in calls.inputs[0], false);
+});
+
+test("HD4. enriched mode: caller controls cannot override server-owned policy", async () => {
+  const { deps, calls } = makeDeps({ now: 999 });
+  await handleScreenerV3Request(
+    params(
+      "symbols=RELIANCE&include=derivatives&concurrency=99&referenceMs=1&cacheTtl=5&maxEntries=999999&optionChainConcurrency=99&enrichedCap=999&expiry=2026-01-01&atmStrike=100",
+    ),
+    deps,
+  );
+  const input = calls.inputs[0];
+  assert.equal(input.concurrency, 4, "concurrency stays server-fixed");
+  assert.equal(input.referenceMs, 999, "referenceMs comes from now(), not the caller");
+  assert.equal(input.cachePolicy, undefined, "no cache policy derived from caller");
+  assert.equal(input.includeDerivatives, true);
+  // Only the intended keys exist — no cap/ttl/concurrency/expiry/strike leakage.
+  assert.deepEqual(
+    Object.keys(input).sort(),
+    ["concurrency", "includeDerivatives", "limit", "referenceMs", "symbols"].sort(),
+  );
+});
+
+test("HD5. enriched result is passed through with its HTTP status mapping", async () => {
+  const { deps } = makeDeps({ result: ok(mkBatch()) });
+  const out = await handleScreenerV3Request(params("symbols=RELIANCE&include=derivatives"), deps);
+  assert.equal(out.status, 200);
+});
+
+test("HD6. now() still called exactly once in enriched mode", async () => {
+  const { deps, calls } = makeDeps({});
+  await handleScreenerV3Request(params("symbols=RELIANCE&include=derivatives"), deps);
+  assert.equal(calls.now, 1);
 });

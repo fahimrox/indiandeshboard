@@ -11,6 +11,19 @@
 import { invalidInput, type DataStatus } from "./types.ts";
 import type { ScreenerV3BatchInput, ScreenerV3BatchResult } from "./batch-types.ts";
 
+/**
+ * Orchestrator run input as shaped by THIS API boundary. Additively extends the
+ * Phase 2A `ScreenerV3BatchInput` contract with the Phase 2B Part 4 enrichment
+ * toggle, without editing the base contract file. The flag is the ONLY
+ * enrichment control the caller can influence (via `include=derivatives`); every
+ * derivatives provider/cache/concurrency/reference/cap policy stays server-owned
+ * in the row orchestrator. Kept here (a pure, server-import-free module) so the
+ * base batch contract is unchanged and the row orchestrator consumes this type.
+ */
+export interface ScreenerV3RequestInput extends ScreenerV3BatchInput {
+  includeDerivatives?: boolean;
+}
+
 // ── Public workload limits (API boundary) ─────────────────────────────────
 export const API_DEFAULT_LIMIT = 200;
 export const API_MIN_LIMIT = 1;
@@ -24,14 +37,22 @@ export const API_SOURCE = "api/screener-v3";
 
 // ── Query parsing / validation ────────────────────────────────────────────
 
+/**
+ * Allow-listed `include` token that enables derivatives enrichment. This is the
+ * ONLY recognized include token; any other token is ignored (never forwarded as
+ * a control). Server-owned — the caller cannot use `include` to influence any
+ * provider/cache/concurrency/reference-time policy, only to toggle enrichment.
+ */
+export const INCLUDE_DERIVATIVES_TOKEN = "derivatives";
+
 export type ParsedScreenerV3Query =
-  | { ok: true; symbols?: string[]; limit: number }
+  | { ok: true; symbols?: string[]; limit: number; includeDerivatives: boolean }
   | { ok: false; error: string };
 
 /**
  * Parse and validate the public query string for GET /api/screener-v3.
  *
- * Supported params: `symbols` (optional), `limit` (optional).
+ * Supported params: `symbols` (optional), `limit` (optional), `include` (optional).
  * Everything else is ignored and can never reach the orchestrator input.
  */
 export function parseScreenerV3Query(params: URLSearchParams): ParsedScreenerV3Query {
@@ -89,7 +110,21 @@ export function parseScreenerV3Query(params: URLSearchParams): ParsedScreenerV3Q
     limit = parsed;
   }
 
-  return symbols === undefined ? { ok: true, limit } : { ok: true, symbols, limit };
+  // ── include (allow-list only) ──
+  // `include` is a token SET, not a singular control: repeated params and
+  // comma-separated values are both accepted and combined deterministically.
+  // Only the exact allow-listed token `derivatives` enables enrichment; blank
+  // and unknown tokens are ignored (never forwarded as controls, never errors).
+  // Enrichment is OFF by default (no `include` param -> plain mode).
+  const includeDerivatives = params
+    .getAll("include")
+    .flatMap((v) => v.split(","))
+    .map((t) => t.trim())
+    .includes(INCLUDE_DERIVATIVES_TOKEN);
+
+  return symbols === undefined
+    ? { ok: true, limit, includeDerivatives }
+    : { ok: true, symbols, limit, includeDerivatives };
 }
 
 // ── HTTP status mapping ─────────────────────────────────────────────────────
@@ -120,7 +155,7 @@ export interface ScreenerV3HandlerDeps {
   /** Machine-clock read. Called EXACTLY once per request at the boundary. */
   now: () => number;
   /** The orchestrator entry point (real in production, faked in tests). */
-  runBatch: (input: ScreenerV3BatchInput) => Promise<ScreenerV3BatchResult>;
+  runBatch: (input: ScreenerV3RequestInput) => Promise<ScreenerV3BatchResult>;
 }
 
 export interface ScreenerV3HttpOutcome {
@@ -156,13 +191,20 @@ export async function handleScreenerV3Request(
     };
   }
 
-  const input: ScreenerV3BatchInput = {
+  const input: ScreenerV3RequestInput = {
     referenceMs,
     limit: parsed.limit,
     concurrency: API_CONCURRENCY,
   };
   if (parsed.symbols !== undefined) {
     input.symbols = parsed.symbols;
+  }
+  // Only set the flag when enrichment is explicitly requested, so plain-mode
+  // orchestrator input stays byte-for-byte identical to Phase 2A. The enriched
+  // symbol cap and all derivatives policy remain server-owned in the
+  // orchestrator; the caller can only toggle this one boolean.
+  if (parsed.includeDerivatives) {
+    input.includeDerivatives = true;
   }
 
   try {

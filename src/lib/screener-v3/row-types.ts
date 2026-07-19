@@ -7,6 +7,7 @@ import type { CandleSeries } from "./candles.server.ts";
 import type { DataResult } from "./types.ts";
 import type { FnoInstrumentUniverse, SpotMappingStatus } from "./instrument-types.ts";
 import type { MappingStatus } from "./fno-universe.ts";
+import type { ScreenerV3Derivatives } from "./derivatives-types.ts";
 import type {
   VwapResult,
   SessionOhlc,
@@ -160,6 +161,20 @@ export interface ScreenerV3Row {
   identity: RowIdentity;
   metrics: RowMetrics;
   health: RowHealth;
+  /**
+   * OPTIONAL, ADDITIVE derivatives enrichment (Phase 2B Part 4). Present ONLY
+   * when derivatives enrichment was requested AND the top-level enrichment for
+   * this row was usable (available or stale). It is intentionally ABSENT (never
+   * `null`, never a fabricated object) when enrichment is off or the top-level
+   * enrichment failed — so default plain API JSON stays byte-for-byte
+   * backward-compatible.
+   *
+   * This is a SEPARATE availability envelope from the base-row `health` and the
+   * spot `metrics`: derivatives data has its own per-leg DataResults, its own
+   * `health`, and its own provider sources/timestamps/session states. Reuses the
+   * Phase 2B Part 1 `ScreenerV3Derivatives` contract verbatim; never redefined.
+   */
+  derivatives?: ScreenerV3Derivatives;
 }
 
 // ── Assembler input contract ────────────────────────────────────────────
