@@ -14,7 +14,16 @@ import { normalizeNseSymbolKey } from "./fno-universe.ts";
 import type { FnoInstrumentUniverse } from "./instrument-types.ts";
 import { assembleScreenerV3Row } from "./row-assembler.ts";
 import type { ScreenerV3Row } from "./row-types.ts";
-import { invalidInput, isFailure, propagateFailure, type DataResult, ok } from "./types.ts";
+import { invalidInput, isFailure, isUsable, propagateFailure, type DataResult, ok } from "./types.ts";
+import type { ScreenerV3Derivatives } from "./derivatives-types.ts";
+import type { DerivativesEnrichmentRequest } from "./derivatives-orchestrator.server.ts";
+import {
+  createDerivativesOrchestrator,
+  type DerivativesOrchestrator,
+  type DerivativesOrchestratorPolicy,
+} from "./derivatives-orchestrator.server.ts";
+import { createDerivativesCache, type DerivativesCachePolicy } from "./derivatives-cache.server.ts";
+import { createUpstoxDerivativesProvider } from "./derivatives-provider.server.ts";
 import {
   assertValidCachePolicy,
   buildCandleCacheKey,
@@ -27,9 +36,12 @@ import type {
   RejectedSymbol,
   ScreenerV3Batch,
   ScreenerV3BatchHealthSummary,
-  ScreenerV3BatchInput,
   ScreenerV3BatchResult,
 } from "./batch-types.ts";
+// Type-only import of the API-boundary run input (base ScreenerV3BatchInput plus
+// the additive Part 4 enrichment flag). `import type` is fully erased at compile
+// time, so this adds no runtime dependency and no client-bundle coupling.
+import type { ScreenerV3RequestInput } from "./api-request.ts";
 
 // ── Verified candle fetch plan (see candles.server.ts ALLOWED_RANGES) ───────
 // Intraday: 1m/1d gives the full current session's 1-minute candles, which is
@@ -66,6 +78,57 @@ export const MAX_CONCURRENCY = 32;
 
 export function isValidConcurrency(n: number): boolean {
   return Number.isInteger(n) && n >= 1 && n <= MAX_CONCURRENCY;
+}
+
+// ── Server-owned derivatives enrichment policy (Phase 2B Part 4) ───────────
+// Every value here is SERVER-OWNED and NEVER caller-overridable. The public API
+// exposes only a boolean toggle (`include=derivatives`); no query parameter can
+// change any of these, the reference time, the provider, or the access token.
+
+/**
+ * Reduced server-side cap on how many symbols a single ENRICHED batch will
+ * process. Plain (non-enriched) batches keep their existing limit behaviour.
+ * Rationale for 25: each enriched symbol resolves at most one CE + one PE
+ * option leg (2 contracts). At 25 symbols that is exactly MAX_OPTION_GREEK_BATCH
+ * (50) — one Greek provider call — and well within MAX_FUTURES_BATCH (500). This
+ * is the most conservative bound derived from the existing Part 2 provider
+ * constraints, keeping the (currently unauthenticated) enriched path bounded.
+ * Applied CONSISTENTLY to explicit-symbol and universe-derived requests.
+ */
+export const ENRICHED_MAX_SYMBOLS = 25;
+
+/** Bounded, process-local derivatives cache policy (server-owned). */
+export const DEFAULT_DERIVATIVES_CACHE_POLICY: DerivativesCachePolicy = {
+  freshTtlMs: 30_000, // 30s: derivatives quotes/greeks refresh cadence
+  staleTtlMs: 5 * 60_000, // 5min: tolerate a brief provider hiccup as stale
+  unavailableTtlMs: 60_000, // 1min: avoid hammering a truly-absent contract
+  maxEntries: 2_000, // bounded process-local footprint (never unbounded)
+};
+
+/** Server-owned derivatives orchestrator policy (chain overlay stays off by default). */
+export const DEFAULT_DERIVATIVES_ORCH_POLICY: DerivativesOrchestratorPolicy = {
+  // The row orchestrator does not opt any request into the option-chain overlay
+  // (Greek V3 is the broad default source), so this cap is a defensive ceiling.
+  maxOptionChainRequestsPerBatch: 10,
+  optionChainConcurrency: 4,
+  cachePolicy: DEFAULT_DERIVATIVES_CACHE_POLICY,
+};
+
+// Process-local singletons: the derivatives cache MUST persist across API
+// requests (Part 3 TTL / single-flight semantics rely on it) and must NEVER be
+// rebuilt per row or per request. Constructed lazily so importing this module
+// performs no work and no network call happens until an enriched request runs.
+let sharedDerivativesOrchestrator: DerivativesOrchestrator | null = null;
+function getSharedDerivativesOrchestrator(): DerivativesOrchestrator {
+  if (!sharedDerivativesOrchestrator) {
+    const provider = createUpstoxDerivativesProvider();
+    const cache = createDerivativesCache(DEFAULT_DERIVATIVES_CACHE_POLICY);
+    sharedDerivativesOrchestrator = createDerivativesOrchestrator(
+      { provider, cache },
+      DEFAULT_DERIVATIVES_ORCH_POLICY,
+    );
+  }
+  return sharedDerivativesOrchestrator;
 }
 
 interface ConcurrencyLimiter {
@@ -113,6 +176,17 @@ export interface RowOrchestratorDeps {
   ) => Promise<DataResult<CandleSeries>>;
   /** Optional injected cache instance (defaults to the shared process-local cache). */
   cache?: CandleCache;
+  /**
+   * Optional derivatives enrichment entry point (Phase 2B Part 4). Signature
+   * matches the Part 3 `DerivativesOrchestrator.enrichBatch`. Defaults to the
+   * shared process-local derivatives orchestrator. Injected as a fake in tests.
+   * Absent/omitted means enrichment is unavailable and rows stay plain.
+   */
+  enrichDerivatives?: (input: {
+    universe: DataResult<FnoInstrumentUniverse>;
+    requests: readonly DerivativesEnrichmentRequest[];
+    referenceMs: number;
+  }) => Promise<ReadonlyMap<string, DataResult<ScreenerV3Derivatives>>>;
 }
 
 /** Production defaults wrapping the existing Phase 1 foundation, unmodified. */
@@ -121,6 +195,7 @@ export function createDefaultRowOrchestratorDeps(): RowOrchestratorDeps {
     loadUniverse: (opts) => getStockFnoUniverse(opts),
     fetchCandles: (symbol, interval, opts) => fetchSpotCandles(symbol, interval, opts),
     cache: defaultCandleCache,
+    enrichDerivatives: (input) => getSharedDerivativesOrchestrator().enrichBatch(input),
   };
 }
 
@@ -175,7 +250,7 @@ function deriveSymbolsFromUniverse(universe: FnoInstrumentUniverse, limit: numbe
 // ── Batch orchestration ───────────────────────────────────────────────────
 
 export async function runScreenerV3Batch(
-  input: ScreenerV3BatchInput,
+  input: ScreenerV3RequestInput,
   deps: RowOrchestratorDeps = createDefaultRowOrchestratorDeps(),
 ): Promise<ScreenerV3BatchResult> {
   const { referenceMs } = input;
@@ -238,6 +313,22 @@ export async function runScreenerV3Batch(
     }
     accepted = deriveSymbolsFromUniverse(universeResult.value, limit);
     requestedCount = universeResult.value.underlyings.length;
+  }
+
+  // Enriched mode applies a REDUCED, server-owned symbol cap consistently to
+  // both explicit and universe-derived requests. Truncation preserves the
+  // existing deterministic order; dropped symbols are recorded truthfully in
+  // `rejectedSymbols` so nothing is silently processed beyond the cap and
+  // nothing beyond the cap is silently discarded. The cap is NOT
+  // caller-overridable by any query parameter.
+  if (input.includeDerivatives === true && accepted.length > ENRICHED_MAX_SYMBOLS) {
+    for (const dropped of accepted.slice(ENRICHED_MAX_SYMBOLS)) {
+      rejected.push({
+        input: dropped,
+        reason: `enriched batch capped at ${ENRICHED_MAX_SYMBOLS} symbols; not processed`,
+      });
+    }
+    accepted = accepted.slice(0, ENRICHED_MAX_SYMBOLS);
   }
 
   if (accepted.length === 0) {
@@ -308,6 +399,49 @@ export async function runScreenerV3Batch(
       "internal invariant failure: no rows could be constructed for any accepted symbol",
       { source: "row-orchestrator" },
     );
+  }
+
+  // ── Additive derivatives enrichment (Phase 2B Part 4) ────────────────────
+  // Only runs when enrichment is enabled AND a dependency is wired. Reuses the
+  // ALREADY-loaded `universeResult` (no extra universe load), issues exactly ONE
+  // batched `enrichBatch` call (never one provider task per row), and relies on
+  // the Part 3 cache/batching/single-flight/concurrency implementation. A
+  // derivatives failure never discards a base row or another symbol; only a
+  // usable (available/stale) top-level result attaches its value — a top-level
+  // failure leaves the property ABSENT (never a fabricated object, never null).
+  if (input.includeDerivatives === true && deps.enrichDerivatives) {
+    // One enrichment request per row that has a truthful anchor price (the
+    // Part 1 ATM selector requires a finite positive anchor). `lastCompleted`
+    // is the row's authoritative completed price; rows without a usable one are
+    // not enriched (and never fabricated). Request keys are the row's unique
+    // normalized symbol (accepted symbols are already deduped).
+    const requests: DerivativesEnrichmentRequest[] = [];
+    for (const row of rows) {
+      const lc = row.metrics.lastCompleted;
+      if (isUsable(lc)) {
+        requests.push({ requestKey: row.identity.symbol, symbol: row.identity.symbol, anchorPrice: lc.value.price });
+      }
+    }
+    if (requests.length > 0) {
+      // Defense-in-depth: the derivatives orchestrator is contracted to return
+      // truthful DataResults rather than throw, but an UNEXPECTED throw in the
+      // enrichment subsystem must never discard an otherwise-valid base batch or
+      // surface as a generic 500. On any throw, rows simply stay plain (no
+      // fabricated derivatives), exactly as if enrichment were unavailable.
+      try {
+        const enriched = await deps.enrichDerivatives({ universe: universeResult, requests, referenceMs });
+        for (const row of rows) {
+          const d = enriched.get(row.identity.symbol);
+          // Attach only a truthful usable value; failures leave `derivatives` absent.
+          if (d && isUsable(d)) {
+            row.derivatives = d.value;
+          }
+        }
+      } catch {
+        // Swallow: base rows remain intact and unfabricated. No raw error text
+        // (which could embed provider/credential context) is propagated.
+      }
+    }
   }
 
   const health: ScreenerV3BatchHealthSummary = { complete: 0, degraded: 0, partial: 0, unavailable: 0 };
